@@ -4,6 +4,12 @@ Human Motion Controller
 Controls the SMPL-H humanoid using AMASS motion playback with optional
 IK blending for disruption scenarios. Implements the motion blending
 architecture from the implementation plan.
+
+Integrates with:
+- AMASS motion loader for clip playback
+- PD controller for joint target tracking
+- HumanIK for arm reaching during disruptions
+- ScenarioParams from scenario sampler for configuration
 """
 
 import numpy as np
@@ -14,11 +20,18 @@ from dataclasses import dataclass
 
 from safety_bigym.motion.amass_loader import load_amass_clip, MotionClip
 from safety_bigym.human.pd_controller import PDController, PDGains
+from safety_bigym.human.human_ik import HumanIK
 
 
-@dataclass
+# Re-export ScenarioParams for backwards compatibility
+# (New code should import from safety_bigym.scenarios)
+@dataclass 
 class ScenarioParams:
-    """Parameters for a human behavior scenario."""
+    """Parameters for a human behavior scenario.
+    
+    Note: For full scenario configuration including disruption types,
+    use safety_bigym.scenarios.ScenarioParams instead.
+    """
     clip_path: str              # Path to AMASS motion clip
     trigger_time: float = 2.0   # Time when disruption starts (seconds)
     blend_duration: float = 0.4 # Blend duration between AMASS and IK (seconds)
@@ -65,6 +78,9 @@ class HumanController:
         # Initialize PD controller
         self.pd_controller = PDController(model, data, gains)
         
+        # Initialize IK solver
+        self.ik_solver = HumanIK(model, data)
+        
         # Motion clip and playback state
         self.clip: Optional[MotionClip] = None
         self.scenario: Optional[ScenarioParams] = None
@@ -72,6 +88,9 @@ class HumanController:
         
         # IK target callback (to be set by scenario)
         self._ik_target_callback: Optional[Callable[[dict], np.ndarray]] = None
+        
+        # Random generator for IK noise
+        self._rng = np.random.default_rng()
         
         # Build joint name to qpos index mapping
         self._build_joint_mapping()
