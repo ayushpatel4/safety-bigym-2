@@ -215,12 +215,12 @@ class AMASSLoader:
         """
         Convert translation from SMPL Y-up to MuJoCo Z-up.
         
-        SMPL: (x, y, z) where y is up
-        MuJoCo: (x, y, z) where z is up
-        Transform: x -> x, y -> z, z -> -y
+        Translation and orientation are independent world-coordinate systems.
+        We just need to swap the vertical axis:
+        - SMPL: Y is up, Z is forward
+        - MuJoCo: Z is up, Y is forward (negated for direction)
         
         Also compensates for the MJCF pelvis body offset.
-        The pelvis in our MJCF has pos="... -0.2408" (Z offset from freejoint).
         
         Args:
             trans: (N, 3) translations in SMPL coordinates
@@ -228,14 +228,17 @@ class AMASSLoader:
         Returns:
             (N, 3) translations in MuJoCo coordinates
         """
-        # MJCF pelvis Z offset (negative means pelvis is below freejoint origin)
+        # MJCF pelvis Z offset (compensate for pelvis position below freejoint)
         PELVIS_Z_OFFSET = -0.2408
         
+        # Coordinate mapping adjusted for correct motion direction
+        # SMPL: x=left/right, y=up, z=forward
+        # MuJoCo: x=left/right, y=forward, z=up
         trans_mujoco = np.zeros_like(trans)
-        trans_mujoco[:, 0] = trans[:, 0]      # x -> x
-        trans_mujoco[:, 1] = -trans[:, 2]     # z -> -y
-        # Add offset so freejoint places pelvis at correct height
-        trans_mujoco[:, 2] = trans[:, 1] - PELVIS_Z_OFFSET
+        trans_mujoco[:, 0] = trans[:, 0]                     # x -> x (left/right)
+        trans_mujoco[:, 1] = trans[:, 2]                     # z -> y (forward)
+        trans_mujoco[:, 2] = trans[:, 1] - PELVIS_Z_OFFSET   # y -> z (up, with offset)
+        
         return trans_mujoco
     
     def _convert_joint_angles(self, euler_angles: np.ndarray) -> np.ndarray:
