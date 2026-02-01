@@ -1,0 +1,45 @@
+# Safety BiGym Implementation
+
+## Phase 1: Package Setup & Core Infrastructure
+- [x] Create `safety_bigym` package structure
+- [x] Create [setup.py](file:///Users/ayushpatel/Documents/FYP3/bigym/setup.py) with bigym dependency
+- [x] Create base wrapper class [SafetyBiGymEnv](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/envs/safety_env.py#12-192)
+
+## Phase 2: SMPL-H Asset Preparation (REVISED)
+- [x] Create [smplh_generator.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/scripts/smplh_generator.py) to generate MJCF from pickle file
+- [x] Start with 22 body joints only (add hand joints later)
+- [x] Generate collision capsules from T-pose joint positions
+- [x] Add body region annotations for PFL
+- [x] Visual verification in MuJoCo viewer
+
+## Phase 3: AMASS→MuJoCo Pipeline
+- [x] Create [amass_loader.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/motion/amass_loader.py) with coordinate/rotation conversion
+- [x] Convert axis-angle poses to MuJoCo joint angles
+- [x] Test with CMU sample clip (01_01_poses.npz) script
+
+## Phase 4: PD-Controlled Human Motion
+- [x] Create [pd_controller.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/scripts/test_pd_controller.py) with PD control for joint targets
+- [x] Create [human_controller.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/tests/test_human_controller.py) with motion blending
+- [x] Implement AMASS playback + IK blending at trigger time
+- [x] Test with motion playback and target tracking
+
+## Phase 5: IK for Goal-Directed Reaching
+- [/] Create `human_ik.py` with Jacobian-based IK
+- [ ] Support arm chain reaching
+
+## Phase 6: Parameterised Scenario Sampler
+- [ ] Create `scenario_sampler.py`
+- [ ] Implement 5 disruption types (incidental, shared_goal, direct, obstruction, random_perturbed)
+- [ ] Add parameter space configuration
+
+## Phase 7: ISO 15066 Safety Wrapper
+- [ ] Create `iso15066_wrapper.py`
+- [ ] Implement SSM configuration
+- [ ] Implement PFL configuration with body region limits
+- [ ] Add quasi-static vs transient detection
+- [ ] Add sub-step force capture
+
+## Phase 8: Integration & Testing
+- [ ] Wire scenario sampler into environment
+- [ ] Create unit tests
+- [ ] Create integration tests

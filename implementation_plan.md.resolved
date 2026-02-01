@@ -1,0 +1,326 @@
+# Parameterised Human Behaviour for Safety Filter Evaluation
+
+## Goal
+Show safety filter **generalises across diverse human behaviours** using **SMPL-H** (52 joints, native AMASS format).
+
+This is implemented as a **wrapper package** (`safety_bigym`) around the existing `bigym` package.
+
+---
+
+## Architecture
+
+```
+HumanBehaviourSampler.sample_scenario(seed)  ← called on env.reset()
+        │
+        ▼
+MotionController
+  ├─ t < trigger: AMASS playback
+  ├─ trigger ≤ t < trigger+blend: interpolate AMASS↔IK
+  └─ t ≥ trigger+blend: IK-driven disruption
+        │
+        ▼  (joint targets)
+PD Controller → MuJoCo Physics
+        │
+        ▼
+ISO15066Wrapper (samples forces at every sub-step)
+```
+
+---
+
+## Package Structure
+
+```
+safety_bigym/
+├── setup.py
+├── safety_bigym/
+│   ├── __init__.py
+│   ├── assets/
+│   │   └── smplh_human.xml
+│   ├── motion/
+│   │   ├── __init__.py
+│   │   ├── amass_loader.py
+│   │   └── motion_clip.py
+│   ├── human/
+│   │   ├── __init__.py
+│   │   ├── human_controller.py
+│   │   ├── human_ik.py
+│   │   └── pd_controller.py
+│   ├── scenarios/
+│   │   ├── __init__.py
+│   │   ├── scenario_sampler.py
+│   │   └── disruption_types.py
+│   ├── safety/
+│   │   ├── __init__.py
+│   │   ├── iso15066_wrapper.py
+│   │   └── pfl_limits.py
+│   └── envs/
+│       ├── __init__.py
+│       └── safety_env.py
+├── scripts/
+│   ├── preview_single_amass_clip.py
+│   └── run_coverage_eval.py
+└── tests/
+    ├── __init__.py
+    ├── test_amass_loader.py
+    ├── test_scenario_sampler.py
+    └── test_iso15066_wrapper.py
+```
+
+---
+
+## Phase 1: SMPL-H Asset Preparation (4-5 days)
+
+#### [NEW] [smplh_human.xml](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/assets/smplh_human.xml)
+
+**Skeleton:**
+- 52-joint SMPL-H hierarchy (match AMASS joint ordering exactly)
+- Actuated joints with position control (`<joint>` + `<actuator>`)
+- Height-scalable via `<default>` classes for 5th-95th percentile
+
+**Collision capsules with soft contact:**
+```xml
+<default class="human_collision">
+  <geom type="capsule" 
+        solref="0.02 1.0" 
+        solimp="0.9 0.95 0.001"
+        group="2"/>
+</default>
+```
+
+**Body region annotations (for PFL):**
+```xml
+<geom name="forearm_L_col" class="human_collision" 
+      user="iso_region:forearm pressure_area:0.001"/>
+```
+
+**Environment fixture tagging (for quasi-static detection):**
+```xml
+<!-- In environment XMLs, tag static surfaces -->
+<geom name="counter_top" group="3" user="fixture:true"/>
+```
+
+---
+
+## Phase 2: AMASS→MuJoCo Pipeline (6-7 days)
+
+> [!WARNING]  
+> Highest-risk phase. Get ONE clip working visually before processing library.
+
+#### [NEW] [amass_loader.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/motion/amass_loader.py)
+
+**Conversion steps:**
+1. **Coordinate frame:** SMPL-H Y-up → MuJoCo Z-up (swap Y↔Z, negate)
+2. **Rotation format:** axis-angle → quaternion (per MuJoCo joint type)
+3. **Joint ordering:** Map SMPL-H indices → MJCF joint names
+4. **Shape handling:** β parameters → bone length scaling (or use neutral β=0)
+
+```python
+class AMASSLoader:
+    def load_clip(self, npz_path: Path) -> MotionClip:
+        """Load single clip, convert to MuJoCo format."""
+        
+    def convert_pose(self, smplh_pose: np.ndarray) -> np.ndarray:
+        """axis-angle (52,3) → MuJoCo joint angles."""
+        
+    def convert_root(self, trans: np.ndarray) -> np.ndarray:
+        """Y-up → Z-up coordinate transform."""
+```
+
+**Visual verification script:**
+```bash
+python scripts/preview_single_amass_clip.py --clip CMU/01/01_01.npz
+```
+
+---
+
+## Phase 3: PD-Controlled Human (3-4 days)
+
+#### [NEW] [human_controller.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/human/human_controller.py)
+
+**Motion blending at trigger time:**
+```python
+def step(self, t: float, scenario: ScenarioParams, robot_state: dict):
+    trigger = scenario.trigger_time
+    blend = 0.4  # seconds
+    
+    if t < trigger:
+        targets = self._amass_targets(t)
+    elif t < trigger + blend:
+        alpha = (t - trigger) / blend
+        targets = (1 - alpha) * self._amass_targets(t) + alpha * self._ik_targets(robot_state)
+    else:
+        targets = self._ik_targets(robot_state)
+    
+    self._pd_controller.set_targets(targets)
+```
+
+---
+
+## Phase 4: IK for Goal-Directed Reaching (2-3 days)
+
+#### [NEW] [human_ik.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/human/human_ik.py)
+
+Jacobian-based IK using `mujoco.mj_jac()` for arm chains.
+
+---
+
+## Phase 5: Parameterised Scenario Sampler (3-4 days)
+
+#### [NEW] [scenario_sampler.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/scenarios/scenario_sampler.py)
+
+**Parameter Space:**
+| Parameter | Range |
+|-----------|-------|
+| `clip` | 50-100 AMASS clips |
+| `disruption` | 5 types (see below) |
+| `trigger_time` | 0.2 – 0.8 × episode |
+| `speed_multiplier` | 0.5 – 2.0 |
+| `approach_angle` | 0° – 360° |
+| `target_body_part` | `hand`, `forearm`, `torso`, `head` |
+| `human_height` | 5th – 95th percentile |
+
+**5 Disruption Types:**
+| Type | Behaviour |
+|------|-----------|
+| `incidental` | AMASS walk; path intersects workspace |
+| `shared_goal` | IK reach toward object near robot goal |
+| `direct` | IK tracks robot EE with lag + noise |
+| `obstruction` | Walk into robot path, hold position |
+| `random_perturbed` | AMASS + Gaussian noise on trajectory |
+
+**Episode lifecycle:**
+```python
+def reset(self, seed: int):
+    self.scenario = self.sampler.sample_scenario(seed)  # Reproducible
+    self.human.load_clip(self.scenario.clip)
+```
+
+---
+
+## Phase 6: ISO 15066 Safety Wrapper (5-6 days)
+
+#### [NEW] [iso15066_wrapper.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/safety/iso15066_wrapper.py)
+
+**SSM Configuration (not hardcoded):**
+```python
+@dataclass
+class SSMConfig:
+    T_reaction: float = 0.1    # Robot reaction time (s)
+    a_max: float = 5.0         # Max braking decel (m/s²)
+    C: float = 0.1             # Intrusion distance (m)
+    v_h_max: float = 1.6       # Max human speed (m/s)
+```
+
+**PFL Configuration (ISO 15066 Annex A, quasi-static/transient split):**
+```python
+# Force in N, pressure in N/cm², area in m²
+PFL_LIMITS = {
+    # Region:         qs_force, tr_force, pressure, area (m²)
+    'skull':         {'qs': 130, 'tr': 260, 'p': 130, 'area': 0.00050},
+    'face':          {'qs': 65,  'tr': 130, 'p': 110, 'area': 0.00050},
+    'neck':          {'qs': 145, 'tr': 290, 'p': 140, 'area': 0.00100},
+    'back_shoulders':{'qs': 210, 'tr': 420, 'p': 170, 'area': 0.00200},
+    'chest':         {'qs': 140, 'tr': 280, 'p': 120, 'area': 0.01000},
+    'abdomen':       {'qs': 110, 'tr': 220, 'p': 110, 'area': 0.01000},
+    'pelvis':        {'qs': 180, 'tr': 360, 'p': 180, 'area': 0.00500},
+    'upper_arm':     {'qs': 150, 'tr': 300, 'p': 190, 'area': 0.00100},
+    'forearm':       {'qs': 160, 'tr': 320, 'p': 180, 'area': 0.00100},
+    'hand_palm':     {'qs': 140, 'tr': 280, 'p': 190, 'area': 0.00060},
+    'hand_finger':   {'qs': 140, 'tr': 280, 'p': 300, 'area': 0.00010},  # 1 cm²
+    'thigh':         {'qs': 220, 'tr': 440, 'p': 200, 'area': 0.00200},
+    'shin':          {'qs': 220, 'tr': 440, 'p': 210, 'area': 0.00150},
+}
+```
+
+**Applying limits based on contact type:**
+```python
+def check_pfl_violation(self, region: str, force: float, contact_type: str) -> bool:
+    limits = PFL_LIMITS[region]
+    threshold = limits['qs'] if contact_type == 'quasi_static' else limits['tr']
+    return force > threshold
+```
+
+**Quasi-static vs Transient Detection:**
+```python
+def classify_contact(self, contact, human_geoms, robot_geoms, fixture_geoms):
+    """
+    Quasi-static: human part contacts BOTH robot AND fixture (clamping)
+    Transient: human contacts robot only, or robot + non-fixture object
+    """
+    human_part = self._get_body_region(contact.geom1, contact.geom2)
+    is_clamped = self._check_clamping(human_part, fixture_geoms)
+    return 'quasi_static' if is_clamped else 'transient'
+```
+
+**Sub-step force capture with type-aware checking:**
+```python
+def step(self, action):
+    max_forces = defaultdict(lambda: {'force': 0.0, 'type': 'transient'})
+    
+    for _ in range(self.n_substeps):
+        mujoco.mj_step(self.model, self.data)
+        
+        for contact in self.data.contact:
+            region = self._get_body_region(contact)
+            force = self._get_contact_force(contact)
+            ctype = self.classify_contact(contact, ...)
+            
+            if force > max_forces[region]['force']:
+                max_forces[region] = {'force': force, 'type': ctype}
+    
+    violations = []
+    for region, data in max_forces.items():
+        if self.check_pfl_violation(region, data['force'], data['type']):
+            violations.append((region, data['force'], data['type']))
+    return violations
+```
+
+---
+
+## Phase 7: Integration + Debugging (3-4 days)
+
+#### [NEW] [safety_env.py](file:///Users/ayushpatel/Documents/FYP3/safety_bigym/safety_bigym/envs/safety_env.py)
+
+Wrapper environment that:
+1. Wraps any bigym environment
+2. Spawns SMPL-H human with sampled scenario on [reset()](file:///Users/ayushpatel/Documents/FYP3/bigym/bigym/bigym_env.py#392-407)
+3. Steps human motion controller on each [step()](file:///Users/ayushpatel/Documents/FYP3/bigym/bigym/envs/reach_target.py#104-107)
+4. Applies ISO 15066 monitoring at each sub-step
+
+- End-to-end testing with N=100 scenarios
+- Video generation for each disruption type
+
+---
+
+## Timeline
+
+| Phase | Duration | Cumulative |
+|-------|----------|------------|
+| 1. SMPL-H assets + contact tuning | 4-5 days | Week 1 |
+| 2. AMASS pipeline + visual verify | 6-7 days | Week 2 |
+| 3. PD control + blending | 3-4 days | Week 2-3 |
+| 4. IK | 2-3 days | Week 3 |
+| 5. Scenario sampler | 3-4 days | Week 3-4 |
+| 6. ISO 15066 wrapper | 5-6 days | Week 4-5 |
+| 7. Integration | 3-4 days | Week 5 |
+
+**Total: ~5 weeks**
+
+---
+
+## Verification
+
+```bash
+# Phase 2 early check (before full library)
+python scripts/preview_single_amass_clip.py --clip CMU/01/01_01.npz
+
+# Unit tests
+pytest tests/test_amass_loader.py -v
+pytest tests/test_scenario_sampler.py -v
+pytest tests/test_iso15066_wrapper.py -v
+
+# Coverage: N=1000 scenarios, stratified reports
+python scripts/run_coverage_eval.py --n 1000 --output results/
+```
+
+**Known limitation:** If physics sub-step rate is lower than impact duration, peak transient forces may be underestimated. Document and recommend running at 500Hz+ physics for accurate PFL measurement.
