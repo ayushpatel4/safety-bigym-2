@@ -24,7 +24,7 @@
 - [x] Test with motion playback and target tracking
 
 ## Phase 5: IK for Goal-Directed Reaching
-- [/] Create `human_ik.py` with Jacobian-based IK
+- [] Create `human_ik.py` with Jacobian-based IK
 - [ ] Support arm chain reaching
 
 ## Phase 6: Parameterised Scenario Sampler
