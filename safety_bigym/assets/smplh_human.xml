@@ -14,6 +14,10 @@
   <compiler angle="radian" autolimits="true" inertiafromgeom="true"/>
   
   <option gravity="0 0 -9.81" timestep="0.002"/>
+  
+  <visual>
+    <global offwidth="1920" offheight="1080"/>
+  </visual>
 
   <default>
     <default class="human">
