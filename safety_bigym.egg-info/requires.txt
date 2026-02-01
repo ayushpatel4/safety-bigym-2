@@ -1,0 +1,8 @@
+bigym
+numpy<2.0,>=1.26
+mujoco>=3.1.5
+scipy
+
+[dev]
+pytest
+pytest-cov

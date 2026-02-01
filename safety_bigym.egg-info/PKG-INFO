@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: safety_bigym
+Version: 0.1.0
+Summary: Safety wrapper for BiGym with SMPL-H humans and ISO 15066 monitoring
+Author: Ayush Patel
+Requires-Python: >=3.10
+Requires-Dist: bigym
+Requires-Dist: numpy<2.0,>=1.26
+Requires-Dist: mujoco>=3.1.5
+Requires-Dist: scipy
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Dynamic: author
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
