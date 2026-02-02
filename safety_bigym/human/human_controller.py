@@ -94,6 +94,21 @@ class HumanController:
         
         # Build joint name to qpos index mapping
         self._build_joint_mapping()
+        
+        # Base transformation (offset + yaw)
+        self.base_offset = np.zeros(3)
+        self.base_yaw = 0.0
+    
+    def set_base_transform(self, pos: np.ndarray, yaw: float):
+        """
+        Set base transformation for motion playback.
+        
+        Args:
+            pos: Position offset [x, y, z]
+            yaw: Yaw rotation in radians
+        """
+        self.base_offset = np.array(pos)
+        self.base_yaw = yaw
     
     def _build_joint_mapping(self):
         """Build mapping from joint names to qpos indices."""
@@ -142,6 +157,31 @@ class HumanController:
             # Set initial pose from clip
             self._apply_amass_frame(0)
     
+    def _apply_transform(self, pos: np.ndarray, quat: np.ndarray) -> tuple:
+        """Apply base transformation to root position and orientation."""
+        # 1. Rotate position
+        cy, sy = np.cos(self.base_yaw), np.sin(self.base_yaw)
+        x, y, z = pos
+        new_x = x * cy - y * sy
+        new_y = x * sy + y * cy
+        new_pos = np.array([new_x, new_y, z]) + self.base_offset
+        
+        # 2. Rotate quaternion (multiply by yaw rotation)
+        # Yaw quaternion (w, x, y, z)
+        q_yaw = np.array([np.cos(self.base_yaw/2), 0, 0, np.sin(self.base_yaw/2)])
+        
+        # Multiply: q_new = q_yaw * q_old (global rotation)
+        w1, x1, y1, z1 = q_yaw
+        w2, x2, y2, z2 = quat
+        
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+        
+        new_quat = np.array([w, x, y, z])
+        return new_pos, new_quat
+
     def _get_amass_targets(self, t: float) -> np.ndarray:
         """
         Get joint targets from AMASS motion at time t.
@@ -161,6 +201,9 @@ class HumanController:
         
         # Get motion data
         joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
+        
+        # Apply base transformation
+        root_trans, root_quat = self._apply_transform(root_trans, root_quat)
         
         # Build target qpos
         targets = self.data.qpos.copy()
@@ -202,6 +245,9 @@ class HumanController:
             return
             
         joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
+        
+        # Apply base transformation
+        root_trans, root_quat = self._apply_transform(root_trans, root_quat)
         
         # Set root
         self.data.qpos[0:3] = root_trans
