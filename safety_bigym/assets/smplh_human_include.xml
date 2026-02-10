@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SMPL-H Human Body (for inclusion into other scenes)
+  This file contains ONLY the body hierarchy and actuators,
+  NOT worldbody, floor, or assets that conflict with main scene.
+-->
+<mujoco model="smplh_human_body">
+  <default>
+    <default class="human">
+      <joint damping="50" armature="0.01"/>
+      <geom type="capsule" condim="3" friction="1 0.5 0.001" density="1000"/>
+    </default>
+    
+    <default class="human_collision">
+      <geom type="capsule" 
+            solref="0.02 1.0" 
+            solimp="0.9 0.95 0.001"
+            group="2"
+            contype="1"
+            conaffinity="0"
+            rgba="0.8 0.6 0.5 0.5"/>
+    </default>
+    
+    <default class="position_actuator">
+      <position kp="200" kv="20"/>
+    </default>
+  </default>
+
+  <!-- Human body will be attached via include -->
+</mujoco>

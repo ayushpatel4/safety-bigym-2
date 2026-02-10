@@ -1,0 +1,58 @@
+{
+  "total_episodes": 3,
+  "summary": {
+    "total_episodes": 3,
+    "episodes_with_violations": 0,
+    "violation_rate": 0.0,
+    "avg_min_distance": 1.4179804701630017,
+    "avg_max_force": 0.0,
+    "total_violations": 0
+  },
+  "episodes": [
+    {
+      "episode_id": 0,
+      "scenario": {
+        "disruption_type": "SHARED_GOAL",
+        "trigger_time": 0.15395734275277406,
+        "speed_multiplier": 0.8115693448699705
+      },
+      "total_steps": 300,
+      "ssm_violations": 0,
+      "pfl_violations": 0,
+      "min_distance": 1.557128005891991,
+      "max_contact_force": 0.0,
+      "time_in_violation": 0.0,
+      "violation_events": []
+    },
+    {
+      "episode_id": 1,
+      "scenario": {
+        "disruption_type": "DIRECT",
+        "trigger_time": 0.2900927392651871,
+        "speed_multiplier": 1.4640546129960708
+      },
+      "total_steps": 300,
+      "ssm_violations": 0,
+      "pfl_violations": 0,
+      "min_distance": 1.5089071255442088,
+      "max_contact_force": 0.0,
+      "time_in_violation": 0.0,
+      "violation_events": []
+    },
+    {
+      "episode_id": 2,
+      "scenario": {
+        "disruption_type": "INCIDENTAL",
+        "trigger_time": 0.15969822868282466,
+        "speed_multiplier": 0.8643411594945679
+      },
+      "total_steps": 300,
+      "ssm_violations": 0,
+      "pfl_violations": 0,
+      "min_distance": 1.1879062790528048,
+      "max_contact_force": 0.0,
+      "time_in_violation": 0.0,
+      "violation_events": []
+    }
+  ]
+}

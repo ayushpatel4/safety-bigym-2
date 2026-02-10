@@ -94,6 +94,41 @@ class HumanController:
         
         # Build joint name to qpos index mapping
         self._build_joint_mapping()
+        
+        # Store initial standing pose (all zeros for human joints)
+        self._standing_pose = np.zeros(self.model.nq)
+        # Keep root at initial position
+        self._standing_pose[3:7] = [0, 0, 0, 1]  # Identity quaternion
+        
+        # Root position offset (to shift AMASS motion to spawn position)
+        self._root_offset = np.zeros(3)
+    
+    def set_root_offset(self, spawn_pos: np.ndarray, clip_origin: Optional[np.ndarray] = None):
+        """
+        Set root offset to shift AMASS motion to spawn position.
+        
+        Only offsets X and Y positions - Z is preserved from AMASS motion
+        since it contains the correct pelvis height for standing.
+        
+        Args:
+            spawn_pos: Desired spawn position [x, y, z] (z typically 0 for floor)
+            clip_origin: AMASS clip's first frame root position (auto-detected if None)
+        """
+        if clip_origin is None and self.clip is not None:
+            # Get first frame root position from clip
+            _, root_trans, _ = self.clip.get_frame(0)
+            clip_origin = root_trans
+        
+        if clip_origin is not None:
+            # Only offset XY - keep AMASS Z (has correct pelvis height)
+            self._root_offset = np.array([
+                spawn_pos[0] - clip_origin[0],  # X offset
+                spawn_pos[1] - clip_origin[1],  # Y offset  
+                0.0  # No Z offset - AMASS has correct standing height
+            ])
+        else:
+            # No clip, just use spawn pos directly (including Z for initial position)
+            self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
     
     def _build_joint_mapping(self):
         """Build mapping from joint names to qpos indices."""
@@ -123,7 +158,8 @@ class HumanController:
             scenario: Scenario configuration
         """
         self.scenario = scenario
-        self.load_clip(scenario.clip_path)
+        if scenario.clip_path:
+            self.load_clip(scenario.clip_path)
     
     def set_ik_callback(self, callback: Callable[[dict], np.ndarray]):
         """
@@ -153,7 +189,11 @@ class HumanController:
             Target qpos array
         """
         if self.clip is None:
-            return self.data.qpos.copy()
+            # Return standing pose as fallback (keeps human upright)
+            targets = self._standing_pose.copy()
+            # Preserve current root position
+            targets[0:7] = self.data.qpos[0:7]
+            return targets
         
         # Apply speed multiplier
         speed = self.scenario.speed_multiplier if self.scenario else 1.0
@@ -166,7 +206,8 @@ class HumanController:
         targets = self.data.qpos.copy()
         
         # Set root position and orientation (freejoint: 3 pos + 4 quat)
-        targets[0:3] = root_trans
+        # Apply root offset to shift motion to spawn position
+        targets[0:3] = root_trans + self._root_offset
         targets[3:7] = root_quat
         
         # Set joint angles
@@ -249,6 +290,10 @@ class HumanController:
         # Set targets and apply control
         self.pd_controller.set_targets(targets)
         self.pd_controller.apply_control()
+        
+        # Directly set root position/orientation (freejoint can't be PD controlled)
+        # This ensures the human follows the motion trajectory
+        self.data.qpos[0:7] = targets[0:7]
         
         # Advance time
         self.t += dt

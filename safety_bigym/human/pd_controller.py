@@ -97,13 +97,16 @@ class PDController:
         For torque actuators, this would return PD-computed torques.
         
         Returns:
-            Control signal array (nu,)
+            Control signal array (nu,) - only human actuators are set
         """
-        # For position actuators, we set ctrl to target positions
-        # The actuator's internal PD handles the tracking
-        ctrl = np.zeros(self.model.nu)
+        # Start with current ctrl to preserve robot controls
+        ctrl = self.data.ctrl.copy()
         
         for name, act_idx in self.actuator_name_to_idx.items():
+            # Only control human actuators (act_* prefix)
+            if not name.startswith("act_"):
+                continue
+                
             # Get the joint this actuator controls
             joint_id = self.model.actuator_trnid[act_idx, 0]
             if joint_id >= 0:
