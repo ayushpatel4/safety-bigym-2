@@ -31,13 +31,14 @@ from safety_bigym.scenarios import (
     DisruptionType,
     DisruptionConfig,
 )
-from safety_bigym.envs import SafetyBiGymEnv
+from safety_bigym.envs import SafetyBiGymEnv, make_safety_env
 
 __version__ = "0.1.0"
 
 __all__ = [
     # Main environment
     "SafetyBiGymEnv",
+    "make_safety_env",
     # Configuration
     "SSMConfig",
     "SafetyConfig", 

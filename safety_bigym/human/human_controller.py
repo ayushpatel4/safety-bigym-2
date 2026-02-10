@@ -102,6 +102,10 @@ class HumanController:
         
         # Root position offset (to shift AMASS motion to spawn position)
         self._root_offset = np.zeros(3)
+        
+        # Root yaw rotation (rotate AMASS motion direction toward robot)
+        self._root_yaw = 0.0  # radians
+        self._clip_origin = np.zeros(3)  # First frame root position
     
     def set_root_offset(self, spawn_pos: np.ndarray, clip_origin: Optional[np.ndarray] = None):
         """
@@ -120,15 +124,58 @@ class HumanController:
             clip_origin = root_trans
         
         if clip_origin is not None:
-            # Only offset XY - keep AMASS Z (has correct pelvis height)
-            self._root_offset = np.array([
-                spawn_pos[0] - clip_origin[0],  # X offset
-                spawn_pos[1] - clip_origin[1],  # Y offset  
-                0.0  # No Z offset - AMASS has correct standing height
-            ])
-        else:
-            # No clip, just use spawn pos directly (including Z for initial position)
+            self._clip_origin = clip_origin.copy()
+            # Offset is computed AFTER rotation, so just store spawn XY
+            # The actual offset application happens in _get_amass_targets
             self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
+        else:
+            self._clip_origin = np.zeros(3)
+            self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
+    
+    def set_root_yaw(self, yaw: float):
+        """
+        Set yaw rotation to apply to AMASS motion direction.
+        
+        This rotates the clip's root trajectory around the clip's origin
+        so the human's movement direction faces toward the robot.
+        
+        Args:
+            yaw: Desired facing direction in radians (toward robot)
+        """
+        if self.clip is not None:
+            # Determine AMASS clip's natural forward direction from first few frames
+            _, start_pos, _ = self.clip.get_frame(0)
+            # Use a frame ~1 second in (or last frame) to find direction
+            end_idx = min(30, self.clip.num_frames - 1)
+            _, end_pos, _ = self.clip.get_frame(end_idx)
+            
+            clip_dir = end_pos[:2] - start_pos[:2]  # XY direction
+            if np.linalg.norm(clip_dir) > 0.01:
+                clip_yaw = np.arctan2(clip_dir[1], clip_dir[0])
+            else:
+                clip_yaw = 0.0  # Clip doesn't move much, assume facing +X
+            
+            # Rotation needed = desired yaw - clip's natural yaw
+            self._root_yaw = yaw - clip_yaw
+        else:
+            self._root_yaw = yaw
+    
+    @staticmethod
+    def _quat_from_yaw(yaw: float) -> np.ndarray:
+        """Create quaternion [w, x, y, z] for rotation around Z axis."""
+        return np.array([np.cos(yaw / 2), 0.0, 0.0, np.sin(yaw / 2)])
+    
+    @staticmethod
+    def _quat_multiply(q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+        """Multiply two quaternions [w, x, y, z]."""
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+        return np.array([
+            w1*w2 - x1*x2 - y1*y2 - z1*z2,
+            w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2,
+            w1*z2 + x1*y2 - y1*x2 + z1*w2,
+        ])
     
     def _build_joint_mapping(self):
         """Build mapping from joint names to qpos indices."""
@@ -205,10 +252,27 @@ class HumanController:
         # Build target qpos
         targets = self.data.qpos.copy()
         
-        # Set root position and orientation (freejoint: 3 pos + 4 quat)
-        # Apply root offset to shift motion to spawn position
-        targets[0:3] = root_trans + self._root_offset
-        targets[3:7] = root_quat
+        # Rotate root position around clip origin, then translate to spawn
+        # 1. Center on clip origin
+        pos_centered = root_trans - self._clip_origin
+        
+        # 2. Rotate XY by root yaw
+        cos_y = np.cos(self._root_yaw)
+        sin_y = np.sin(self._root_yaw)
+        rotated_x = cos_y * pos_centered[0] - sin_y * pos_centered[1]
+        rotated_y = sin_y * pos_centered[0] + cos_y * pos_centered[1]
+        
+        # 3. Translate to spawn position (XY from offset, Z from AMASS)
+        targets[0] = rotated_x + self._root_offset[0]
+        targets[1] = rotated_y + self._root_offset[1]
+        targets[2] = root_trans[2]  # Keep original Z (pelvis height)
+        
+        # 4. Rotate quaternion orientation
+        if abs(self._root_yaw) > 1e-6:
+            yaw_quat = self._quat_from_yaw(self._root_yaw)
+            targets[3:7] = self._quat_multiply(yaw_quat, root_quat)
+        else:
+            targets[3:7] = root_quat
         
         # Set joint angles
         for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):

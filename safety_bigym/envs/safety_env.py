@@ -386,10 +386,27 @@ class SafetyBiGymEnv(BiGymEnv):
             )
             self.human_controller.set_scenario(hc_params)
         
-        # Position human
-        spawn_idx = np.random.randint(len(self._spawn_positions))
-        spawn_config = self._spawn_positions[spawn_idx]
+        # Compute spawn position from scenario parameters
+        # approach_angle: 0° = in front (+X), 90° = left (+Y), etc.
+        angle_rad = np.deg2rad(self._current_scenario.approach_angle)
+        dist = self._current_scenario.spawn_distance
+        
+        # Robot is at approximately (0, 0) — spawn on a circle around it
+        spawn_x = dist * np.cos(angle_rad)
+        spawn_y = dist * np.sin(angle_rad)
+        
+        # Yaw to face toward robot (opposite of spawn direction)
+        face_robot_yaw = np.arctan2(-spawn_y, -spawn_x)
+        
+        spawn_config = {
+            "pos": [spawn_x, spawn_y, 0.0],
+            "yaw": face_robot_yaw,
+        }
         self._position_human(spawn_config)
+        
+        # Orient AMASS motion direction toward robot
+        if self.human_controller is not None:
+            self.human_controller.set_root_yaw(face_robot_yaw)
         
         # Reset safety wrapper
         if self.safety_wrapper is not None:
@@ -613,3 +630,54 @@ class SafetyBiGymEnv(BiGymEnv):
             }
         
         return info
+
+
+def make_safety_env(
+    task_cls: type,
+    action_mode: ActionMode,
+    safety_config: Optional[SafetyConfig] = None,
+    human_config: Optional[HumanConfig] = None,
+    scenario_sampler: Optional[ScenarioSampler] = None,
+    inject_human: bool = True,
+    **kwargs,
+) -> SafetyBiGymEnv:
+    """
+    Create a SafetyBiGymEnv for any BiGym task.
+
+    Dynamically creates a class that inherits from both SafetyBiGymEnv and
+    the given BiGym task class, so you get the task's scene + safety monitoring.
+
+    Example::
+
+        from bigym.envs.reach_target import ReachTargetSingle
+        from bigym.envs.pick_and_place import PickBox
+
+        env = make_safety_env(ReachTargetSingle, action_mode=..., human_config=...)
+        env = make_safety_env(PickBox, action_mode=..., inject_human=True)
+
+    Args:
+        task_cls: A BiGym task class (e.g. ReachTargetSingle, PickBox).
+                  Pass BiGymEnv for the default empty scene.
+        action_mode: BiGym action mode for robot control.
+        safety_config: ISO 15066 safety parameters.
+        human_config: Human spawn and motion configuration.
+        scenario_sampler: Sampler for diverse scenarios.
+        inject_human: Whether to inject human into scene.
+        **kwargs: Extra arguments forwarded to the task class __init__.
+
+    Returns:
+        An environment instance with both task behaviour and safety monitoring.
+    """
+    # Create a combined class: SafetyBiGymEnv first (overrides step/reset),
+    # then task_cls (provides scene setup and reward).
+    cls_name = f"Safety{task_cls.__name__}"
+    combined_cls = type(cls_name, (SafetyBiGymEnv, task_cls), {})
+
+    return combined_cls(
+        action_mode=action_mode,
+        safety_config=safety_config,
+        human_config=human_config,
+        scenario_sampler=scenario_sampler,
+        inject_human=inject_human,
+        **kwargs,
+    )

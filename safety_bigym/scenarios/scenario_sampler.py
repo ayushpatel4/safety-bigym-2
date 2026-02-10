@@ -89,7 +89,7 @@ class ParameterSpace:
     
     # Spatial configuration
     approach_angle_range: tuple = (0.0, 360.0)  # degrees
-    spawn_distance_range: tuple = (1.5, 3.0)  # meters
+    spawn_distance_range: tuple = (1.0, 2.0)  # meters
 
 
 class ScenarioSampler:

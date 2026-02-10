@@ -13,17 +13,57 @@ Shows:
 import numpy as np
 import mujoco.viewer
 import logging
+import argparse
 
 # Enable logging
 logging.basicConfig(level=logging.INFO)
 
 from bigym.action_modes import JointPositionActionMode
-from safety_bigym import SafetyBiGymEnv, SafetyConfig, HumanConfig
+from bigym.bigym_env import BiGymEnv
+from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
+
+# Available tasks (import on demand)
+TASK_MAP = {
+    "default": "bigym.bigym_env:BiGymEnv",
+    "reach": "bigym.envs.reach_target:ReachTargetSingle",
+    "reach_dual": "bigym.envs.reach_target:ReachTargetDual",
+    "pick_box": "bigym.envs.pick_and_place:PickBox",
+    "saucepan": "bigym.envs.pick_and_place:SaucepanToHob",
+    "flip_cup": "bigym.envs.manipulation:FlipCup",
+    "stack_blocks": "bigym.envs.manipulation:StackBlocks",
+    "dishwasher_open": "bigym.envs.dishwasher:DishwasherOpen",
+    "dishwasher_close": "bigym.envs.dishwasher:DishwasherClose",
+    "cupboard_open": "bigym.envs.cupboards:CupboardsOpenAll",
+    "drawer_open": "bigym.envs.cupboards:DrawerTopOpen",
+    "move_plate": "bigym.envs.move_plates:MovePlate",
+    "groceries": "bigym.envs.groceries:GroceriesStoreLower",
+    "take_cups": "bigym.envs.pick_and_place:TakeCups",
+    "put_cups": "bigym.envs.pick_and_place:PutCups",
+}
+
+
+def load_task_cls(task_key: str) -> type:
+    """Load a task class by key from TASK_MAP."""
+    if task_key not in TASK_MAP:
+        raise ValueError(f"Unknown task: {task_key}. Choose from: {list(TASK_MAP.keys())}")
+    module_path, cls_name = TASK_MAP[task_key].rsplit(":", 1)
+    import importlib
+    mod = importlib.import_module(module_path)
+    return getattr(mod, cls_name)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="SafetyBiGymEnv Demo")
+    parser.add_argument(
+        "--task", default="default", choices=list(TASK_MAP.keys()),
+        help="BiGym task to run (default: %(default)s)",
+    )
+    args = parser.parse_args()
+
+    task_cls = load_task_cls(args.task)
+
     print("=" * 60)
-    print("SafetyBiGymEnv Demo")
+    print(f"SafetyBiGymEnv Demo — Task: {task_cls.__name__}")
     print("=" * 60)
     
     # Create action mode
@@ -45,9 +85,10 @@ def main():
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion
     )
     
-    # Create environment
-    print("Creating SafetyBiGymEnv...")
-    env = SafetyBiGymEnv(
+    # Create environment using the factory
+    print(f"Creating safety env with task: {task_cls.__name__}...")
+    env = make_safety_env(
+        task_cls=task_cls,
         action_mode=action_mode,
         safety_config=safety_config,
         human_config=human_config,
