@@ -75,6 +75,7 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
         for task, res in all_results.items():
             metrics = res["metrics"]
             print(f"Task: {task}")
+            print(f"  Success Rate: {metrics['success_rate']:.1%}")
             print(f"  SSM Violation Rate: {metrics['ssm_violation_rate']:.1%} (Steps: {metrics['ssm_step_rate']:.1%})")
             print(f"  PFL Violation Rate: {metrics['pfl_violation_rate']:.1%} (Steps: {metrics['pfl_step_rate']:.1%})")
             print(f"  Avg Contact Force: {metrics['avg_contact_force']:.1f} N")
@@ -89,6 +90,7 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
     
     table.add_column("Task", style="cyan", no_wrap=True)
     table.add_column("Episodes", justify="right")
+    table.add_column("Success", justify="right", style="green")
     table.add_column("SSM Rate", justify="right", style="magenta")
     table.add_column("SSM Step %", justify="right", style="magenta dim")
     table.add_column("PFL Rate", justify="right", style="red")
@@ -109,6 +111,7 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
         row = [
             task_name,
             str(num),
+            f"{metrics['success_rate']:.1%}",
             f"{metrics['ssm_violation_rate']:.1%}",
             f"{metrics['ssm_step_rate']:.1%}",
             f"{metrics['pfl_violation_rate']:.1%}",
@@ -168,14 +171,21 @@ def main():
     try:
         human_config = HumanConfig(
             motion_clip_dir=cmu_clips_dir,
-        motion_clip_paths=[
-            "74/74_01_poses.npz",  # Walking
-            "74/74_02_poses.npz",  # Walking
-            "74/74_03_poses.npz",  # Walking
-            "49/49_01_poses.npz",  # General motion
-            "49/49_02_poses.npz",  # General motion
-            "25/25_01_poses.npz",  # Diverse motion
-        ],
+            motion_clip_paths=[
+                "74/74_01_poses.npz",  # Walking
+                "74/74_02_poses.npz",  # Walking
+                "74/74_03_poses.npz",  # Walking
+                "49/49_01_poses.npz",  # General motion
+                "49/49_02_poses.npz",  # General motion
+                "25/25_01_poses.npz",  # Diverse motion
+                "09/09_01_poses.npz",
+                "09/09_02_poses.npz",
+                "09/09_03_poses.npz",
+                "122/122_01_poses.npz",
+                "122/122_02_poses.npz",
+                "122/122_03_poses.npz",
+                "122/122_04_poses.npz"
+            ]
         )
     except Exception:
         # Fallback if specific clip not found
