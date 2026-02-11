@@ -68,27 +68,11 @@ def load_task_cls(task_key: str) -> Any:
     mod = importlib.import_module(module_path)
     return getattr(mod, cls_name)
 
-def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False):
-    """Print summary table using rich if available."""
-    if not HAVE_RICH:
-        print("\n--- Benchmark Summary ---")
-        for task, res in all_results.items():
-            metrics = res["metrics"]
-            print(f"Task: {task}")
-            print(f"  Success Rate: {metrics['success_rate']:.1%}")
-            print(f"  SSM Violation Rate: {metrics['ssm_violation_rate']:.1%} (Steps: {metrics['ssm_step_rate']:.1%})")
-            print(f"  PFL Violation Rate: {metrics['pfl_violation_rate']:.1%} (Steps: {metrics['pfl_step_rate']:.1%})")
-            print(f"  Avg Contact Force: {metrics['avg_contact_force']:.1f} N")
-            print(f"  Max Force: {metrics['max_force_severity']:.1f} N")
-            if comprehensive:
-                print(f"  Time to 1st SSM: {metrics['avg_time_to_ssm']:.2f}s")
-                print(f"  SSM Events: {metrics['avg_ssm_events']:.1f}")
-        return
-
-    console = Console()
-    table = Table(title="Safety Benchmark Results")
+def create_results_table(data: Dict[str, Dict], title: str, key_name: str, comprehensive: bool = False) -> Table:
+    """Helper to create a rich table from results dictionary."""
+    table = Table(title=title)
     
-    table.add_column("Task", style="cyan", no_wrap=True)
+    table.add_column(key_name, style="cyan", no_wrap=True)
     table.add_column("Episodes", justify="right")
     table.add_column("Success", justify="right", style="green")
     table.add_column("SSM Rate", justify="right", style="magenta")
@@ -104,33 +88,77 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
         table.add_column("SSM Events", justify="right", style="yellow dim")
         table.add_column("1st PFL (s)", justify="right", style="orange1")
     
-    for task_name, res in all_results.items():
-        metrics = res["metrics"]
-        num = res["num_episodes"]
-        
+    # Sort by key for consistency
+    for name in sorted(data.keys()):
+        metrics = data[name]
+        # Handle case where metrics might be nested or direct
+        # Check if 'metrics' key exists (task level) or if it's direct (breakdown level)
+        if "metrics" in metrics:
+            m = metrics["metrics"]
+            num = metrics["num_episodes"]
+        else:
+            m = metrics
+            # We don't have num_episodes per group readily available in metrics dict
+            # unless we add it to _compute_aggregate_metrics.
+            # But the 'metrics' dict returned by _compute_aggregate_metrics doesn't have 'num_episodes'
+            # Let's assume we can derive it or ignore it?
+            # Actually, _compute_aggregate_metrics returns just metrics.
+            # We can't easily get num_episodes from it without modifying it.
+            # Let's just print "-" for episodes in breakdown or modify _compute_aggregate_metrics to include count.
+            num = "-" 
+            
         row = [
-            task_name,
+            name,
             str(num),
-            f"{metrics['success_rate']:.1%}",
-            f"{metrics['ssm_violation_rate']:.1%}",
-            f"{metrics['ssm_step_rate']:.1%}",
-            f"{metrics['pfl_violation_rate']:.1%}",
-            f"{metrics['pfl_step_rate']:.1%}",
-            f"{metrics['collision_rate']:.1%}",
-            f"{metrics['avg_contact_force']:.1f}",
-            f"{metrics['max_force_severity']:.1f}"
+            f"{m.get('success_rate', 0):.1%}",
+            f"{m['ssm_violation_rate']:.1%}",
+            f"{m['ssm_step_rate']:.1%}",
+            f"{m['pfl_violation_rate']:.1%}",
+            f"{m['pfl_step_rate']:.1%}",
+            f"{m['collision_rate']:.1%}",
+            f"{m['avg_contact_force']:.1f}",
+            f"{m['max_force_severity']:.1f}"
         ]
         
         if comprehensive:
-            ts = metrics['avg_time_to_ssm']
-            tp = metrics['avg_time_to_pfl']
+            ts = m['avg_time_to_ssm']
+            tp = m['avg_time_to_pfl']
             row.append(f"{ts:.2f}" if ts >= 0 else "-")
-            row.append(f"{metrics['avg_ssm_events']:.1f}")
+            row.append(f"{m['avg_ssm_events']:.1f}")
             row.append(f"{tp:.2f}" if tp >= 0 else "-")
             
         table.add_row(*row)
+    return table
+
+def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False, report_file: str = None):
+    """Print summary tables using rich if available. Optionally save to file."""
+    if not HAVE_RICH:
+        print("Rich not installed, basic output only.")
+        return
+
+    # Prepare outputs
+    outputs = []
+    # Standard console output (let rich determine width)
+    outputs.append(Console())
+    
+    # File output if requested (force width to avoid truncation)
+    if report_file:
+        file_console = Console(file=open(report_file, "w"), width=300)
+        outputs.append(file_console)
+    
+    for console in outputs:
+        # Main Task Table
+        console.print(create_results_table(all_results, "Benchmark Results by Task", "Task", comprehensive))
         
-    console.print(table)
+        if comprehensive:
+            for task, res in all_results.items():
+                if "by_scenario" in res and res["by_scenario"]:
+                    console.print(create_results_table(res["by_scenario"], f"Breakdown: Scenario Type ({task})", "Scenario", comprehensive))
+                if "by_motion" in res and res["by_motion"]:
+                    console.print(create_results_table(res["by_motion"], f"Breakdown: Motion Clip ({task})", "Motion", comprehensive))
+            
+    if report_file:
+        print(f"Full report saved to {report_file}")
 
 def main():
     parser = argparse.ArgumentParser(description="Safety Benchmark Runner")
@@ -150,6 +178,8 @@ def main():
                         help="Show detailed safety metrics (time to violation, event counts)")
     parser.add_argument("--output", type=str, default="benchmark_results.json",
                         help="Output JSON file for results")
+    parser.add_argument("--report-file", type=str, default="benchmark_report.txt",
+                        help="Output text file for formatted tables (avoids truncation)")
     
     args = parser.parse_args()
     
@@ -254,7 +284,7 @@ def main():
     logger.info(f"Results saved to {args.output}")
     
     # Print summary
-    print_summary_table(all_results, comprehensive=args.comprehensive)
+    print_summary_table(all_results, comprehensive=args.comprehensive, report_file=args.report_file)
 
 if __name__ == "__main__":
     main()

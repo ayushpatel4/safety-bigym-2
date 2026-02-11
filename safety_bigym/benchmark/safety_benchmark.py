@@ -74,20 +74,15 @@ class SafetyBenchmark:
             "seed": seed,
             "max_steps": max_steps,
             "episodes": [],
-            "metrics": {}
+            "metrics": {},
+            "by_scenario": {},
+            "by_motion": {}
         }
         
         # viewer setup
         viewer_ctx = mujoco.viewer.launch_passive(env._mojo.model, env._mojo.data) if self.render else None
         
         try:
-            # If using viewer, wrap in context manager logic manually if needed, 
-            # or just use it. launch_passive returns a Handle.
-            # Using simple context manager approach if possible, but launch_passive isn't a context manager directly in older mujoco versions?
-            # It is in newer ones. Let's assume standard usage.
-            
-            # Actually, standard usage is `with launch_passive(...) as viewer:`
-            # If not rendering, we need a dummy context.
             if self.render:
                 context = viewer_ctx
             else:
@@ -108,14 +103,42 @@ class SafetyBenchmark:
         finally:
             env.close()
             
-        # Aggregate metrics
+        # Global aggregate metrics
         results["metrics"] = self._compute_aggregate_metrics(results["episodes"])
+        
+        # Breakdown by Scenario Type
+        scenarios = defaultdict(list)
+        for ep in results["episodes"]:
+            scenarios[ep.get("disruption_type", "UNKNOWN")].append(ep)
+            
+        for key, eps in scenarios.items():
+            results["by_scenario"][key] = self._compute_aggregate_metrics(eps)
+            
+        # Breakdown by Motion Clip
+        motions = defaultdict(list)
+        for ep in results["episodes"]:
+            # Use filename as key
+            path = ep.get("clip_path", "UNKNOWN")
+            if path:
+                key = path.split("/")[-1] # e.g. "74_01_poses.npz"
+            else:
+                key = "None"
+            motions[key].append(ep)
+            
+        for key, eps in motions.items():
+            results["by_motion"][key] = self._compute_aggregate_metrics(eps)
+            
         return results
 
     def _run_episode(self, env, policy, seed, viewer=None, max_steps=500) -> Dict[str, Any]:
         """Run a single episode."""
         obs, info = env.reset(seed=seed)
         policy.reset()
+        
+        # Capture scenario metadata
+        scenario_info = info.get("scenario", {})
+        disruption_type = scenario_info.get("disruption_type", "UNKNOWN")
+        clip_path = scenario_info.get("clip_path", "")
         
         # Get DT for time calculations
         dt = env.unwrapped.model.opt.timestep if hasattr(env.unwrapped, "model") else 0.02
@@ -196,6 +219,8 @@ class SafetyBenchmark:
             
         return {
             "seed": seed,
+            "disruption_type": disruption_type,
+            "clip_path": clip_path,
             "steps": step,
             "duration": step * dt,
             "collision": collision_frames > 0, 
