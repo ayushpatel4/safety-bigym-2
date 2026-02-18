@@ -21,7 +21,7 @@ import h5py # Not needed for running, but maybe for logging? No, using json.
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
 from safety_bigym.benchmark.safety_benchmark import SafetyBenchmark
-from safety_bigym.benchmark.policy import RandomPolicy
+from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy
 from bigym.action_modes import JointPositionActionMode
 
 # Check for rich for pretty printing
@@ -164,7 +164,7 @@ def main():
     parser = argparse.ArgumentParser(description="Safety Benchmark Runner")
     parser.add_argument("--tasks", nargs="+", default=["reach"], 
                         help=f"List of tasks to evaluate (choices: {', '.join(TASK_MAP.keys())} or 'all')")
-    parser.add_argument("--policy", type=str, default="random", choices=["random"],
+    parser.add_argument("--policy", type=str, default="random", choices=["random", "safe"],
                         help="Policy to evaluate")
     parser.add_argument("--episodes", type=int, default=10, 
                         help="Number of episodes per task")
@@ -248,6 +248,8 @@ def main():
             
             if args.policy == "random":
                 policy = RandomPolicy(action_space)
+            elif args.policy == "safe":
+                policy = SafePolicy(action_space)
             else:
                 raise ValueError("Unknown policy")
                 

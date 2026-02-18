@@ -116,6 +116,10 @@ class SafetyInfo:
     # Per-region violation counts
     violations_by_region: Dict[str, int] = field(default_factory=dict)
     
+    # State info for privileged policies
+    robot_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    human_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    
     def to_dict(self) -> dict:
         """Convert to dictionary for info['safety']."""
         return {
@@ -128,6 +132,8 @@ class SafetyInfo:
             'contact_region': self.contact_region,
             'contact_type': self.contact_type,
             'violations_by_region': self.violations_by_region.copy(),
+            'robot_pos': self.robot_pos,
+            'human_pos': self.human_pos,
         }
 
 
