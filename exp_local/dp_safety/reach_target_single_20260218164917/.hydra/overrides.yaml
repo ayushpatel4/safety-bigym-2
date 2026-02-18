@@ -1,0 +1,9 @@
+- launch=dp_pixel_safety_bigym
+- env=safety_bigym/reach_target_single
+- num_gpus=0
+- num_pretrain_steps=200
+- eval_every_steps=100
+- log_pretrain_every=100
+- demos=5
+- wandb.use=false
+- num_eval_episodes=1

@@ -1,0 +1,116 @@
+create_train_env: true
+num_train_envs: 1
+replay_size_before_train: 500
+num_pretrain_steps: 200
+num_train_frames: 0
+eval_every_steps: 200
+num_eval_episodes: 1
+update_every_steps: 1
+num_explore_steps: 2000
+save_snapshot: true
+snapshot_every_n: 0
+batch_size: 256
+is_imitation_learning: true
+demos: 5
+demo_batch_size: null
+use_self_imitation: false
+pixels: true
+visual_observation_shape:
+- 84
+- 84
+frame_stack: 1
+frame_stack_on_channel: true
+use_onehot_time_and_no_bootstrap: false
+action_repeat: 1
+action_sequence: 16
+execution_length: 1
+temporal_ensemble: true
+temporal_ensemble_gain: 0.01
+use_standardization: false
+use_min_max_normalization: true
+min_max_margin: 0
+norm_obs: true
+replay:
+  prioritization: false
+  size: 1000000
+  gamma: 0.99
+  demo_size: null
+  save_dir: null
+  nstep: 1
+  num_workers: 4
+  pin_memory: true
+  alpha: 0.7
+  beta: 0.5
+  sequential: false
+  transition_seq_len: 1
+wandb:
+  use: false
+  project: dp_safety_bigym
+  entity: null
+  name: null
+tb:
+  use: false
+  log_dir: /tmp/robobase_tb_logs
+  name: null
+experiment_name: exp
+seed: 1
+num_gpus: 0
+log_every: 1000
+log_train_video: false
+log_eval_video: true
+log_pretrain_every: 100
+save_csv: false
+env:
+  env_name: safety_bigym
+  episode_length: 1000
+  cameras:
+  - head
+  - right_wrist
+  - left_wrist
+  action_mode: absolute
+  floating: true
+  dataset_root: ''
+  demo_down_sample_rate: 10
+  render_mode: rgb_array
+  enable_all_floating_dof: false
+  inject_human: true
+  motion_clip_dir: /Users/ayushpatel/Documents/FYP3/CMU/CMU
+  motion_clip_paths:
+  - 74/74_01_poses.npz
+  - 74/74_02_poses.npz
+  - 09/09_01_poses.npz
+  - 09/09_03_poses.npz
+  - 122/122_04_poses.npz
+  task_name: reach_target_single
+  stddev_schedule: linear(1.0,0.1,500000)
+method:
+  _target_: robobase.method.diffusion.Diffusion
+  is_rl: false
+  lr: 0.0001
+  num_train_steps: ${num_pretrain_steps}
+  num_diffusion_iters: 50
+  adaptive_lr: true
+  actor_grad_clip: null
+  actor_model:
+    _target_: robobase.models.diffusion_models.ConditionalUnet1D
+    _partial_: true
+    input_shapes: ???
+    output_shape: ???
+    sequence_length: ${action_sequence}
+    diffusion_step_embed_dim: 256
+    down_dims:
+    - 256
+    - 512
+    - 1024
+    kernel_size: 5
+    n_groups: 8
+  encoder_model:
+    _target_: robobase.models.ResNetEncoder
+    _partial_: true
+    input_shape: ???
+    model: resnet18
+  view_fusion_model:
+    _target_: robobase.models.FusionMultiCamFeature
+    _partial_: true
+    input_shape: ???
+    mode: flatten
