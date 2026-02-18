@@ -154,6 +154,8 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
             for task, res in all_results.items():
                 if "by_scenario" in res and res["by_scenario"]:
                     console.print(create_results_table(res["by_scenario"], f"Breakdown: Scenario Type ({task})", "Scenario", comprehensive))
+                if "by_trajectory" in res and res["by_trajectory"]:
+                    console.print(create_results_table(res["by_trajectory"], f"Breakdown: Trajectory Type ({task})", "Trajectory", comprehensive))
                 if "by_motion" in res and res["by_motion"]:
                     console.print(create_results_table(res["by_motion"], f"Breakdown: Motion Clip ({task})", "Motion", comprehensive))
             

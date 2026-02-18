@@ -21,6 +21,11 @@ from dataclasses import dataclass
 from safety_bigym.motion.amass_loader import load_amass_clip, MotionClip
 from safety_bigym.human.pd_controller import PDController, PDGains
 from safety_bigym.human.human_ik import HumanIK
+from safety_bigym.human.trajectory_planner import (
+    TrajectoryPlanner,
+    TrajectoryConfig,
+    TrajectoryType,
+)
 
 
 # Re-export ScenarioParams for backwards compatibility
@@ -85,6 +90,9 @@ class HumanController:
         self.clip: Optional[MotionClip] = None
         self.scenario: Optional[ScenarioParams] = None
         self.t = 0.0
+        
+        # Trajectory planner (NEW: controls root XY/yaw)
+        self._trajectory_planner: Optional[TrajectoryPlanner] = None
         
         # IK target callback (to be set by scenario)
         self._ik_target_callback: Optional[Callable[[dict], np.ndarray]] = None
@@ -218,9 +226,22 @@ class HumanController:
         """
         self._ik_target_callback = callback
     
+    def set_trajectory_planner(self, planner: TrajectoryPlanner):
+        """
+        Set trajectory planner for root motion control.
+        
+        When a planner is set, it overrides the AMASS root trajectory.
+        Body joint angles still come from AMASS clip playback.
+        
+        Args:
+            planner: TrajectoryPlanner instance
+        """
+        self._trajectory_planner = planner
+    
     def reset(self):
         """Reset controller state."""
         self.t = 0.0
+        self._trajectory_planner = None
         if self.clip is not None:
             # Set initial pose from clip
             self._apply_amass_frame(0)
@@ -228,6 +249,9 @@ class HumanController:
     def _get_amass_targets(self, t: float) -> np.ndarray:
         """
         Get joint targets from AMASS motion at time t.
+        
+        If a TrajectoryPlanner is set, root XY and yaw come from the planner.
+        Body joint angles always come from the AMASS clip.
         
         Args:
             t: Time in seconds
@@ -252,29 +276,38 @@ class HumanController:
         # Build target qpos
         targets = self.data.qpos.copy()
         
-        # Rotate root position around clip origin, then translate to spawn
-        # 1. Center on clip origin
-        pos_centered = root_trans - self._clip_origin
-        
-        # 2. Rotate XY by root yaw
-        cos_y = np.cos(self._root_yaw)
-        sin_y = np.sin(self._root_yaw)
-        rotated_x = cos_y * pos_centered[0] - sin_y * pos_centered[1]
-        rotated_y = sin_y * pos_centered[0] + cos_y * pos_centered[1]
-        
-        # 3. Translate to spawn position (XY from offset, Z from AMASS)
-        targets[0] = rotated_x + self._root_offset[0]
-        targets[1] = rotated_y + self._root_offset[1]
-        targets[2] = root_trans[2]  # Keep original Z (pelvis height)
-        
-        # 4. Rotate quaternion orientation
-        if abs(self._root_yaw) > 1e-6:
-            yaw_quat = self._quat_from_yaw(self._root_yaw)
-            targets[3:7] = self._quat_multiply(yaw_quat, root_quat)
+        # --- Root position and orientation ---
+        if self._trajectory_planner is not None:
+            # USE TRAJECTORY PLANNER for root XY and yaw
+            px, py, plan_yaw, phase = self._trajectory_planner.get_pose(t)
+            
+            targets[0] = px
+            targets[1] = py
+            targets[2] = root_trans[2]  # Z from AMASS (pelvis height)
+            
+            # Orientation from planner yaw
+            targets[3:7] = self._quat_from_yaw(plan_yaw)
         else:
-            targets[3:7] = root_quat
+            # Fall back to original AMASS root motion with offset/yaw
+            # Rotate root position around clip origin, then translate to spawn
+            pos_centered = root_trans - self._clip_origin
+            
+            cos_y = np.cos(self._root_yaw)
+            sin_y = np.sin(self._root_yaw)
+            rotated_x = cos_y * pos_centered[0] - sin_y * pos_centered[1]
+            rotated_y = sin_y * pos_centered[0] + cos_y * pos_centered[1]
+            
+            targets[0] = rotated_x + self._root_offset[0]
+            targets[1] = rotated_y + self._root_offset[1]
+            targets[2] = root_trans[2]
+            
+            if abs(self._root_yaw) > 1e-6:
+                yaw_quat = self._quat_from_yaw(self._root_yaw)
+                targets[3:7] = self._quat_multiply(yaw_quat, root_quat)
+            else:
+                targets[3:7] = root_quat
         
-        # Set joint angles
+        # --- Body joint angles always from AMASS ---
         for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):
             for axis_idx, axis in enumerate(["x", "y", "z"]):
                 full_name = f"{joint_name}_{axis}"
@@ -327,44 +360,118 @@ class HumanController:
         """
         Step the controller forward in time.
         
+        When a TrajectoryPlanner is set, IK blending is driven by the
+        planner's phase rather than a fixed trigger_time:
+        - "approach" / "walk" / "depart" → pure AMASS body joints
+        - "loiter" → blend AMASS body + IK arm reaching
+        
         Args:
             dt: Time step in seconds
             robot_state: Current robot state (for IK computation)
         """
         robot_state = robot_state or {}
         
-        # Get scenario parameters
-        trigger = self.scenario.trigger_time if self.scenario else float('inf')
-        blend = self.scenario.blend_duration if self.scenario else 0.4
-        
-        # Compute targets based on phase
-        if self.t < trigger:
-            # Phase 1: Pure AMASS playback
-            targets = self._get_amass_targets(self.t)
-        elif self.t < trigger + blend:
-            # Phase 2: Blend AMASS -> IK
-            alpha = (self.t - trigger) / blend
-            amass_targets = self._get_amass_targets(self.t)
-            ik_targets = self._get_ik_targets(robot_state)
-            targets = (1 - alpha) * amass_targets + alpha * ik_targets
+        # Determine current phase
+        if self._trajectory_planner is not None:
+            # Phase driven by trajectory planner
+            _, _, _, phase = self._trajectory_planner.get_pose(self.t)
+            
+            if phase == "loiter":
+                # During loiter: blend AMASS body with IK arms
+                blend = self.scenario.blend_duration if self.scenario else 0.4
+                
+                # How far into the loiter phase? Use blend_duration for smooth entry
+                loiter_start = self._get_loiter_start_time()
+                loiter_elapsed = self.t - loiter_start
+                
+                if loiter_elapsed < blend:
+                    # Blend in: AMASS → IK arms
+                    alpha = loiter_elapsed / blend
+                    amass_targets = self._get_amass_targets(self.t)
+                    ik_targets = self._get_ik_targets(robot_state)
+                    targets = (1 - alpha) * amass_targets + alpha * ik_targets
+                else:
+                    # Full IK arms
+                    targets = self._get_ik_targets(robot_state)
+                    # But override root from planner (not IK)
+                    amass_targets = self._get_amass_targets(self.t)
+                    targets[0:7] = amass_targets[0:7]
+            
+            elif phase == "depart":
+                # Check if we just left loiter — blend IK back to AMASS
+                blend = self.scenario.blend_duration if self.scenario else 0.4
+                loiter_end = self._get_loiter_end_time()
+                depart_elapsed = self.t - loiter_end
+                
+                if depart_elapsed < blend:
+                    # Blend back: IK arms → AMASS
+                    alpha = 1.0 - (depart_elapsed / blend)
+                    amass_targets = self._get_amass_targets(self.t)
+                    ik_targets = self._get_ik_targets(robot_state)
+                    targets = (1 - alpha) * amass_targets + alpha * ik_targets
+                else:
+                    targets = self._get_amass_targets(self.t)
+            else:
+                # "approach" or "walk" → pure AMASS
+                targets = self._get_amass_targets(self.t)
         else:
-            # Phase 3: Pure IK
-            targets = self._get_ik_targets(robot_state)
+            # Legacy mode: fixed trigger_time-based phase switching
+            trigger = self.scenario.trigger_time if self.scenario else float('inf')
+            blend = self.scenario.blend_duration if self.scenario else 0.4
+            
+            if self.t < trigger:
+                targets = self._get_amass_targets(self.t)
+            elif self.t < trigger + blend:
+                alpha = (self.t - trigger) / blend
+                amass_targets = self._get_amass_targets(self.t)
+                ik_targets = self._get_ik_targets(robot_state)
+                targets = (1 - alpha) * amass_targets + alpha * ik_targets
+            else:
+                targets = self._get_ik_targets(robot_state)
         
         # Set targets and apply control
         self.pd_controller.set_targets(targets)
         self.pd_controller.apply_control()
         
         # Directly set root position/orientation (freejoint can't be PD controlled)
-        # This ensures the human follows the motion trajectory
         self.data.qpos[0:7] = targets[0:7]
         
         # Advance time
         self.t += dt
     
+    def _get_loiter_start_time(self) -> float:
+        """Get time when loiter phase starts from trajectory planner."""
+        if self._trajectory_planner is None:
+            return float('inf')
+        
+        for wp in self._trajectory_planner.waypoints:
+            if wp.phase == "loiter":
+                return wp.time
+        return float('inf')
+    
+    def _get_loiter_end_time(self) -> float:
+        """Get time when loiter phase ends from trajectory planner."""
+        if self._trajectory_planner is None:
+            return float('inf')
+        
+        loiter_end = float('inf')
+        in_loiter = False
+        for wp in self._trajectory_planner.waypoints:
+            if wp.phase == "loiter":
+                in_loiter = True
+            elif in_loiter:
+                # First waypoint after loiter
+                loiter_end = wp.time
+                break
+        return loiter_end
+    
     @property
     def current_phase(self) -> str:
         """Get current motion phase name."""
+        if self._trajectory_planner is not None:
+            _, _, _, phase = self._trajectory_planner.get_pose(self.t)
+            return phase
+        
         if self.scenario is None:
             return "amass"
         
@@ -377,3 +484,4 @@ class HumanController:
             return "blending"
         else:
             return "ik"
+

@@ -127,6 +127,14 @@ class SafetyBenchmark:
             
         for key, eps in motions.items():
             results["by_motion"][key] = self._compute_aggregate_metrics(eps)
+        
+        # Breakdown by Trajectory Type
+        results["by_trajectory"] = {}
+        trajectories = defaultdict(list)
+        for ep in results["episodes"]:
+            trajectories[ep.get("trajectory_type", "UNKNOWN")].append(ep)
+        for key, eps in trajectories.items():
+            results["by_trajectory"][key] = self._compute_aggregate_metrics(eps)
             
         return results
 
@@ -139,6 +147,15 @@ class SafetyBenchmark:
         scenario_info = info.get("scenario", {})
         disruption_type = scenario_info.get("disruption_type", "UNKNOWN")
         clip_path = scenario_info.get("clip_path", "")
+        trajectory_type = scenario_info.get("trajectory_type", "UNKNOWN")
+        
+        # Log scenario sampling
+        clip_name = clip_path.split("/")[-1] if clip_path else "None"
+        logger.info(
+            f"  Episode {seed}: "
+            f"disruption={disruption_type}  trajectory={trajectory_type}  "
+            f"clip={clip_name}"
+        )
         
         # Get DT for time calculations
         dt = env.unwrapped.model.opt.timestep if hasattr(env.unwrapped, "model") else 0.02
@@ -166,12 +183,29 @@ class SafetyBenchmark:
         prev_pfl = False
         prev_collision = False
         
+        # Phase tracking
+        phase_log = []          # List of (time, phase) transitions
+        prev_phase = None
+        phase_step_counts = defaultdict(int)  # Steps spent in each phase
+        
         while not (done or truncated) and step < max_steps:
             action = policy.act(obs)
             obs, reward, done, truncated, info = env.step(action)
             
             safety = info.get("safety", {})
             current_time = step * dt
+            
+            # --- Human phase tracking ---
+            human_phase = info.get("human_phase", None)
+            if human_phase is not None:
+                phase_step_counts[human_phase] += 1
+                if human_phase != prev_phase:
+                    phase_log.append({"time": round(current_time, 2), "phase": human_phase})
+                    if prev_phase is not None:
+                        logger.info(
+                            f"    t={current_time:5.1f}s  phase: {prev_phase} → {human_phase}"
+                        )
+                    prev_phase = human_phase
             
             # --- SSM ---
             is_ssm = safety.get("ssm_violation", False)
@@ -216,10 +250,19 @@ class SafetyBenchmark:
             step += 1
             
         avg_contact_force = cumulative_contact_force / collision_frames if collision_frames > 0 else 0.0
+        
+        # Log episode summary
+        phases_seen = [p["phase"] for p in phase_log]
+        logger.info(
+            f"    → {step} steps | phases: {' → '.join(phases_seen) if phases_seen else 'none'} | "
+            f"SSM: {'⚠️' if ssm_violation_steps > 0 else '✓'} | "
+            f"collision: {'⚠️' if collision_frames > 0 else '✓'}"
+        )
             
         return {
             "seed": seed,
             "disruption_type": disruption_type,
+            "trajectory_type": trajectory_type,
             "clip_path": clip_path,
             "steps": step,
             "duration": step * dt,
@@ -237,7 +280,9 @@ class SafetyBenchmark:
             "min_separation": min_separation if min_separation != float('inf') else -1.0,
             "max_force": max_force,
             "avg_contact_force": avg_contact_force,
-            "success": info.get("success", False) # If task defines success
+            "success": info.get("success", False),
+            "phase_log": phase_log,
+            "phase_step_counts": dict(phase_step_counts),
         }
 
     def _compute_aggregate_metrics(self, episodes: List[Dict]) -> Dict[str, float]:

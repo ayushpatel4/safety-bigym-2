@@ -37,6 +37,9 @@ from safety_bigym.human import (
     HumanController,
     PDController,
     PDGains,
+    TrajectoryPlanner,
+    TrajectoryConfig,
+    TrajectoryType,
 )
 from safety_bigym.scenarios import (
     ScenarioSampler,
@@ -404,6 +407,35 @@ class SafetyBiGymEnv(BiGymEnv):
         }
         self._position_human(spawn_config)
         
+        # --- Create trajectory planner from scenario params ---
+        trajectory_type_map = {
+            "PASS_BY": TrajectoryType.PASS_BY,
+            "APPROACH_LOITER_DEPART": TrajectoryType.APPROACH_LOITER_DEPART,
+            "ARC": TrajectoryType.ARC,
+        }
+        traj_type_str = getattr(self._current_scenario, 'trajectory_type', 'PASS_BY')
+        traj_type = trajectory_type_map.get(traj_type_str, TrajectoryType.PASS_BY)
+        
+        traj_config = TrajectoryConfig(
+            trajectory_type=traj_type,
+            robot_pos=np.array([0.0, 0.0]),  # Robot at origin
+            spawn_pos=np.array([spawn_x, spawn_y]),
+            approach_yaw=face_robot_yaw,
+            pass_by_offset=getattr(self._current_scenario, 'pass_by_offset', 1.0),
+            pass_by_side=getattr(self._current_scenario, 'pass_by_side', 1),
+            closest_approach=getattr(self._current_scenario, 'closest_approach', 1.0),
+            loiter_duration=getattr(self._current_scenario, 'loiter_duration', 2.0),
+            departure_angle=getattr(self._current_scenario, 'departure_angle', 150.0),
+            arc_radius=getattr(self._current_scenario, 'arc_radius', 1.5),
+            arc_extent=getattr(self._current_scenario, 'arc_extent', 120.0),
+            walk_speed=getattr(self._current_scenario, 'walk_speed', 1.2),
+        )
+        
+        trajectory_planner = TrajectoryPlanner(traj_config)
+        
+        if self.human_controller is not None:
+            self.human_controller.set_trajectory_planner(trajectory_planner)
+        
         # Orient AMASS motion direction toward robot
         if self.human_controller is not None:
             self.human_controller.set_root_yaw(face_robot_yaw)
@@ -422,6 +454,7 @@ class SafetyBiGymEnv(BiGymEnv):
             "disruption_type": self._current_scenario.disruption_type.name,
             "trigger_time": self._current_scenario.trigger_time,
             "clip_path": self._current_scenario.clip_path,
+            "trajectory_type": traj_type_str,
         }
         
         return obs, info
@@ -607,6 +640,10 @@ class SafetyBiGymEnv(BiGymEnv):
     def step(self, action):
         """Step environment and add privileged info."""
         obs, reward, done, truncated, info = super().step(action)
+        
+        # Add human motion phase to info
+        if self.human_controller is not None:
+            info["human_phase"] = self.human_controller.current_phase
         
         # Add privileged info for SafePolicy
         try:
