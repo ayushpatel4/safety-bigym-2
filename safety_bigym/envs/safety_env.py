@@ -570,6 +570,8 @@ class SafetyBiGymEnv(BiGymEnv):
             contact_region=max_contact.body_region if max_contact else "",
             contact_type=max_contact.contact_type if max_contact else "",
             contacts=self._step_contacts,
+            robot_pos=robot_pos.tolist(),
+            human_pos=human_pos.tolist(),
         )
     
     def _on_step(self):
@@ -598,9 +600,35 @@ class SafetyBiGymEnv(BiGymEnv):
         
         if self.safety_config.add_violation_penalty and self._step_safety_info:
             if self._step_safety_info.ssm_violation or self._step_safety_info.pfl_violation:
-                base_reward += self.safety_config.violation_penalty
-        
+                base_reward -= self.safety_config.violation_penalty
+                
         return base_reward
+
+    def step(self, action):
+        """Step environment and add privileged info."""
+        obs, reward, done, truncated, info = super().step(action)
+        
+        # Add privileged info for SafePolicy
+        try:
+            # Get joint positions for freezing/retreat behavior
+            # Need to use ACTUATED joint positions to match action space
+            if hasattr(self._robot, "qpos_actuated"):
+                qpos = self._robot.qpos_actuated
+            elif hasattr(self._robot, "get_joint_positions"):
+                qpos = self._robot.get_joint_positions()
+            elif hasattr(self._robot, "qpos"):
+                qpos = self._robot.qpos
+            else:
+                qpos = None
+                
+            if qpos is not None:
+                if "safety" not in info:
+                    info["safety"] = {}
+                info["safety"]["qpos"] = qpos
+        except Exception:
+            pass
+            
+        return obs, reward, done, truncated, info
     
     @property
     def terminate(self) -> bool:
