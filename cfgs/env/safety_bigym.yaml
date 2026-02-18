@@ -1,0 +1,26 @@
+# @package _global_
+# Base config for SafetyBiGym environments
+# Extends bigym with human/safety configuration
+
+env:
+  env_name: safety_bigym
+  episode_length: 3000
+  cameras: ["head", "right_wrist", "left_wrist"]
+  action_mode: absolute
+  floating: true
+  dataset_root: ""
+  demo_down_sample_rate: 20
+  render_mode: rgb_array
+  enable_all_floating_dof: false
+
+  # Safety-specific settings
+  inject_human: true
+  motion_clip_dir: /Users/ayushpatel/Documents/FYP3/CMU/CMU
+  motion_clip_paths:
+    - "74/74_01_poses.npz"
+    - "74/74_02_poses.npz"
+    - "09/09_01_poses.npz"
+    - "09/09_03_poses.npz"
+    - "122/122_04_poses.npz"
+
+demos: !!float .inf
