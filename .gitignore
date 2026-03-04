@@ -22,3 +22,4 @@ full_dataset.h5
 benchmark_results.json
 safe_results.json
 .DS_Store
+wandb/
