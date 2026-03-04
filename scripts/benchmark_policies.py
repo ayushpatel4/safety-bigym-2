@@ -21,7 +21,7 @@ import h5py # Not needed for running, but maybe for logging? No, using json.
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
 from safety_bigym.benchmark.safety_benchmark import SafetyBenchmark
-from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy
+from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy, DiffusionPolicyWrapper
 from bigym.action_modes import JointPositionActionMode
 
 # Check for rich for pretty printing
@@ -49,6 +49,7 @@ TASK_MAP = {
     "stack_blocks": "bigym.envs.manipulation:StackBlocks",
     "dishwasher_open": "bigym.envs.dishwasher:DishwasherOpen",
     "dishwasher_close": "bigym.envs.dishwasher:DishwasherClose",
+    "dishwasher_load_plates": "bigym.envs.dishwasher_plates:DishwasherLoadPlates",
     "cupboard_open": "bigym.envs.cupboards:CupboardsOpenAll",
     "drawer_open": "bigym.envs.cupboards:DrawerTopOpen",
     "move_plate": "bigym.envs.move_plates:MovePlate",
@@ -166,9 +167,15 @@ def main():
     parser = argparse.ArgumentParser(description="Safety Benchmark Runner")
     parser.add_argument("--tasks", nargs="+", default=["reach"], 
                         help=f"List of tasks to evaluate (choices: {', '.join(TASK_MAP.keys())} or 'all')")
-    parser.add_argument("--policy", type=str, default="random", choices=["random", "safe"],
+    parser.add_argument("--policy", type=str, default="random", choices=["random", "safe", "diffusion"],
                         help="Policy to evaluate")
-    parser.add_argument("--episodes", type=int, default=10, 
+    parser.add_argument("--snapshot", type=str, default=None,
+                        help="Path to RoboBase snapshot .pt file (required for --policy diffusion)")
+    parser.add_argument("--device", type=str, default="cpu",
+                        help="Torch device for diffusion policy (cpu, mps, cuda)")
+    parser.add_argument("--inference-steps", type=int, default=None,
+                        help="Override diffusion inference steps (default: use training value, e.g. 50). Lower = faster (try 10)")
+    parser.add_argument("--episodes", type=int, default=10,
                         help="Number of episodes per task")
     parser.add_argument("--max-steps", type=int, default=500,
                         help="Maximum steps per episode")
@@ -227,31 +234,44 @@ def main():
         logger.info(f"Evaluating task: {task_key}")
         try:
             task_cls = load_task_cls(task_key)
-            
-            # Initialize benchmark
+
+            # For diffusion policy, construct wrapper first so we can use
+            # its action_mode and observation_config (matching the training
+            # config) for the benchmark env.
+            task_action_mode = action_mode
+            env_kwargs = {}
+            if args.policy == "diffusion":
+                if args.snapshot is None:
+                    raise ValueError("--snapshot is required when using --policy diffusion")
+                policy = DiffusionPolicyWrapper(
+                    snapshot_path=args.snapshot,
+                    action_space=None,  # will be set below after env creation
+                    device=args.device,
+                    num_inference_steps=args.inference_steps,
+                    motion_clip_dir=cmu_clips_dir,
+                )
+                task_action_mode = policy.action_mode
+                env_kwargs["observation_config"] = policy.observation_config
+
+            # Initialize benchmark with the correct action mode and obs config
             benchmark = SafetyBenchmark(
                 task_cls=task_cls,
-                action_mode=action_mode,
+                action_mode=task_action_mode,
                 human_config=human_config,
-                render=args.render
+                render=args.render,
+                env_kwargs=env_kwargs,
             )
-            
-            # Initialize policy
-            # We need to instantiate env once to get action space? 
-            # Or SafetyBenchmark exposes an env property?
-            # Or make_safety_env just to get space.
-            # Efficient way: instantiate one env, get space, close.
-            # But RandomPolicy just needs shape. BiGym default shape is often 7+gripper.
-            # Let's instantiate a temp env to get correct space.
-            
-            temp_env = make_safety_env(task_cls, action_mode=action_mode, human_config=human_config, inject_human=False)
+
+            temp_env = make_safety_env(task_cls, action_mode=task_action_mode, human_config=human_config, inject_human=False, **env_kwargs)
             action_space = temp_env.action_space
             temp_env.close()
-            
+
             if args.policy == "random":
                 policy = RandomPolicy(action_space)
             elif args.policy == "safe":
                 policy = SafePolicy(action_space)
+            elif args.policy == "diffusion":
+                policy._raw_action_space = action_space
             else:
                 raise ValueError("Unknown policy")
                 

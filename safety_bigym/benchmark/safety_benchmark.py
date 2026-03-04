@@ -23,23 +23,27 @@ class SafetyBenchmark:
         action_mode: Any = None,
         human_config: Optional[HumanConfig] = None,
         safety_config: Optional[SafetyConfig] = None,
-        render: bool = False
+        render: bool = False,
+        env_kwargs: Optional[Dict] = None,
     ):
         """
         Initialize benchmark with environment configuration.
-        
+
         Args:
             task_cls: BiGym task class (e.g. ReachTargetSingle)
             action_mode: Action mode configuration
             human_config: Human configuration (motion path, etc.)
             safety_config: Safety monitoring configuration
             render: Whether to visualize evaluation
+            env_kwargs: Extra keyword arguments forwarded to make_safety_env
+                (e.g. observation_config for camera setup).
         """
         self.task_cls = task_cls
         self.action_mode = action_mode or JointPositionActionMode(floating_base=True, absolute=True)
         self.human_config = human_config or HumanConfig(motion_clip_paths=[]) # Auto-discover
         self.safety_config = safety_config or SafetyConfig(log_violations=False, terminate_on_violation=False)
         self.render = render
+        self.env_kwargs = env_kwargs or {}
         
     def evaluate(
         self, 
@@ -66,7 +70,8 @@ class SafetyBenchmark:
             action_mode=self.action_mode,
             safety_config=self.safety_config,
             human_config=self.human_config,
-            inject_human=True
+            inject_human=True,
+            **self.env_kwargs,
         )
         
         results = {
