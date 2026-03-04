@@ -1,6 +1,24 @@
 # Virtual Environments
 venv/
 .venv/
-env/
-.env/
-ENV/
+datasets/
+exp_local/
+*.pyc
+__pycache__/
+visual_data.h5
+safe_velocity_results.json
+safe_velocity_out.txt
+.gitignore
+safe_retreat_out.txt
+.gitignore
+safe_retreat_results.json
+.gitignore
+safe_out.txt
+random_results.json
+random_out.txt
+my_dataset.h5
+full_dataset.h5
+.gitignore
+benchmark_results.json
+safe_results.json
+.DS_Store
