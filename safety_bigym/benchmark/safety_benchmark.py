@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import numpy as np
@@ -24,6 +25,9 @@ class SafetyBenchmark:
         human_config: Optional[HumanConfig] = None,
         safety_config: Optional[SafetyConfig] = None,
         render: bool = False,
+        record_dir: Optional[str] = None,
+        record_resolution: tuple = (640, 480),
+        record_every: int = 2,
         env_kwargs: Optional[Dict] = None,
     ):
         """
@@ -35,6 +39,9 @@ class SafetyBenchmark:
             human_config: Human configuration (motion path, etc.)
             safety_config: Safety monitoring configuration
             render: Whether to visualize evaluation
+            record_dir: Directory to save episode videos (None = no recording)
+            record_resolution: Video resolution as (width, height)
+            record_every: Capture a frame every N steps (lower = smoother but larger files)
             env_kwargs: Extra keyword arguments forwarded to make_safety_env
                 (e.g. observation_config for camera setup).
         """
@@ -43,7 +50,14 @@ class SafetyBenchmark:
         self.human_config = human_config or HumanConfig(motion_clip_paths=[]) # Auto-discover
         self.safety_config = safety_config or SafetyConfig(log_violations=False, terminate_on_violation=False)
         self.render = render
+        self.record_dir = record_dir
+        self.record_resolution = record_resolution
+        self.record_every = record_every
         self.env_kwargs = env_kwargs or {}
+        
+        if self.record_dir:
+            os.makedirs(self.record_dir, exist_ok=True)
+            logger.info(f"Recording episodes to {self.record_dir}")
         
     def evaluate(
         self, 
@@ -84,6 +98,16 @@ class SafetyBenchmark:
             "by_motion": {}
         }
         
+        # Offscreen renderer for recording
+        renderer = None
+        if self.record_dir:
+            renderer = mujoco.Renderer(
+                env._mojo.model,
+                width=self.record_resolution[0],
+                height=self.record_resolution[1],
+            )
+            logger.info(f"Created offscreen renderer at {self.record_resolution[0]}x{self.record_resolution[1]}")
+        
         # viewer setup
         viewer_ctx = mujoco.viewer.launch_passive(env._mojo.model, env._mojo.data) if self.render else None
         
@@ -97,7 +121,10 @@ class SafetyBenchmark:
             with context as viewer:
                 for i in range(num_episodes):
                     episode_seed = seed + i
-                    ep_metrics = self._run_episode(env, policy, episode_seed, viewer, max_steps)
+                    ep_metrics = self._run_episode(
+                        env, policy, episode_seed, viewer, max_steps,
+                        renderer=renderer,
+                    )
                     results["episodes"].append(ep_metrics)
                     
                     # Update viewer if needed
@@ -106,6 +133,8 @@ class SafetyBenchmark:
                         break
                         
         finally:
+            if renderer is not None:
+                renderer.close()
             env.close()
             
         # Global aggregate metrics
@@ -143,9 +172,13 @@ class SafetyBenchmark:
             
         return results
 
-    def _run_episode(self, env, policy, seed, viewer=None, max_steps=500) -> Dict[str, Any]:
-        """Run a single episode."""
+    def _run_episode(self, env, policy, seed, viewer=None, max_steps=500,
+                     renderer=None) -> Dict[str, Any]:
+        """Run a single episode, optionally recording video."""
         obs, info = env.reset(seed=seed)
+        
+        # Video frame buffer
+        frames = []
         policy.reset()
         
         # Capture scenario metadata
@@ -251,10 +284,39 @@ class SafetyBenchmark:
                 
             if viewer is not None:
                 viewer.sync()
+            
+            # Capture frame for recording
+            if renderer is not None and (step % self.record_every == 0):
+                renderer.update_scene(env._mojo.data)
+                frames.append(renderer.render().copy())
                 
             step += 1
             
         avg_contact_force = cumulative_contact_force / collision_frames if collision_frames > 0 else 0.0
+        
+        # Save video if recording
+        if frames and self.record_dir:
+            task_name = env.__class__.__name__.replace('Safety', '').lower()
+            video_path = os.path.join(
+                self.record_dir,
+                f"{task_name}_seed{seed}.mp4"
+            )
+            try:
+                import imageio.v3 as iio
+                # Compute fps: physics fps / record_every
+                physics_fps = 1.0 / dt if dt > 0 else 50.0
+                video_fps = physics_fps / self.record_every
+                # Clamp to reasonable range
+                video_fps = max(10, min(video_fps, 60))
+                iio.imwrite(
+                    video_path,
+                    np.stack(frames),
+                    fps=video_fps,
+                    codec="h264",
+                )
+                logger.info(f"    Saved video: {video_path} ({len(frames)} frames, {video_fps:.0f} fps)")
+            except Exception as e:
+                logger.warning(f"    Failed to save video: {e}")
         
         # Log episode summary
         phases_seen = [p["phase"] for p in phase_log]

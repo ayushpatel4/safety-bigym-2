@@ -189,6 +189,11 @@ def main():
                         help="Output JSON file for results")
     parser.add_argument("--report-file", type=str, default="benchmark_report.txt",
                         help="Output text file for formatted tables (avoids truncation)")
+    parser.add_argument("--record-dir", type=str, default=None,
+                        help="Directory to save episode videos for headless review (e.g. 'recordings/')")
+    parser.add_argument("--record-resolution", type=int, nargs=2, default=[640, 480],
+                        metavar=("W", "H"),
+                        help="Video resolution width height (default: 640 480)")
     
     args = parser.parse_args()
     
@@ -201,33 +206,28 @@ def main():
     
     # Common config
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
-    # Default human config (auto-discovers clips from CMU dir)
-    # We assume CMU_DIR is in standard location or handled by default logic
-    # For benchmark reproducibility, maybe we should fix the clip set?
-    # For now, let scenariosampler handle it deterministically given seed.
-    # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    # Auto-discover motion clips from CMU directory for diverse human motions.
+    # Picks one clip per subject folder to maximize diversity across subjects.
+    cmu_clips_dir = "/home/ap2322/Documents/CMU/CMU"
     try:
+        import glob
+        all_clips = sorted(glob.glob(f"{cmu_clips_dir}/*/*_poses.npz"))
+        # Pick first clip from each subject folder for diversity
+        seen_subjects = set()
+        diverse_clips = []
+        for clip in all_clips:
+            rel = str(Path(clip).relative_to(cmu_clips_dir))  # e.g. "74/74_01_poses.npz"
+            subject = rel.split("/")[0]
+            if subject not in seen_subjects:
+                seen_subjects.add(subject)
+                diverse_clips.append(rel)
+        logger.info(f"Discovered {len(diverse_clips)} motion clips from {len(seen_subjects)} subjects in {cmu_clips_dir}")
         human_config = HumanConfig(
             motion_clip_dir=cmu_clips_dir,
-            motion_clip_paths=[
-                "74/74_01_poses.npz",  # Walking
-                "74/74_02_poses.npz",  # Walking
-                "74/74_03_poses.npz",  # Walking
-                "49/49_01_poses.npz",  # General motion
-                "49/49_02_poses.npz",  # General motion
-                "25/25_01_poses.npz",  # Diverse motion
-                "09/09_01_poses.npz",
-                "09/09_02_poses.npz",
-                "09/09_03_poses.npz",
-                "122/122_01_poses.npz",
-                "122/122_02_poses.npz",
-                "122/122_03_poses.npz",
-                "122/122_04_poses.npz"
-            ]
+            motion_clip_paths=diverse_clips,
         )
-    except Exception:
-        # Fallback if specific clip not found
+    except Exception as e:
+        logger.warning(f"Failed to auto-discover clips: {e}. Using empty clip list.")
         human_config = HumanConfig(motion_clip_paths=[])
     
     for task_key in tasks_to_run:
@@ -259,6 +259,8 @@ def main():
                 action_mode=task_action_mode,
                 human_config=human_config,
                 render=args.render,
+                record_dir=args.record_dir,
+                record_resolution=tuple(args.record_resolution),
                 env_kwargs=env_kwargs,
             )
 
