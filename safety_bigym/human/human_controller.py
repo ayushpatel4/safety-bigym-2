@@ -16,7 +16,6 @@ import numpy as np
 import mujoco
 from pathlib import Path
 from typing import Optional, Callable, Dict
-from dataclasses import dataclass
 
 from safety_bigym.motion.amass_loader import load_amass_clip, MotionClip
 from safety_bigym.human.pd_controller import PDController, PDGains
@@ -26,21 +25,7 @@ from safety_bigym.human.trajectory_planner import (
     TrajectoryConfig,
     TrajectoryType,
 )
-
-
-# Re-export ScenarioParams for backwards compatibility
-# (New code should import from safety_bigym.scenarios)
-@dataclass 
-class ScenarioParams:
-    """Parameters for a human behavior scenario.
-    
-    Note: For full scenario configuration including disruption types,
-    use safety_bigym.scenarios.ScenarioParams instead.
-    """
-    clip_path: str              # Path to AMASS motion clip
-    trigger_time: float = 2.0   # Time when disruption starts (seconds)
-    blend_duration: float = 0.4 # Blend duration between AMASS and IK (seconds)
-    speed_multiplier: float = 1.0  # Motion playback speed
+from safety_bigym.scenarios.scenario_sampler import ScenarioParams
 
 
 class HumanController:

@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # CMU Motion directory (adjust if needed or pass via env var/arg)
 # Defaulting to the path found in user context
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
+CMU_DIR = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
 
 # Task Mapping (same as demo_safety_env.py)
 TASK_MAP = {

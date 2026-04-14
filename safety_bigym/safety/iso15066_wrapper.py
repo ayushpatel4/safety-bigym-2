@@ -6,8 +6,6 @@ Implements ISO/TS 15066:2016 safety monitoring for collaborative robots:
 - PFL (Power and Force Limiting)
 - Sub-step contact force capture
 - Quasi-static vs transient contact classification
-
-Designed to work standalone for testing, and integrate with BiGym in Phase 8.
 """
 
 from dataclasses import dataclass, field
@@ -16,6 +14,7 @@ from collections import defaultdict
 import numpy as np
 import mujoco
 
+from safety_bigym.config import SSMConfig
 from safety_bigym.safety.pfl_limits import (
     PFL_LIMITS,
     GEOM_TO_REGION,
@@ -23,52 +22,6 @@ from safety_bigym.safety.pfl_limits import (
     get_limits_for_geom,
     BodyRegionLimits,
 )
-
-
-@dataclass
-class SSMConfig:
-    """Speed and Separation Monitoring configuration."""
-    
-    T_r: float = 0.1        # Robot reaction time (seconds)
-    T_s: float = 0.05       # System response time (seconds)
-    a_max: float = 5.0      # Maximum robot braking deceleration (m/s²)
-    C: float = 0.1          # Intrusion distance / uncertainty (meters)
-    v_h_max: float = 1.6    # Maximum assumed human velocity (m/s)
-    
-    def compute_separation_distance(
-        self,
-        v_robot: float,
-        v_human: float = None,
-    ) -> float:
-        """
-        Compute protective separation distance S_p.
-        
-        S_p = S_h + S_r + S_s + C + Z_d + Z_r
-        
-        Simplified to: S_p = S_h + S_r + C
-        where:
-        - S_h = v_h × (T_r + T_s)  (human contribution)
-        - S_r = v_r × T_r + v_r² / (2 × a_max)  (robot stopping distance)
-        
-        Args:
-            v_robot: Robot velocity magnitude (m/s)
-            v_human: Human velocity magnitude (m/s), uses v_h_max if None
-            
-        Returns:
-            Required protective separation distance S_p (meters)
-        """
-        v_h = v_human if v_human is not None else self.v_h_max
-        
-        # Human contribution
-        S_h = v_h * (self.T_r + self.T_s)
-        
-        # Robot stopping distance
-        S_r = v_robot * self.T_r + (v_robot ** 2) / (2 * self.a_max)
-        
-        # Total separation
-        S_p = S_h + S_r + self.C
-        
-        return S_p
 
 
 @dataclass

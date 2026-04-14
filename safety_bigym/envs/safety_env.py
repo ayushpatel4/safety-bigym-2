@@ -252,23 +252,10 @@ class SafetyBiGymEnv(BiGymEnv):
     
     def _init_safety_wrapper(self):
         """Initialize ISO 15066 safety wrapper."""
-        ssm_config = self.safety_config.ssm
-        
-        # Import SSMConfig from the wrapper module (different class)
-        from safety_bigym.safety.iso15066_wrapper import SSMConfig as WrapperSSMConfig
-        
-        wrapper_ssm = WrapperSSMConfig(
-            T_r=ssm_config.T_r,
-            T_s=ssm_config.T_s,
-            a_max=ssm_config.a_max,
-            C=ssm_config.C,
-            v_h_max=ssm_config.v_h_max,
-        )
-        
         self.safety_wrapper = ISO15066Wrapper(
             model=self._mojo.model,
             data=self._mojo.data,
-            ssm_config=wrapper_ssm,
+            ssm_config=self.safety_config.ssm,
             human_geom_suffix="_col",
         )
         
@@ -379,15 +366,8 @@ class SafetyBiGymEnv(BiGymEnv):
                 except Exception as e:
                     logger.warning(f"Failed to load clip: {e}")
             
-            # Set scenario parameters
-            from safety_bigym.human.human_controller import ScenarioParams as HCScenarioParams
-            hc_params = HCScenarioParams(
-                clip_path=full_clip_path if self._current_scenario.clip_path else "",
-                trigger_time=self._current_scenario.trigger_time,
-                blend_duration=self._current_scenario.blend_duration,
-                speed_multiplier=self._current_scenario.speed_multiplier,
-            )
-            self.human_controller.set_scenario(hc_params)
+            # Set scenario parameters (ScenarioParams is now unified)
+            self.human_controller.set_scenario(self._current_scenario)
         
         # Compute spawn position from scenario parameters
         # approach_angle: 0° = in front (+X), 90° = left (+Y), etc.

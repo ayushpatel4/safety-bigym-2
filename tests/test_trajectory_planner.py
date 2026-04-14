@@ -5,8 +5,6 @@ Tests all trajectory types, interpolation, and boundary conditions.
 """
 
 import numpy as np
-import sys
-sys.path.insert(0, "/Users/ayushpatel/Documents/FYP3/safety_bigym")
 
 from safety_bigym.human.trajectory_planner import (
     TrajectoryPlanner,

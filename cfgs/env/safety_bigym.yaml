@@ -15,7 +15,7 @@ env:
 
   # Safety-specific settings
   inject_human: true
-  motion_clip_dir: /Users/ayushpatel/Documents/FYP3/CMU/CMU
+  motion_clip_dir: /home/ap2322/Documents/CMU/CMU
   motion_clip_paths:
     - "74/74_01_poses.npz"
     - "74/74_02_poses.npz"

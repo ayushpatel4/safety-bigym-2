@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import os
 import numpy as np
 from collections import Counter
 from pathlib import Path
@@ -32,7 +33,7 @@ from safety_bigym.scenarios import (
     DisruptionType,
 )
 
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
+CMU_DIR = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
 
 
 # ── Pretty printing ──────────────────────────────────────────────────────────

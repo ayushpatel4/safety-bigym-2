@@ -11,6 +11,7 @@ Usage:
 
 import copy
 import logging
+import os
 
 import numpy as np
 
@@ -126,7 +127,7 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
 
         # Human config from Hydra config
         motion_clip_dir = cfg.env.get(
-            "motion_clip_dir", "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
         )
         motion_clip_paths = list(cfg.env.get("motion_clip_paths", [
             "74/74_01_poses.npz",
