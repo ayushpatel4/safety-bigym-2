@@ -19,6 +19,7 @@ from safety_bigym.safety import (
     ISO15066Wrapper,
     SSMConfig,
     SafetyInfo,
+    ContactInfo,
     PFL_LIMITS,
     get_region_for_geom,
     get_limits_for_geom,
@@ -422,6 +423,181 @@ class TestWrapperIntegration:
         
         # Check safety at initial state
         safety_info = wrapper.check_safety_no_step()
-        
+
         assert isinstance(safety_info, SafetyInfo)
         assert safety_info.pfl_violation == False  # No robot to contact
+
+
+def _make_wrapper():
+    """Build a fresh wrapper over the TEST_SCENE_XML for the new test classes."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
+        f.write(TEST_SCENE_XML)
+        path = f.name
+    model = mujoco.MjModel.from_xml_path(path)
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    wrapper = ISO15066Wrapper(model, data)
+    wrapper.add_robot_geom("robot_ee_geom")
+    wrapper.add_robot_geom("robot_link1")
+    return wrapper
+
+
+class TestBuildSafetyInfo:
+    """
+    Pins down the contract that the env-side aggregator populates
+    pfl_force_ratio from the contact list (T0.1 bug fix).
+    """
+
+    def test_pfl_force_ratio_populated_from_single_contact(self):
+        wrapper = _make_wrapper()
+        contacts = [ContactInfo(
+            geom1_name="R_Elbow_col",
+            geom2_name="robot_ee_geom",
+            force=256.0,
+            contact_type="transient",
+            body_region="forearm",
+            is_human_robot=True,
+            is_violation=False,
+            force_ratio=0.8,
+            force_limit=320.0,
+        )]
+        info = wrapper.build_safety_info(
+            contacts=contacts,
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[5.0, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        assert info.pfl_force_ratio == pytest.approx(0.8)
+        assert info.pfl_violation is False
+        assert info.max_contact_force == pytest.approx(256.0)
+        assert info.contact_region == "forearm"
+
+    def test_pfl_violation_flag_set_when_ratio_over_one(self):
+        wrapper = _make_wrapper()
+        contacts = [ContactInfo(
+            geom1_name="R_Elbow_col",
+            geom2_name="robot_ee_geom",
+            force=400.0,
+            contact_type="transient",
+            body_region="forearm",
+            is_human_robot=True,
+            is_violation=True,
+            force_ratio=1.25,
+            force_limit=320.0,
+        )]
+        info = wrapper.build_safety_info(
+            contacts=contacts,
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[5.0, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        assert info.pfl_violation is True
+        assert info.pfl_force_ratio > 1.0
+
+    def test_pfl_force_ratio_takes_max_across_contacts(self):
+        wrapper = _make_wrapper()
+        contacts = [
+            ContactInfo(geom1_name="R_Elbow_col", geom2_name="robot_ee_geom",
+                        force=96.0, contact_type="transient", body_region="forearm",
+                        is_human_robot=True, is_violation=False,
+                        force_ratio=0.3, force_limit=320.0),
+            ContactInfo(geom1_name="R_Wrist_col", geom2_name="robot_ee_geom",
+                        force=224.0, contact_type="transient", body_region="hand_palm",
+                        is_human_robot=True, is_violation=False,
+                        force_ratio=0.8, force_limit=280.0),
+            ContactInfo(geom1_name="Head_col", geom2_name="robot_ee_geom",
+                        force=130.0, contact_type="transient", body_region="skull",
+                        is_human_robot=True, is_violation=False,
+                        force_ratio=0.5, force_limit=260.0),
+        ]
+        info = wrapper.build_safety_info(
+            contacts=contacts,
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[5.0, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        assert info.pfl_force_ratio == pytest.approx(0.8)
+
+    def test_empty_contacts_gives_zero_ratio(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[5.0, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        assert info.pfl_force_ratio == 0.0
+        assert info.pfl_violation is False
+        assert info.max_contact_force == 0.0
+
+
+class TestSSMClosestJoint:
+    """
+    Tests for closest-joint SSM (T0.2). Production SSM must use min distance
+    across ALL human body parts x ALL robot links, not pelvis-to-pelvis.
+    """
+
+    def test_closest_joint_beats_pelvis_distance(self):
+        wrapper = _make_wrapper()
+        human_positions = np.array([
+            [2.0, 0.0, 0.0],  # pelvis far
+            [0.3, 0.0, 0.0],  # wrist close
+        ])
+        robot_positions = np.array([[0.0, 0.0, 0.0]])
+
+        _, _, d_min = wrapper.compute_ssm(
+            robot_pos=robot_positions,
+            robot_vel=0.0,
+            human_pos=human_positions,
+            human_vel=0.0,
+        )
+        assert d_min == pytest.approx(0.3, abs=0.01)
+
+    def test_legacy_single_point_api_still_works(self):
+        wrapper = _make_wrapper()
+        robot_pos = np.array([0.0, 1.0, 0.5])
+        human_pos = np.array([0.0, 0.0, 1.0])
+
+        is_violation, margin, d_min = wrapper.compute_ssm(
+            robot_pos=robot_pos, robot_vel=0.0,
+            human_pos=human_pos, human_vel=0.0,
+        )
+        expected = float(np.linalg.norm(robot_pos - human_pos))
+        assert d_min == pytest.approx(expected, abs=1e-6)
+
+    def test_closest_pair_indices_recorded_on_wrapper(self):
+        wrapper = _make_wrapper()
+        human_positions = np.array([
+            [2.0, 0.0, 0.0],   # 0 pelvis
+            [0.3, 0.0, 0.0],   # 1 wrist (0.1m from ee)
+            [1.5, 0.0, 0.0],   # 2 head
+        ])
+        robot_positions = np.array([
+            [0.0, 0.0, 0.0],   # 0 base
+            [0.2, 0.0, 0.0],   # 1 ee
+        ])
+        wrapper.compute_ssm(
+            robot_pos=robot_positions, robot_vel=0.0,
+            human_pos=human_positions, human_vel=0.0,
+        )
+        assert wrapper.last_closest_human_idx == 1
+        assert wrapper.last_closest_robot_idx == 1
+
+    def test_build_safety_info_records_closest_pair_names(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0], [0.2, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[2.0, 0.0, 0.0], [0.3, 0.0, 0.0]]),
+            human_vel=0.0,
+            human_names=["pelvis", "wrist"],
+            robot_names=["base", "ee"],
+        )
+        assert info.closest_human_joint == "wrist"
+        assert info.closest_robot_link == "ee"
+        assert info.min_separation == pytest.approx(0.1, abs=0.01)
