@@ -221,10 +221,31 @@ class SafetyBiGymEnv(BiGymEnv):
         if root_joint_id >= 0:
             self._human_root_qpos_start = model.jnt_qposadr[root_joint_id]
         
+        self._setup_human_ssm_bodies()
+
         logger.info(
             f"Human indices: pelvis_id={self._human_pelvis_id}, "
-            f"root_qpos_start={self._human_root_qpos_start}"
+            f"root_qpos_start={self._human_root_qpos_start}, "
+            f"ssm_bodies={len(self._human_body_ids)}"
         )
+
+    _HUMAN_SSM_BODY_NAMES = [
+        "Pelvis", "L_Hip", "R_Hip", "L_Knee", "R_Knee", "L_Ankle", "R_Ankle",
+        "Spine1", "Spine2", "Spine3", "Neck", "Head",
+        "L_Shoulder", "R_Shoulder", "L_Elbow", "R_Elbow",
+        "L_Wrist", "R_Wrist",
+    ]
+
+    def _setup_human_ssm_bodies(self):
+        """Collect SMPL body IDs used for closest-joint SSM (T0.2)."""
+        model = self._mojo.model
+        self._human_body_ids: List[int] = []
+        self._human_body_names: List[str] = []
+        for name in self._HUMAN_SSM_BODY_NAMES:
+            bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if bid >= 0:
+                self._human_body_ids.append(bid)
+                self._human_body_names.append(name)
     
     def _collect_robot_geoms(self):
         """Collect robot geom names for safety wrapper."""
@@ -512,81 +533,79 @@ class SafetyBiGymEnv(BiGymEnv):
         return state
     
     def _aggregate_safety_info(self):
-        """Aggregate sub-step contacts into step-level safety info."""
+        """Aggregate sub-step contacts into step-level safety info.
+
+        Closest-joint SSM (T0.2) + shared build_safety_info (T0.1)."""
         if self.safety_wrapper is None:
             self._step_safety_info = SafetyInfo()
             return
-        
-        # Get positions for SSM
-        robot_pos = np.zeros(3)
-        robot_vel = 0.0
-        human_pos = np.zeros(3)
-        human_vel = 0.0
-        
-        # Robot position
-        try:
-            robot_pos = self._robot.pelvis.get_position()
-        except Exception:
-            pass
-        
-        # Robot velocity from MuJoCo cvel (body center-of-mass velocity)
-        try:
-            robot_pelvis_id = mujoco.mj_name2id(
-                self._mojo.model, mujoco.mjtObj.mjOBJ_BODY, "h1/pelvis"
-            )
-            if robot_pelvis_id >= 0:
-                # cvel is [angular(3), linear(3)]
-                robot_vel = np.linalg.norm(self._mojo.data.cvel[robot_pelvis_id, 3:6])
-        except Exception:
-            pass
-        
-        # Human position and velocity
-        if self._human_pelvis_id is not None:
-            human_pos = self._mojo.data.xpos[self._human_pelvis_id].copy()
-            # Compute human velocity from position change over time
-            # (qvel is unreliable for kinematically-driven bodies)
-            if self._prev_human_pos is not None:
-                sim_time = self._mojo.data.time
-                dt = sim_time - self._prev_sim_time if hasattr(self, '_prev_sim_time') else 0.0
-                if dt > 1e-6:
-                    human_vel = np.linalg.norm(human_pos - self._prev_human_pos) / dt
-            self._prev_human_pos = human_pos.copy()
-            self._prev_sim_time = self._mojo.data.time
-        
-        # Compute SSM
-        ssm_violation, ssm_margin, min_separation = self.safety_wrapper.compute_ssm(
-            robot_pos=robot_pos,
-            robot_vel=robot_vel,
-            human_pos=human_pos,
-            human_vel=human_vel,
-        )
-        
-        # Find peak force contact
-        max_force = 0.0
-        max_contact: Optional[ContactInfo] = None
-        pfl_violation = False
-        
-        for contact in self._step_contacts:
-            if contact.force > max_force:
-                max_force = contact.force
-                max_contact = contact
-            if contact.is_violation:
-                pfl_violation = True
-        
-        # Build safety info
-        self._step_safety_info = SafetyInfo(
-            ssm_violation=ssm_violation,
-            pfl_violation=pfl_violation,
-            ssm_margin=ssm_margin,
-            min_separation=min_separation,
-            max_contact_force=max_force,
-            contact_region=max_contact.body_region if max_contact else "",
-            contact_type=max_contact.contact_type if max_contact else "",
+
+        robot_positions, robot_names, robot_vel = self._robot_ssm_state()
+        human_positions, human_names, human_vel = self._human_ssm_state()
+
+        self._step_safety_info = self.safety_wrapper.build_safety_info(
             contacts=self._step_contacts,
-            robot_pos=robot_pos.tolist(),
-            human_pos=human_pos.tolist(),
+            robot_positions=robot_positions,
+            robot_vel=robot_vel,
+            human_positions=human_positions,
+            human_vel=human_vel,
+            human_names=human_names,
+            robot_names=robot_names,
         )
-    
+        return
+
+    def _robot_ssm_state(self):
+        """Positions (Nr,3), names, and max link speed for every robot geom
+        registered on the safety wrapper. Falls back to pelvis-only."""
+        model = self._mojo.model
+        data = self._mojo.data
+        names = []
+        positions = []
+        max_vel = 0.0
+        for gid in sorted(self.safety_wrapper.robot_geoms):
+            positions.append(data.geom_xpos[gid].copy())
+            gname = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, gid)
+            names.append(gname or f"geom_{gid}")
+            body_id = int(model.geom_bodyid[gid])
+            if body_id >= 0:
+                linvel = float(np.linalg.norm(data.cvel[body_id, 3:6]))
+                if linvel > max_vel:
+                    max_vel = linvel
+        if not positions:
+            try:
+                pos = np.asarray(self._robot.pelvis.get_position(), dtype=float)
+                positions = [pos]
+                names = ["h1/pelvis"]
+                pid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "h1/pelvis")
+                if pid >= 0:
+                    max_vel = float(np.linalg.norm(data.cvel[pid, 3:6]))
+            except Exception:
+                positions = [np.zeros(3)]
+                names = ["unknown"]
+        return np.stack(positions), names, max_vel
+
+    def _human_ssm_state(self):
+        """Positions (Nh,3), names, and max body speed for every SMPL body we
+        track. Max-over-bodies speed is ISO 15066\'s conservative reading."""
+        data = self._mojo.data
+        body_ids = getattr(self, "_human_body_ids", [])
+        if not body_ids:
+            if self._human_pelvis_id is not None:
+                pos = data.xpos[self._human_pelvis_id].copy()
+                return np.stack([pos]), ["Pelvis"], 0.0
+            return np.zeros((1, 3)), ["unknown"], 0.0
+        positions = [data.xpos[bid].copy() for bid in body_ids]
+        names = list(self._human_body_names)
+        max_vel = 0.0
+        for bid in body_ids:
+            linvel = float(np.linalg.norm(data.cvel[bid, 3:6]))
+            if linvel > max_vel:
+                max_vel = linvel
+        if self._human_pelvis_id is not None:
+            self._prev_human_pos = data.xpos[self._human_pelvis_id].copy()
+            self._prev_sim_time = data.time
+        return np.stack(positions), names, max_vel
+
     def _on_step(self):
         """Called after step - log violations if configured."""
         super()._on_step()

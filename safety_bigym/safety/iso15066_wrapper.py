@@ -73,20 +73,29 @@ class SafetyInfo:
     robot_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     human_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     
+    # Names of the closest human joint / robot link that drove ssm_margin.
+    # Populated by build_safety_info when pairwise SSM is used. Empty strings
+    # when SSM was skipped or only a single point was passed with no name list.
+    closest_human_joint: str = ""
+    closest_robot_link: str = ""
+
     def to_dict(self) -> dict:
-        """Convert to dictionary for info['safety']."""
+        """Convert to dictionary for info['safety']. Cast numpy scalars to
+        Python primitives so the dict stays JSON-serialisable (W&B, pickle)."""
         return {
-            'ssm_violation': self.ssm_violation,
-            'pfl_violation': self.pfl_violation,
-            'ssm_margin': self.ssm_margin,
-            'pfl_force_ratio': self.pfl_force_ratio,
-            'min_separation': self.min_separation,
-            'max_contact_force': self.max_contact_force,
+            'ssm_violation': bool(self.ssm_violation),
+            'pfl_violation': bool(self.pfl_violation),
+            'ssm_margin': float(self.ssm_margin),
+            'pfl_force_ratio': float(self.pfl_force_ratio),
+            'min_separation': float(self.min_separation),
+            'max_contact_force': float(self.max_contact_force),
             'contact_region': self.contact_region,
             'contact_type': self.contact_type,
             'violations_by_region': self.violations_by_region.copy(),
-            'robot_pos': self.robot_pos,
-            'human_pos': self.human_pos,
+            'robot_pos': list(self.robot_pos),
+            'human_pos': list(self.human_pos),
+            'closest_human_joint': self.closest_human_joint,
+            'closest_robot_link': self.closest_robot_link,
         }
 
 
@@ -152,10 +161,15 @@ class ISO15066Wrapper:
         
         # Per-step tracking for quasi-static detection
         self._human_contacts_this_step: Dict[str, Set[str]] = defaultdict(set)
-        
+
         # Peak force tracking for sub-step capture
         self._peak_forces: Dict[str, float] = {}
         self._peak_contact_info: Dict[str, ContactInfo] = {}
+
+        # Indices of the (human, robot) point pair with minimum separation
+        # from the most recent compute_ssm call. -1 = not computed yet.
+        self.last_closest_human_idx: int = -1
+        self.last_closest_robot_idx: int = -1
     
     def _build_geom_sets(
         self,
@@ -369,31 +383,102 @@ class ISO15066Wrapper:
         human_pos: np.ndarray,
         human_vel: Optional[float] = None,
     ) -> Tuple[bool, float, float]:
+        """Compute SSM violation and margin using the closest-joint distance.
+
+        Accepts either (3,) single points or (N,3) arrays per agent. When
+        arrays are given, d_min is the minimum distance across all pairs, and
+        the indices of the closest pair are cached as last_closest_human_idx
+        and last_closest_robot_idx so the caller can resolve them to names.
         """
-        Compute SSM violation and margin.
-        
-        Args:
-            robot_pos: Robot position (3,)
-            robot_vel: Robot velocity magnitude (m/s)
-            human_pos: Human position (3,) - typically pelvis
-            human_vel: Human velocity magnitude (uses v_h_max if None)
-            
-        Returns:
-            (is_violation, margin, separation_distance)
-        """
-        # Current separation
-        d_min = np.linalg.norm(robot_pos - human_pos)
-        
-        # Required separation
+        human_arr = np.atleast_2d(np.asarray(human_pos, dtype=float))
+        robot_arr = np.atleast_2d(np.asarray(robot_pos, dtype=float))
+
+        if human_arr.shape[-1] != 3 or robot_arr.shape[-1] != 3:
+            raise ValueError(
+                f"positions must end with dim=3, got human {human_arr.shape} "
+                f"robot {robot_arr.shape}"
+            )
+
+        diff = human_arr[:, None, :] - robot_arr[None, :, :]
+        dists = np.linalg.norm(diff, axis=-1)
+        flat_idx = int(dists.argmin())
+        h_idx, r_idx = np.unravel_index(flat_idx, dists.shape)
+        d_min = float(dists[h_idx, r_idx])
+
+        self.last_closest_human_idx = int(h_idx)
+        self.last_closest_robot_idx = int(r_idx)
+
         S_p = self.ssm_config.compute_separation_distance(robot_vel, human_vel)
-        
-        # Margin (negative = violation)
         margin = d_min - S_p
-        
-        is_violation = margin < 0
-        
-        return is_violation, margin, d_min
-    
+        return bool(margin < 0), float(margin), d_min
+
+    def build_safety_info(
+        self,
+        contacts,
+        robot_positions=None,
+        robot_vel=0.0,
+        human_positions=None,
+        human_vel=None,
+        human_names=None,
+        robot_names=None,
+    ):
+        """Aggregate contacts + SSM state into one SafetyInfo. Shared by
+        step(), check_safety_no_step(), and env._aggregate_safety_info."""
+        info = SafetyInfo()
+        if robot_positions is not None and human_positions is not None:
+            self._ssm_into(info, robot_positions, robot_vel,
+                           human_positions, human_vel,
+                           human_names, robot_names)
+        self._pfl_into(info, contacts)
+        return info
+
+    def _ssm_into(self, info, robot_positions, robot_vel,
+                  human_positions, human_vel, human_names, robot_names):
+        is_v, margin, d_min = self.compute_ssm(
+            robot_positions, robot_vel, human_positions, human_vel
+        )
+        info.ssm_violation = is_v
+        info.ssm_margin = margin
+        info.min_separation = d_min
+        h_idx = self.last_closest_human_idx
+        r_idx = self.last_closest_robot_idx
+        if human_names is not None and 0 <= h_idx < len(human_names):
+            info.closest_human_joint = human_names[h_idx]
+        if robot_names is not None and 0 <= r_idx < len(robot_names):
+            info.closest_robot_link = robot_names[r_idx]
+        human_arr = np.atleast_2d(np.asarray(human_positions, dtype=float))
+        robot_arr = np.atleast_2d(np.asarray(robot_positions, dtype=float))
+        if 0 <= h_idx < len(human_arr):
+            info.human_pos = human_arr[h_idx].tolist()
+        if 0 <= r_idx < len(robot_arr):
+            info.robot_pos = robot_arr[r_idx].tolist()
+
+    def _pfl_into(self, info, contacts):
+        max_force = 0.0
+        max_region = ""
+        max_type = ""
+        max_ratio = 0.0
+        violations_by_region = defaultdict(int)
+        pfl_violation = False
+        for c in contacts:
+            if c.force > max_force:
+                max_force = c.force
+                max_region = c.body_region or ""
+                max_type = c.contact_type
+            if c.force_ratio > max_ratio:
+                max_ratio = c.force_ratio
+            if c.is_violation:
+                pfl_violation = True
+                region = c.body_region or "unknown"
+                violations_by_region[region] += 1
+        info.pfl_violation = pfl_violation
+        info.pfl_force_ratio = max_ratio
+        info.max_contact_force = max_force
+        info.contact_region = max_region
+        info.contact_type = max_type
+        info.contacts = list(contacts)
+        info.violations_by_region = dict(violations_by_region)
+
     def step(
         self,
         n_substeps: int = 1,

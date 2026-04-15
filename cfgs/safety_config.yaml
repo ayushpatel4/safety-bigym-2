@@ -65,9 +65,10 @@ replay:
 # Logging settings
 wandb:
   use: false
-  project: dp_safety_bigym
+  project: safety-critic
   entity: null
-  name: null
+  name: "${env.env_name}-${now:%Y%m%d-%H%M%S}"
+  tags: ["phase-0", "baseline"]
 
 tb:
   use: false

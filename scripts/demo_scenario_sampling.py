@@ -33,7 +33,13 @@ from safety_bigym.scenarios import (
     DisruptionType,
 )
 
-CMU_DIR = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
+_AMASS = os.environ.get("AMASS_DATA_DIR")
+if not _AMASS:
+    raise RuntimeError(
+        "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
+        "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
+    )
+CMU_DIR = Path(_AMASS)
 
 
 # ── Pretty printing ──────────────────────────────────────────────────────────

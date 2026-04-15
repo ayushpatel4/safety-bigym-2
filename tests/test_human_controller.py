@@ -67,7 +67,9 @@ class TestHumanController:
     def sample_clip_path(self):
         """Path to sample motion clip."""
         import os
-        data_dir = os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU")
+        data_dir = os.environ.get("AMASS_DATA_DIR")
+        if not data_dir:
+            pytest.skip("AMASS_DATA_DIR not set")
         return f"{data_dir}/01/01_01_poses.npz"
     
     def test_human_controller_creation(self, model_and_data):

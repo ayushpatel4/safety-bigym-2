@@ -198,8 +198,6 @@ class HumanController:
             scenario: Scenario configuration
         """
         self.scenario = scenario
-        if scenario.clip_path:
-            self.load_clip(scenario.clip_path)
     
     def set_ik_callback(self, callback: Callable[[dict], np.ndarray]):
         """

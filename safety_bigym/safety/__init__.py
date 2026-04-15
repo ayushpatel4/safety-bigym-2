@@ -14,6 +14,7 @@ from safety_bigym.safety.iso15066_wrapper import (
     SafetyInfo,
     ContactInfo,
 )
+from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
 
 __all__ = [
     # PFL limits
@@ -28,4 +29,5 @@ __all__ = [
     "SSMConfig",
     "SafetyInfo",
     "ContactInfo",
+    "EpisodeSafetyMetrics",
 ]

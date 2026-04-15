@@ -208,7 +208,12 @@ def main():
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
     # Auto-discover motion clips from CMU directory for diverse human motions.
     # Picks one clip per subject folder to maximize diversity across subjects.
-    cmu_clips_dir = "/home/ap2322/Documents/CMU/CMU"
+    cmu_clips_dir = os.environ.get("AMASS_DATA_DIR")
+    if not cmu_clips_dir:
+        raise RuntimeError(
+            "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
+            "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
+        )
     try:
         import glob
         all_clips = sorted(glob.glob(f"{cmu_clips_dir}/*/*_poses.npz"))

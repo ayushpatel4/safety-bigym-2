@@ -61,7 +61,13 @@ def demo_scenario(seed: int = 0, motion_dir: str = None):
     """
     # Setup motion directory
     if motion_dir is None:
-        motion_dir = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
+        _amass = os.environ.get("AMASS_DATA_DIR")
+        if not _amass:
+            raise RuntimeError(
+                "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, "
+                "e.g. export AMASS_DATA_DIR=/path/to/CMU/CMU"
+            )
+        motion_dir = Path(_amass)
     else:
         motion_dir = Path(motion_dir)
     
