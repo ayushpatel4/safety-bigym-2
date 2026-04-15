@@ -53,6 +53,10 @@ DISRUPTIONS = (
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Headless rendering prefix — GPU nodes have no X display, so MuJoCo needs
+# EGL (preferred) or osmesa. Prepended to every command this script emits.
+HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
+
 # Snapshots produced by prior training runs. Paths are relative to REPO_ROOT.
 # Update these when new snapshots land.
 SNAPSHOTS: dict[str, str | None] = {
@@ -86,6 +90,7 @@ def _resolved_snapshot(task: str) -> Path | None:
 def _train_cmd(task: str, seed: int = 0) -> list[str]:
     run_name = f"phase0-train-{task}-s{seed}"
     return [
+        *HEADLESS_ENV,
         sys.executable,
         "train_safety.py",
         "launch=dp_pixel_safety_bigym",
@@ -108,6 +113,7 @@ def _eval_cmd(
 ) -> list[str]:
     run_name = f"phase0-eval-{task}-{disruption.lower()}-s{seed}"
     return [
+        *HEADLESS_ENV,
         sys.executable,
         "train_safety.py",
         "launch=dp_pixel_safety_bigym",
@@ -189,7 +195,12 @@ def _smoke(task: str, disruption: str, seed: int) -> int:
         wandb_use=False,
     )
     print(">>> smoke:", " ".join(shlex.quote(c) for c in cmd))
-    return subprocess.run(cmd, cwd=REPO_ROOT).returncode
+    env = os.environ.copy()
+    argv = list(cmd)
+    while argv and "=" in argv[0] and not argv[0].startswith("-"):
+        k, v = argv.pop(0).split("=", 1)
+        env[k] = v
+    return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode
 
 
 def main() -> int:
