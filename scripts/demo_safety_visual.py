@@ -1,10 +1,12 @@
 """
-Visual Demo: ISO 15066 Safety Wrapper
+Visual Demo: ISO 15066 Safety Wrapper (closest-joint SSM + PFL)
 
-Shows the safety wrapper detecting violations:
-1. Robot approaches human → SSM violation
-2. Robot collides with human → PFL contact detected
-3. Status printed in real-time with colors
+Shows the safety wrapper in action:
+1. Robot slides toward a human with 5 body geoms + 3 robot geoms.
+2. compute_ssm() runs on ALL pairs — the demo prints the closest pair live,
+   so you can watch `closest_human_joint` change as the robot's EE vs. arm
+   sweeps past different body parts.
+3. On contact, PFL fires — region, force, and violation flag are printed.
 
 Usage:
     mjpython scripts/demo_safety_visual.py
@@ -20,172 +22,216 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from safety_bigym.safety import ISO15066Wrapper, SSMConfig, PFL_LIMITS
+from safety_bigym.safety import ISO15066Wrapper, SSMConfig
 
 
-# Scene with actuated robot that can reliably move toward human
+# Arm-extended pose on the human so closest-joint actually prefers the elbow,
+# not the pelvis, as the EE passes by the torso's side.
 VISUAL_SCENE = """
 <mujoco model="safety_visual_demo">
   <option timestep="0.002" gravity="0 0 -9.81"/>
-  
+
   <worldbody>
     <light pos="0 0 3" dir="0 0 -1"/>
     <geom name="ground" type="plane" size="3 3 0.1" rgba="0.9 0.9 0.9 1"/>
-    
-    <!-- Human - static body -->
+
+    <!-- Human — 5 labelled body geoms -->
     <body name="human" pos="0 0 1">
       <geom name="Pelvis_col" type="sphere" size="0.12" rgba="0.9 0.7 0.6 1"/>
-      <geom name="Chest_col" type="capsule" size="0.1" fromto="0 0 0 0 0 0.35" rgba="0.9 0.7 0.6 1"/>
-      <geom name="Head_col" type="sphere" size="0.09" pos="0 0 0.45" rgba="0.9 0.7 0.6 1"/>
-      <geom name="R_Elbow_col" type="capsule" size="0.04" fromto="0.15 0 0.25 0.4 0 0.25" rgba="0.9 0.7 0.6 1"/>
-      <geom name="L_Elbow_col" type="capsule" size="0.04" fromto="-0.15 0 0.25 -0.4 0 0.25" rgba="0.9 0.7 0.6 1"/>
+      <geom name="Chest_col"  type="capsule" size="0.1"  fromto="0 0 0 0 0 0.35" rgba="0.9 0.7 0.6 1"/>
+      <geom name="Head_col"   type="sphere"  size="0.09" pos="0 0 0.45" rgba="0.9 0.7 0.6 1"/>
+      <geom name="R_Elbow_col" type="capsule" size="0.04" fromto="0.15 0 0.25 0.55 0 0.25" rgba="0.9 0.7 0.6 1"/>
+      <geom name="L_Elbow_col" type="capsule" size="0.04" fromto="-0.15 0 0.25 -0.55 0 0.25" rgba="0.9 0.7 0.6 1"/>
     </body>
-    
-    <!-- Robot - slides on track toward human -->
+
+    <!-- Robot: slides on a track along -Y so its EE approaches the human -->
     <body name="robot_base" pos="0 2 1">
       <joint name="robot_slide" type="slide" axis="0 -1 0" range="0 2" damping="50"/>
       <geom name="robot_base_geom" type="box" size="0.08 0.08 0.15" rgba="0.3 0.3 0.3 1"/>
-      
       <body name="robot_arm" pos="0 -0.12 0">
         <joint name="robot_arm_joint" type="hinge" axis="1 0 0" range="-0.5 0.5" damping="10"/>
         <geom name="robot_arm_geom" type="capsule" size="0.035" fromto="0 0 0 0 -0.3 0" rgba="0.4 0.5 0.7 1"/>
-        
         <body name="robot_ee" pos="0 -0.35 0">
           <geom name="robot_ee_geom" type="sphere" size="0.07" rgba="1 0.3 0.3 1"/>
         </body>
       </body>
     </body>
   </worldbody>
-  
+
   <actuator>
-    <position name="slide_motor" joint="robot_slide" kp="500" ctrlrange="0 2"/>
-    <position name="arm_motor" joint="robot_arm_joint" kp="100" ctrlrange="-1.5 1.5"/>
+    <position name="slide_motor" joint="robot_slide"     kp="800" ctrlrange="0 2"/>
+    <position name="arm_motor"   joint="robot_arm_joint" kp="100" ctrlrange="-1.5 1.5"/>
   </actuator>
 </mujoco>
 """
 
 
+HUMAN_GEOMS = [
+    "Pelvis_col", "Chest_col", "Head_col", "R_Elbow_col", "L_Elbow_col",
+]
+ROBOT_GEOMS = ["robot_base_geom", "robot_arm_geom", "robot_ee_geom"]
+
+
 def run_visual_demo():
-    """Visual demo showing safety wrapper in action."""
-    
-    # Create scene
     with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
         f.write(VISUAL_SCENE)
         scene_path = f.name
-    
+
     model = mujoco.MjModel.from_xml_path(scene_path)
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
-    
-    # Create safety wrapper
+
     ssm_config = SSMConfig(T_r=0.1, T_s=0.05, a_max=5.0, C=0.1, v_h_max=0.0)
     wrapper = ISO15066Wrapper(model, data, ssm_config=ssm_config)
-    wrapper.add_robot_geom("robot_ee_geom")
-    wrapper.add_robot_geom("robot_arm_geom")
-    wrapper.add_robot_geom("robot_base_geom")
-    
-    # Get body IDs
-    human_body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "human")
-    robot_ee_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "robot_ee")
-    
-    print("\n" + "="*70)
-    print("ISO 15066 SAFETY VISUAL DEMO")
-    print("="*70)
-    print("Watch the MuJoCo viewer - robot will approach human automatically")
-    print("Console shows real-time safety status")
-    print("="*70 + "\n")
-    
-    # Animation state
-    approach_target = 0.0  # Start position
-    approach_speed = 0.3   # m/s target movement
+    for name in ROBOT_GEOMS:
+        wrapper.add_robot_geom(name)
+
+    human_gids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, n) for n in HUMAN_GEOMS]
+    robot_gids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, n) for n in ROBOT_GEOMS]
+
+    print("\n" + "=" * 78)
+    print("ISO 15066 SAFETY VISUAL DEMO — closest-joint SSM + PFL")
+    print("=" * 78)
+    print(f"  human geoms: {HUMAN_GEOMS}")
+    print(f"  robot geoms: {ROBOT_GEOMS}")
+    print("=" * 78)
+
+    # --- Static proof: closest-joint responds to EE position ---
+    # Compute closest-pair for a handful of canned EE positions. This exercises
+    # the pairwise (Nh × Nr) math directly, independent of physics, so you can
+    # see the closest_human_joint change even before the robot starts moving.
+    print("\n[static closest-joint check — teleport EE, report closest human geom]")
+    human_xpos = np.stack([data.geom_xpos[g].copy() for g in human_gids])
+    probe_positions = [
+        ("near head",   np.array([0.0,  0.0, 1.45])),
+        ("near chest",  np.array([0.0,  0.0, 1.20])),
+        ("near pelvis", np.array([0.0,  0.0, 1.00])),
+        ("near R elbow", np.array([0.5, 0.0, 1.25])),
+        ("near L elbow", np.array([-0.5, 0.0, 1.25])),
+    ]
+    for label, ee_pos in probe_positions:
+        robot_probe = np.stack([ee_pos, ee_pos + 0.3, ee_pos + 0.5])  # fake 3 robot geoms
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=robot_probe,
+            robot_vel=0.0,
+            human_positions=human_xpos,
+            human_vel=0.0,
+            human_names=HUMAN_GEOMS,
+            robot_names=ROBOT_GEOMS,
+        )
+        print(
+            f"  EE @ {ee_pos.tolist()} ({label:12s})  "
+            f"→ closest = {info.closest_human_joint:12s} ↔ {info.closest_robot_link}  "
+            f"d_min = {info.min_separation:.3f} m"
+        )
+    print("=" * 78)
+    print("  Watch the `closest pair` column — it updates live as the EE sweeps past.")
+    print("=" * 78 + "\n")
+
+    approach_target = 0.0
     phase = "approach"
-    phase_start_time = 0.0
-    
+    phase_start = 0.0
     ssm_violated = False
     pfl_violated = False
-    
+    closest_pairs_seen = set()
+
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.cam.azimuth = 90
         viewer.cam.elevation = -20
         viewer.cam.distance = 4
         viewer.cam.lookat[:] = [0, 0.5, 1]
-        
+
         while viewer.is_running():
-            current_time = data.time
-            
-            # Get positions
-            human_pos = data.xpos[human_body_id].copy()
-            robot_pos = data.xpos[robot_ee_id].copy()
-            robot_vel = np.linalg.norm(data.cvel[robot_ee_id, 3:6])
-            
-            # Animation control
+            t = data.time
+
+            # Drive the slide toward the human. The scene is 1-DOF so the physics
+            # contact always lands on Pelvis_col — the static proof table above
+            # exercises the other closest-pair branches.
             if phase == "approach":
-                # Move robot toward human - faster approach
-                approach_target = min(1.9, approach_target + 0.002)
-                data.ctrl[0] = approach_target  # Slide toward human
-                data.ctrl[1] = 0.0  # Keep arm level
-                
-                # Check if we should stop (collision or close enough)
-                distance = np.linalg.norm(robot_pos - human_pos)
-                if distance < 0.15 or approach_target > 1.85:
+                approach_target = min(1.95, approach_target + 0.002)
+                data.ctrl[0] = approach_target
+                data.ctrl[1] = 0.0
+                if approach_target > 1.9:
                     phase = "contact"
-                    phase_start_time = current_time
-                    
+                    phase_start = t
             elif phase == "contact":
-                # Hold position for contact
-                if current_time - phase_start_time > 3:
+                if t - phase_start > 3:
                     phase = "retreat"
-                    
             elif phase == "retreat":
-                approach_target = max(0.0, approach_target - 0.002)
+                approach_target = max(0.0, approach_target - 0.003)
                 data.ctrl[0] = approach_target
                 if approach_target < 0.1:
                     phase = "approach"
-            
-            # Check safety
-            safety_info = wrapper.check_safety_no_step(
-                robot_pos=robot_pos,
-                robot_vel=robot_vel,
-                human_pos=human_pos,
-                human_vel=0.0,
-            )
-            
-            # Step physics
+
+            # Step physics FIRST so contact data reflects the state we're about to print.
             mujoco.mj_step(model, data)
-            
-            # Print status every 0.2s
-            if int(current_time * 5) != int((current_time - model.opt.timestep) * 5):
-                distance = np.linalg.norm(robot_pos - human_pos)
-                
-                # SSM status
+
+            # Build per-geom position arrays — this is what drives closest-joint SSM.
+            human_pos = np.stack([data.geom_xpos[gid].copy() for gid in human_gids])  # (5,3)
+            robot_pos = np.stack([data.geom_xpos[gid].copy() for gid in robot_gids])  # (3,3)
+            robot_vel = float(np.linalg.norm(
+                data.cvel[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "robot_ee"), 3:6]
+            ))
+
+            contacts = wrapper.check_safety_substep()
+            safety_info = wrapper.build_safety_info(
+                contacts=contacts,
+                robot_positions=robot_pos,
+                robot_vel=robot_vel,
+                human_positions=human_pos,
+                human_vel=0.0,
+                human_names=HUMAN_GEOMS,
+                robot_names=ROBOT_GEOMS,
+            )
+
+            # Log unique closest-pair names as they appear.
+            pair = (safety_info.closest_human_joint, safety_info.closest_robot_link)
+            if pair not in closest_pairs_seen:
+                closest_pairs_seen.add(pair)
+
+            # Print status every 0.2s of sim time.
+            if int(t * 5) != int((t - model.opt.timestep) * 5):
+                ssm_status = (
+                    "🔴 SSM VIOLATION" if safety_info.ssm_violation else "🟢 SSM OK"
+                )
                 if safety_info.ssm_violation:
-                    ssm_status = "🔴 SSM VIOLATION"
                     ssm_violated = True
-                else:
-                    ssm_status = "🟢 SSM OK"
-                
-                # PFL status
+
                 if safety_info.max_contact_force > 5:
                     if safety_info.pfl_violation:
-                        pfl_status = f"🔴 PFL VIOLATION {safety_info.max_contact_force:.0f}N"
+                        pfl_status = (
+                            f"🔴 PFL VIOLATION {safety_info.max_contact_force:.0f}N "
+                            f"({safety_info.contact_region})"
+                        )
                         pfl_violated = True
                     else:
-                        pfl_status = f"🟡 PFL Contact {safety_info.max_contact_force:.0f}N ({safety_info.contact_region})"
+                        pfl_status = (
+                            f"🟡 PFL Contact {safety_info.max_contact_force:.0f}N "
+                            f"({safety_info.contact_region})"
+                        )
                 else:
                     pfl_status = "⚪ No contact"
-                
-                print(f"t={current_time:5.1f}s | Dist={distance:.2f}m | Margin={safety_info.ssm_margin:+.2f}m | {ssm_status} | {pfl_status}")
-            
+
+                print(
+                    f"t={t:5.1f}s  d_min={safety_info.min_separation:.2f}m  "
+                    f"margin={safety_info.ssm_margin:+.2f}m  "
+                    f"closest=[{safety_info.closest_human_joint}↔{safety_info.closest_robot_link}]  "
+                    f"| {ssm_status} | {pfl_status}"
+                )
+
             viewer.sync()
             time.sleep(0.001)
-    
-    # Summary
-    print("\n" + "="*70)
+
+    print("\n" + "=" * 78)
     print("DEMO SUMMARY")
-    print("="*70)
+    print("=" * 78)
     print(f"  SSM Violation Detected: {'✅ YES' if ssm_violated else '❌ NO'}")
-    print(f"  PFL Contact Detected:   {'✅ YES' if pfl_violated else '❌ NO'}")
-    print("="*70 + "\n")
+    print(f"  PFL Violation Detected: {'✅ YES' if pfl_violated else '❌ NO'}")
+    print(f"  Closest-pair transitions seen ({len(closest_pairs_seen)}):")
+    for h, r in sorted(closest_pairs_seen):
+        print(f"    {h:12s}  ↔  {r}")
+    print("=" * 78 + "\n")
 
 
 if __name__ == "__main__":
