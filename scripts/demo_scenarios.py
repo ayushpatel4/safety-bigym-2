@@ -22,6 +22,7 @@ import tempfile
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from safety_bigym import get_amass_data_dir
 from safety_bigym.scenarios import ScenarioSampler, DisruptionType
 from safety_bigym.human import HumanController, HumanIK
 
@@ -59,10 +60,7 @@ def demo_scenario(seed: int = 0, motion_dir: str = None):
         motion_dir: Path to AMASS motion clips
     """
     # Setup motion directory
-    if motion_dir is None:
-        motion_dir = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
-    else:
-        motion_dir = Path(motion_dir)
+    motion_dir = get_amass_data_dir(motion_dir)
     
     # Create sampler
     sampler = ScenarioSampler(motion_dir=motion_dir)

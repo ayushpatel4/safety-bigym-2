@@ -19,7 +19,7 @@ from typing import Dict, Any, List
 import numpy as np
 import h5py # Not needed for running, but maybe for logging? No, using json.
 
-from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym import make_safety_env, SafetyConfig, HumanConfig, get_amass_data_dir
 from safety_bigym.benchmark.safety_benchmark import SafetyBenchmark
 from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy
 from bigym.action_modes import JointPositionActionMode
@@ -180,7 +180,9 @@ def main():
                         help="Output JSON file for results")
     parser.add_argument("--report-file", type=str, default="benchmark_report.txt",
                         help="Output text file for formatted tables (avoids truncation)")
-    
+    parser.add_argument("--amass-dir", type=str, default=None,
+                        help="Path to AMASS CMU clip root (overrides $AMASS_DATA_DIR)")
+
     args = parser.parse_args()
     
     if "all" in args.tasks:
@@ -192,12 +194,7 @@ def main():
     
     # Common config
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
-    # Default human config (auto-discovers clips from CMU dir)
-    # We assume CMU_DIR is in standard location or handled by default logic
-    # For benchmark reproducibility, maybe we should fix the clip set?
-    # For now, let scenariosampler handle it deterministically given seed.
-    # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    cmu_clips_dir = str(get_amass_data_dir(args.amass_dir))
     try:
         human_config = HumanConfig(
             motion_clip_dir=cmu_clips_dir,

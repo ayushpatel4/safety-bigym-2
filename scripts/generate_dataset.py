@@ -41,14 +41,12 @@ from safety_bigym import (
     HumanConfig,
     ScenarioSampler,
     DisruptionType,
+    get_amass_data_dir,
 )
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
-
-# Path to AMASS motion clips
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
 
 # Available tasks (same as demo_safety_env.py)
 TASK_MAP = {
@@ -354,8 +352,8 @@ def main():
         help="Save full observations (creates larger files)"
     )
     parser.add_argument(
-        "--motion-dir", type=str, default=str(CMU_DIR),
-        help=f"Path to AMASS motion clips (default: {CMU_DIR})"
+        "--motion-dir", type=str, default=None,
+        help="Path to AMASS motion clips (default: $AMASS_DATA_DIR)"
     )
 
     args = parser.parse_args()
@@ -363,7 +361,7 @@ def main():
     # Setup
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
-    motion_dir = Path(args.motion_dir)
+    motion_dir = get_amass_data_dir(args.motion_dir)
 
     tasks = args.tasks if args.tasks else list(TASK_MAP.keys())
 

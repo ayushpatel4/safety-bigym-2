@@ -2,14 +2,18 @@ from bigym.envs.reach_target import ReachTargetSingle
 from bigym.envs.pick_and_place import PickBox
 from bigym.envs.dishwasher import DishwasherOpen
 from bigym.action_modes import JointPositionActionMode
-from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
-from safety_bigym import SafetyConfig, SSMConfig
+from safety_bigym import (
+    make_safety_env,
+    SafetyConfig,
+    HumanConfig,
+    SSMConfig,
+    get_amass_data_dir,
+)
 
 
 def setup():
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
-    # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    cmu_clips_dir = str(get_amass_data_dir())
     human_config = HumanConfig(
         motion_clip_dir=cmu_clips_dir,
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion

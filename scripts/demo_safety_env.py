@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO)
 
 from bigym.action_modes import JointPositionActionMode
 from bigym.bigym_env import BiGymEnv
-from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
+from safety_bigym import SafetyConfig, HumanConfig, make_safety_env, get_amass_data_dir
 
 # Available tasks (import on demand)
 TASK_MAP = {
@@ -58,6 +58,10 @@ def main():
         "--task", default="default", choices=list(TASK_MAP.keys()),
         help="BiGym task to run (default: %(default)s)",
     )
+    parser.add_argument(
+        "--amass-dir", type=str, default=None,
+        help="Path to AMASS CMU clip root (overrides $AMASS_DATA_DIR)",
+    )
     args = parser.parse_args()
 
     task_cls = load_task_cls(args.task)
@@ -79,7 +83,7 @@ def main():
     )
     
     # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    cmu_clips_dir = str(get_amass_data_dir(args.amass_dir))
     human_config = HumanConfig(
         motion_clip_dir=cmu_clips_dir,
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion

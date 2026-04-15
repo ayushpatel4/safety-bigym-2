@@ -25,14 +25,13 @@ import numpy as np
 from collections import Counter
 from pathlib import Path
 
+from safety_bigym import get_amass_data_dir
 from safety_bigym.scenarios import (
     ScenarioSampler,
     ScenarioParams,
     ParameterSpace,
     DisruptionType,
 )
-
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
 
 
 # ── Pretty printing ──────────────────────────────────────────────────────────
@@ -183,7 +182,7 @@ def demo_custom_space(sampler: ScenarioSampler):
 
 # ── Demo 5: Run scenarios in environment (needs mjpython) ────────────────────
 
-def demo_run_scenario(sampler: ScenarioSampler, seed: int):
+def demo_run_scenario(sampler: ScenarioSampler, seed: int, cmu_dir: Path):
     """Run a single scenario in the MuJoCo viewer."""
     import mujoco.viewer
     from bigym.action_modes import JointPositionActionMode
@@ -197,7 +196,7 @@ def demo_run_scenario(sampler: ScenarioSampler, seed: int):
     print_scenario(scenario, seed)
 
     human_config = HumanConfig(
-        motion_clip_dir=str(CMU_DIR),
+        motion_clip_dir=str(cmu_dir),
         motion_clip_paths=[scenario.clip_path],
     )
 
@@ -242,7 +241,7 @@ def demo_run_scenario(sampler: ScenarioSampler, seed: int):
     print("Done!")
 
 
-def demo_run_stratified(sampler: ScenarioSampler):
+def demo_run_stratified(sampler: ScenarioSampler, cmu_dir: Path):
     """Run one scenario per disruption type sequentially."""
     import mujoco.viewer
     from bigym.action_modes import JointPositionActionMode
@@ -263,7 +262,7 @@ def demo_run_stratified(sampler: ScenarioSampler):
         print_scenario(scenario, scenario.seed)
 
         human_config = HumanConfig(
-            motion_clip_dir=str(CMU_DIR),
+            motion_clip_dir=str(cmu_dir),
             motion_clip_paths=[scenario.clip_path],
         )
 
@@ -315,17 +314,21 @@ def main():
                         help="Seed for single scenario run (default: 42)")
     parser.add_argument("--stratified", action="store_true",
                         help="With --run, cycle through one scenario per disruption type")
+    parser.add_argument("--amass-dir", type=str, default=None,
+                        help="Path to AMASS CMU clip root (overrides $AMASS_DATA_DIR)")
     args = parser.parse_args()
 
+    cmu_dir = get_amass_data_dir(args.amass_dir)
+
     # Create sampler with auto-discovered clips
-    sampler = ScenarioSampler(motion_dir=CMU_DIR)
-    print(f"Discovered {len(sampler.params.clip_paths)} motion clips in {CMU_DIR}\n")
+    sampler = ScenarioSampler(motion_dir=cmu_dir)
+    print(f"Discovered {len(sampler.params.clip_paths)} motion clips in {cmu_dir}\n")
 
     if args.run:
         if args.stratified:
-            demo_run_stratified(sampler)
+            demo_run_stratified(sampler, cmu_dir)
         else:
-            demo_run_scenario(sampler, seed=args.seed)
+            demo_run_scenario(sampler, seed=args.seed, cmu_dir=cmu_dir)
     else:
         # Print-only demos (no viewer needed)
         demo_basic_sampling(sampler)

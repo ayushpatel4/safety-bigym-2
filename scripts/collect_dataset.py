@@ -22,15 +22,11 @@ import mujoco
 
 from bigym.action_modes import JointPositionActionMode
 from bigym.bigym_env import BiGymEnv
-from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym import make_safety_env, SafetyConfig, HumanConfig, get_amass_data_dir
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# CMU Motion directory (adjust if needed or pass via env var/arg)
-# Defaulting to the path found in user context
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
 
 # Task Mapping (same as demo_safety_env.py)
 TASK_MAP = {
@@ -189,9 +185,13 @@ def main():
                         help="Use random actions instead of zero actions (robot holds position)")
     parser.add_argument("--render", action="store_true",
                         help="Visualize collection in MuJoCo viewer")
-    
+    parser.add_argument("--amass-dir", type=str, default=None,
+                        help="Path to AMASS CMU clip root (overrides $AMASS_DATA_DIR)")
+
     args = parser.parse_args()
-    
+
+    cmu_dir = get_amass_data_dir(args.amass_dir)
+
     # Handle 'all' tasks
     if "all" in args.tasks:
         tasks_to_run = list(TASK_MAP.keys())
@@ -221,8 +221,8 @@ def main():
                 )
                 
                 human_config = HumanConfig(
-                    motion_clip_dir=str(CMU_DIR),
-                    motion_clip_paths=[], 
+                    motion_clip_dir=str(cmu_dir),
+                    motion_clip_paths=[],
                 )
                 
                 env = make_safety_env(

@@ -57,7 +57,13 @@ class HumanConfig:
     pd_kd: float = 20.0   # Derivative gain
     
     def __post_init__(self):
-        if self.motion_clip_dir is not None:
+        if self.motion_clip_dir is None:
+            from safety_bigym.paths import get_amass_data_dir
+            try:
+                self.motion_clip_dir = get_amass_data_dir()
+            except FileNotFoundError:
+                pass
+        else:
             self.motion_clip_dir = Path(self.motion_clip_dir)
 
 

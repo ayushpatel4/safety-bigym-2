@@ -32,6 +32,7 @@ from safety_bigym.scenarios import (
     DisruptionConfig,
 )
 from safety_bigym.envs import SafetyBiGymEnv, make_safety_env
+from safety_bigym.paths import get_amass_data_dir
 
 __version__ = "0.1.0"
 
@@ -41,10 +42,12 @@ __all__ = [
     "make_safety_env",
     # Configuration
     "SSMConfig",
-    "SafetyConfig", 
+    "SafetyConfig",
     "HumanConfig",
     "DEFAULT_SPAWN_POSITIONS",
     "get_spawn_positions",
+    # Paths
+    "get_amass_data_dir",
     # Safety
     "ISO15066Wrapper",
     "SafetyInfo",

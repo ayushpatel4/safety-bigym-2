@@ -5,6 +5,8 @@ import numpy as np
 import mujoco
 from pathlib import Path
 
+from safety_bigym.paths import get_amass_data_dir
+
 
 class TestPDController:
     """Tests for the PD controller."""
@@ -65,8 +67,15 @@ class TestHumanController:
     
     @pytest.fixture
     def sample_clip_path(self):
-        """Path to sample motion clip."""
-        return "/Users/ayushpatel/Documents/FYP3/CMU/CMU/01/01_01_poses.npz"
+        """Path to sample motion clip; skips if AMASS data unavailable."""
+        try:
+            amass_dir = get_amass_data_dir()
+        except FileNotFoundError:
+            pytest.skip("AMASS_DATA_DIR not set; skipping AMASS-dependent test")
+        clip = amass_dir / "01" / "01_01_poses.npz"
+        if not clip.is_file():
+            pytest.skip(f"Sample clip missing at {clip}")
+        return str(clip)
     
     def test_human_controller_creation(self, model_and_data):
         """Test human controller can be created."""
