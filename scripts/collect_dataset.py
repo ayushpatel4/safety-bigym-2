@@ -29,9 +29,14 @@ from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# CMU Motion directory (adjust if needed or pass via env var/arg)
-# Defaulting to the path found in user context
-CMU_DIR = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
+# CMU Motion directory — set via AMASS_DATA_DIR env var.
+_AMASS = os.environ.get("AMASS_DATA_DIR")
+if not _AMASS:
+    raise RuntimeError(
+        "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
+        "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
+    )
+CMU_DIR = Path(_AMASS)
 
 # Task Mapping (same as demo_safety_env.py)
 TASK_MAP = {

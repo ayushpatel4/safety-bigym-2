@@ -9,7 +9,12 @@ from safety_bigym import make_safety_env, SafetyConfig, HumanConfig, SSMConfig
 def setup():
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
     # Create human config with AMASS motion clip
-    cmu_clips_dir = os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU")
+    cmu_clips_dir = os.environ.get("AMASS_DATA_DIR")
+    if not cmu_clips_dir:
+        raise RuntimeError(
+            "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
+            "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
+        )
     human_config = HumanConfig(
         motion_clip_dir=cmu_clips_dir,
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion
