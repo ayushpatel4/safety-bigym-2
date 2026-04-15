@@ -10,6 +10,7 @@ Shows:
 - Safety monitoring (SSM/PFL) in real-time
 """
 
+import os
 import numpy as np
 import mujoco.viewer
 import logging
@@ -79,7 +80,7 @@ def main():
     )
     
     # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    cmu_clips_dir = os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU")
     human_config = HumanConfig(
         motion_clip_dir=cmu_clips_dir,
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion

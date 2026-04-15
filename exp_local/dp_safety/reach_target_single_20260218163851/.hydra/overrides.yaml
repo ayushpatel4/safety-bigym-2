@@ -1,0 +1,6 @@
+- launch=dp_pixel_safety_bigym
+- env=safety_bigym/reach_target_single
+- num_pretrain_steps=100
+- eval_every_steps=50
+- demos=5
+- wandb.use=false

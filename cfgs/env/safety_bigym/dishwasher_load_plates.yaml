@@ -1,0 +1,14 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: dishwasher_load_plates
+  # DishwasherLoadPlates is a long-horizon task (14000 steps at max frequency)
+  episode_length: 500  # Adjust as needed
+  # We use a down_sample_rate to reduce the frequency from 100Hz
+  demo_down_sample_rate: 25
+  # Demos were recorded with 4 floating DOFs (pelvis_x, y, z, rz)
+  enable_all_floating_dof: true

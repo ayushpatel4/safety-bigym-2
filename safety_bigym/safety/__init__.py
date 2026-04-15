@@ -1,5 +1,6 @@
 """Safety module exports."""
 
+from safety_bigym.config import SSMConfig
 from safety_bigym.safety.pfl_limits import (
     BodyRegionLimits,
     PFL_LIMITS,
@@ -10,7 +11,6 @@ from safety_bigym.safety.pfl_limits import (
 )
 from safety_bigym.safety.iso15066_wrapper import (
     ISO15066Wrapper,
-    SSMConfig,
     SafetyInfo,
     ContactInfo,
 )

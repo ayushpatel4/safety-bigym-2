@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import numpy as np
@@ -23,23 +24,40 @@ class SafetyBenchmark:
         action_mode: Any = None,
         human_config: Optional[HumanConfig] = None,
         safety_config: Optional[SafetyConfig] = None,
-        render: bool = False
+        render: bool = False,
+        record_dir: Optional[str] = None,
+        record_resolution: tuple = (640, 480),
+        record_every: int = 2,
+        env_kwargs: Optional[Dict] = None,
     ):
         """
         Initialize benchmark with environment configuration.
-        
+
         Args:
             task_cls: BiGym task class (e.g. ReachTargetSingle)
             action_mode: Action mode configuration
             human_config: Human configuration (motion path, etc.)
             safety_config: Safety monitoring configuration
             render: Whether to visualize evaluation
+            record_dir: Directory to save episode videos (None = no recording)
+            record_resolution: Video resolution as (width, height)
+            record_every: Capture a frame every N steps (lower = smoother but larger files)
+            env_kwargs: Extra keyword arguments forwarded to make_safety_env
+                (e.g. observation_config for camera setup).
         """
         self.task_cls = task_cls
         self.action_mode = action_mode or JointPositionActionMode(floating_base=True, absolute=True)
         self.human_config = human_config or HumanConfig(motion_clip_paths=[]) # Auto-discover
         self.safety_config = safety_config or SafetyConfig(log_violations=False, terminate_on_violation=False)
         self.render = render
+        self.record_dir = record_dir
+        self.record_resolution = record_resolution
+        self.record_every = record_every
+        self.env_kwargs = env_kwargs or {}
+        
+        if self.record_dir:
+            os.makedirs(self.record_dir, exist_ok=True)
+            logger.info(f"Recording episodes to {self.record_dir}")
         
     def evaluate(
         self, 
@@ -66,7 +84,8 @@ class SafetyBenchmark:
             action_mode=self.action_mode,
             safety_config=self.safety_config,
             human_config=self.human_config,
-            inject_human=True
+            inject_human=True,
+            **self.env_kwargs,
         )
         
         results = {
@@ -78,6 +97,16 @@ class SafetyBenchmark:
             "by_scenario": {},
             "by_motion": {}
         }
+        
+        # Offscreen renderer for recording
+        renderer = None
+        if self.record_dir:
+            renderer = mujoco.Renderer(
+                env._mojo.model,
+                width=self.record_resolution[0],
+                height=self.record_resolution[1],
+            )
+            logger.info(f"Created offscreen renderer at {self.record_resolution[0]}x{self.record_resolution[1]}")
         
         # viewer setup
         viewer_ctx = mujoco.viewer.launch_passive(env._mojo.model, env._mojo.data) if self.render else None
@@ -92,7 +121,10 @@ class SafetyBenchmark:
             with context as viewer:
                 for i in range(num_episodes):
                     episode_seed = seed + i
-                    ep_metrics = self._run_episode(env, policy, episode_seed, viewer, max_steps)
+                    ep_metrics = self._run_episode(
+                        env, policy, episode_seed, viewer, max_steps,
+                        renderer=renderer,
+                    )
                     results["episodes"].append(ep_metrics)
                     
                     # Update viewer if needed
@@ -101,6 +133,8 @@ class SafetyBenchmark:
                         break
                         
         finally:
+            if renderer is not None:
+                renderer.close()
             env.close()
             
         # Global aggregate metrics
@@ -127,18 +161,39 @@ class SafetyBenchmark:
             
         for key, eps in motions.items():
             results["by_motion"][key] = self._compute_aggregate_metrics(eps)
+        
+        # Breakdown by Trajectory Type
+        results["by_trajectory"] = {}
+        trajectories = defaultdict(list)
+        for ep in results["episodes"]:
+            trajectories[ep.get("trajectory_type", "UNKNOWN")].append(ep)
+        for key, eps in trajectories.items():
+            results["by_trajectory"][key] = self._compute_aggregate_metrics(eps)
             
         return results
 
-    def _run_episode(self, env, policy, seed, viewer=None, max_steps=500) -> Dict[str, Any]:
-        """Run a single episode."""
+    def _run_episode(self, env, policy, seed, viewer=None, max_steps=500,
+                     renderer=None) -> Dict[str, Any]:
+        """Run a single episode, optionally recording video."""
         obs, info = env.reset(seed=seed)
+        
+        # Video frame buffer
+        frames = []
         policy.reset()
         
         # Capture scenario metadata
         scenario_info = info.get("scenario", {})
         disruption_type = scenario_info.get("disruption_type", "UNKNOWN")
         clip_path = scenario_info.get("clip_path", "")
+        trajectory_type = scenario_info.get("trajectory_type", "UNKNOWN")
+        
+        # Log scenario sampling
+        clip_name = clip_path.split("/")[-1] if clip_path else "None"
+        logger.info(
+            f"  Episode {seed}: "
+            f"disruption={disruption_type}  trajectory={trajectory_type}  "
+            f"clip={clip_name}"
+        )
         
         # Get DT for time calculations
         dt = env.unwrapped.model.opt.timestep if hasattr(env.unwrapped, "model") else 0.02
@@ -166,12 +221,29 @@ class SafetyBenchmark:
         prev_pfl = False
         prev_collision = False
         
+        # Phase tracking
+        phase_log = []          # List of (time, phase) transitions
+        prev_phase = None
+        phase_step_counts = defaultdict(int)  # Steps spent in each phase
+        
         while not (done or truncated) and step < max_steps:
             action = policy.act(obs)
             obs, reward, done, truncated, info = env.step(action)
             
             safety = info.get("safety", {})
             current_time = step * dt
+            
+            # --- Human phase tracking ---
+            human_phase = info.get("human_phase", None)
+            if human_phase is not None:
+                phase_step_counts[human_phase] += 1
+                if human_phase != prev_phase:
+                    phase_log.append({"time": round(current_time, 2), "phase": human_phase})
+                    if prev_phase is not None:
+                        logger.info(
+                            f"    t={current_time:5.1f}s  phase: {prev_phase} → {human_phase}"
+                        )
+                    prev_phase = human_phase
             
             # --- SSM ---
             is_ssm = safety.get("ssm_violation", False)
@@ -212,14 +284,52 @@ class SafetyBenchmark:
                 
             if viewer is not None:
                 viewer.sync()
+            
+            # Capture frame for recording
+            if renderer is not None and (step % self.record_every == 0):
+                renderer.update_scene(env._mojo.data)
+                frames.append(renderer.render().copy())
                 
             step += 1
             
         avg_contact_force = cumulative_contact_force / collision_frames if collision_frames > 0 else 0.0
+        
+        # Save video if recording
+        if frames and self.record_dir:
+            task_name = env.__class__.__name__.replace('Safety', '').lower()
+            video_path = os.path.join(
+                self.record_dir,
+                f"{task_name}_seed{seed}.mp4"
+            )
+            try:
+                import imageio.v3 as iio
+                # Compute fps: physics fps / record_every
+                physics_fps = 1.0 / dt if dt > 0 else 50.0
+                video_fps = physics_fps / self.record_every
+                # Clamp to reasonable range
+                video_fps = max(10, min(video_fps, 60))
+                iio.imwrite(
+                    video_path,
+                    np.stack(frames),
+                    fps=video_fps,
+                    codec="h264",
+                )
+                logger.info(f"    Saved video: {video_path} ({len(frames)} frames, {video_fps:.0f} fps)")
+            except Exception as e:
+                logger.warning(f"    Failed to save video: {e}")
+        
+        # Log episode summary
+        phases_seen = [p["phase"] for p in phase_log]
+        logger.info(
+            f"    → {step} steps | phases: {' → '.join(phases_seen) if phases_seen else 'none'} | "
+            f"SSM: {'⚠️' if ssm_violation_steps > 0 else '✓'} | "
+            f"collision: {'⚠️' if collision_frames > 0 else '✓'}"
+        )
             
         return {
             "seed": seed,
             "disruption_type": disruption_type,
+            "trajectory_type": trajectory_type,
             "clip_path": clip_path,
             "steps": step,
             "duration": step * dt,
@@ -237,7 +347,9 @@ class SafetyBenchmark:
             "min_separation": min_separation if min_separation != float('inf') else -1.0,
             "max_force": max_force,
             "avg_contact_force": avg_contact_force,
-            "success": info.get("success", False) # If task defines success
+            "success": info.get("success", False),
+            "phase_log": phase_log,
+            "phase_step_counts": dict(phase_step_counts),
         }
 
     def _compute_aggregate_metrics(self, episodes: List[Dict]) -> Dict[str, float]:

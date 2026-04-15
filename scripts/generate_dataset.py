@@ -28,6 +28,7 @@ import json
 import csv
 import importlib
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 from dataclasses import asdict
@@ -48,7 +49,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Path to AMASS motion clips
-CMU_DIR = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
+CMU_DIR = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
 
 # Available tasks (same as demo_safety_env.py)
 TASK_MAP = {

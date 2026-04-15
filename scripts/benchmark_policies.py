@@ -21,7 +21,7 @@ import h5py # Not needed for running, but maybe for logging? No, using json.
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
 from safety_bigym.benchmark.safety_benchmark import SafetyBenchmark
-from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy
+from safety_bigym.benchmark.policy import RandomPolicy, SafePolicy, DiffusionPolicyWrapper
 from bigym.action_modes import JointPositionActionMode
 
 # Check for rich for pretty printing
@@ -49,6 +49,7 @@ TASK_MAP = {
     "stack_blocks": "bigym.envs.manipulation:StackBlocks",
     "dishwasher_open": "bigym.envs.dishwasher:DishwasherOpen",
     "dishwasher_close": "bigym.envs.dishwasher:DishwasherClose",
+    "dishwasher_load_plates": "bigym.envs.dishwasher_plates:DishwasherLoadPlates",
     "cupboard_open": "bigym.envs.cupboards:CupboardsOpenAll",
     "drawer_open": "bigym.envs.cupboards:DrawerTopOpen",
     "move_plate": "bigym.envs.move_plates:MovePlate",
@@ -154,6 +155,8 @@ def print_summary_table(all_results: Dict[str, Any], comprehensive: bool = False
             for task, res in all_results.items():
                 if "by_scenario" in res and res["by_scenario"]:
                     console.print(create_results_table(res["by_scenario"], f"Breakdown: Scenario Type ({task})", "Scenario", comprehensive))
+                if "by_trajectory" in res and res["by_trajectory"]:
+                    console.print(create_results_table(res["by_trajectory"], f"Breakdown: Trajectory Type ({task})", "Trajectory", comprehensive))
                 if "by_motion" in res and res["by_motion"]:
                     console.print(create_results_table(res["by_motion"], f"Breakdown: Motion Clip ({task})", "Motion", comprehensive))
             
@@ -164,9 +167,15 @@ def main():
     parser = argparse.ArgumentParser(description="Safety Benchmark Runner")
     parser.add_argument("--tasks", nargs="+", default=["reach"], 
                         help=f"List of tasks to evaluate (choices: {', '.join(TASK_MAP.keys())} or 'all')")
-    parser.add_argument("--policy", type=str, default="random", choices=["random", "safe"],
+    parser.add_argument("--policy", type=str, default="random", choices=["random", "safe", "diffusion"],
                         help="Policy to evaluate")
-    parser.add_argument("--episodes", type=int, default=10, 
+    parser.add_argument("--snapshot", type=str, default=None,
+                        help="Path to RoboBase snapshot .pt file (required for --policy diffusion)")
+    parser.add_argument("--device", type=str, default="cpu",
+                        help="Torch device for diffusion policy (cpu, mps, cuda)")
+    parser.add_argument("--inference-steps", type=int, default=None,
+                        help="Override diffusion inference steps (default: use training value, e.g. 50). Lower = faster (try 10)")
+    parser.add_argument("--episodes", type=int, default=10,
                         help="Number of episodes per task")
     parser.add_argument("--max-steps", type=int, default=500,
                         help="Maximum steps per episode")
@@ -180,6 +189,11 @@ def main():
                         help="Output JSON file for results")
     parser.add_argument("--report-file", type=str, default="benchmark_report.txt",
                         help="Output text file for formatted tables (avoids truncation)")
+    parser.add_argument("--record-dir", type=str, default=None,
+                        help="Directory to save episode videos for headless review (e.g. 'recordings/')")
+    parser.add_argument("--record-resolution", type=int, nargs=2, default=[640, 480],
+                        metavar=("W", "H"),
+                        help="Video resolution width height (default: 640 480)")
     
     args = parser.parse_args()
     
@@ -192,64 +206,74 @@ def main():
     
     # Common config
     action_mode = JointPositionActionMode(floating_base=True, absolute=True)
-    # Default human config (auto-discovers clips from CMU dir)
-    # We assume CMU_DIR is in standard location or handled by default logic
-    # For benchmark reproducibility, maybe we should fix the clip set?
-    # For now, let scenariosampler handle it deterministically given seed.
-    # Create human config with AMASS motion clip
-    cmu_clips_dir = "/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+    # Auto-discover motion clips from CMU directory for diverse human motions.
+    # Picks one clip per subject folder to maximize diversity across subjects.
+    cmu_clips_dir = "/home/ap2322/Documents/CMU/CMU"
     try:
+        import glob
+        all_clips = sorted(glob.glob(f"{cmu_clips_dir}/*/*_poses.npz"))
+        # Pick first clip from each subject folder for diversity
+        seen_subjects = set()
+        diverse_clips = []
+        for clip in all_clips:
+            rel = str(Path(clip).relative_to(cmu_clips_dir))  # e.g. "74/74_01_poses.npz"
+            subject = rel.split("/")[0]
+            if subject not in seen_subjects:
+                seen_subjects.add(subject)
+                diverse_clips.append(rel)
+        logger.info(f"Discovered {len(diverse_clips)} motion clips from {len(seen_subjects)} subjects in {cmu_clips_dir}")
         human_config = HumanConfig(
             motion_clip_dir=cmu_clips_dir,
-            motion_clip_paths=[
-                "74/74_01_poses.npz",  # Walking
-                "74/74_02_poses.npz",  # Walking
-                "74/74_03_poses.npz",  # Walking
-                "49/49_01_poses.npz",  # General motion
-                "49/49_02_poses.npz",  # General motion
-                "25/25_01_poses.npz",  # Diverse motion
-                "09/09_01_poses.npz",
-                "09/09_02_poses.npz",
-                "09/09_03_poses.npz",
-                "122/122_01_poses.npz",
-                "122/122_02_poses.npz",
-                "122/122_03_poses.npz",
-                "122/122_04_poses.npz"
-            ]
+            motion_clip_paths=diverse_clips,
         )
-    except Exception:
-        # Fallback if specific clip not found
+    except Exception as e:
+        logger.warning(f"Failed to auto-discover clips: {e}. Using empty clip list.")
         human_config = HumanConfig(motion_clip_paths=[])
     
     for task_key in tasks_to_run:
         logger.info(f"Evaluating task: {task_key}")
         try:
             task_cls = load_task_cls(task_key)
-            
-            # Initialize benchmark
+
+            # For diffusion policy, construct wrapper first so we can use
+            # its action_mode and observation_config (matching the training
+            # config) for the benchmark env.
+            task_action_mode = action_mode
+            env_kwargs = {}
+            if args.policy == "diffusion":
+                if args.snapshot is None:
+                    raise ValueError("--snapshot is required when using --policy diffusion")
+                policy = DiffusionPolicyWrapper(
+                    snapshot_path=args.snapshot,
+                    action_space=None,  # will be set below after env creation
+                    device=args.device,
+                    num_inference_steps=args.inference_steps,
+                    motion_clip_dir=cmu_clips_dir,
+                )
+                task_action_mode = policy.action_mode
+                env_kwargs["observation_config"] = policy.observation_config
+
+            # Initialize benchmark with the correct action mode and obs config
             benchmark = SafetyBenchmark(
                 task_cls=task_cls,
-                action_mode=action_mode,
+                action_mode=task_action_mode,
                 human_config=human_config,
-                render=args.render
+                render=args.render,
+                record_dir=args.record_dir,
+                record_resolution=tuple(args.record_resolution),
+                env_kwargs=env_kwargs,
             )
-            
-            # Initialize policy
-            # We need to instantiate env once to get action space? 
-            # Or SafetyBenchmark exposes an env property?
-            # Or make_safety_env just to get space.
-            # Efficient way: instantiate one env, get space, close.
-            # But RandomPolicy just needs shape. BiGym default shape is often 7+gripper.
-            # Let's instantiate a temp env to get correct space.
-            
-            temp_env = make_safety_env(task_cls, action_mode=action_mode, human_config=human_config, inject_human=False)
+
+            temp_env = make_safety_env(task_cls, action_mode=task_action_mode, human_config=human_config, inject_human=False, **env_kwargs)
             action_space = temp_env.action_space
             temp_env.close()
-            
+
             if args.policy == "random":
                 policy = RandomPolicy(action_space)
             elif args.policy == "safe":
                 policy = SafePolicy(action_space)
+            elif args.policy == "diffusion":
+                policy._raw_action_space = action_space
             else:
                 raise ValueError("Unknown policy")
                 

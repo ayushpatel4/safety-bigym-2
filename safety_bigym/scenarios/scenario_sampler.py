@@ -49,6 +49,17 @@ class ScenarioParams:
     # Target body part for IK (when applicable)
     reaching_arm: str = "right_arm"
     
+    # --- Trajectory parameters (NEW) ---
+    trajectory_type: str = "PASS_BY"      # PASS_BY | APPROACH_LOITER_DEPART | ARC
+    pass_by_offset: float = 1.0           # Lateral offset from robot (meters)
+    closest_approach: float = 1.0         # How close before stopping (meters)
+    loiter_duration: float = 2.0          # Time near robot (seconds)
+    departure_angle: float = 150.0        # Relative departure direction (degrees)
+    walk_speed: float = 1.2               # Walking speed (m/s)
+    arc_radius: float = 1.5               # Arc radius for ARC type (meters)
+    arc_extent: float = 120.0             # Arc angular extent (degrees)
+    pass_by_side: int = 1                 # +1 left, -1 right (which side to pass)
+    
     # Reproducibility
     seed: int = 0
     
@@ -90,6 +101,15 @@ class ParameterSpace:
     # Spatial configuration
     approach_angle_range: tuple = (0.0, 360.0)  # degrees
     spawn_distance_range: tuple = (1.0, 2.0)  # meters
+    
+    # --- Trajectory parameter ranges (NEW) ---
+    pass_by_offset_range: tuple = (0.3, 2.0)       # Lateral offset (meters)
+    closest_approach_range: tuple = (0.5, 1.5)     # Stop distance (meters)
+    loiter_duration_range: tuple = (1.0, 5.0)      # Near-robot time (seconds)
+    departure_angle_range: tuple = (120.0, 240.0)  # Departure angle (degrees)
+    walk_speed_range: tuple = (0.8, 1.6)           # Walk speed (m/s)
+    arc_radius_range: tuple = (1.0, 2.5)           # Arc radius (meters)
+    arc_extent_range: tuple = (90.0, 180.0)        # Arc extent (degrees)
 
 
 class ScenarioSampler:
@@ -165,6 +185,19 @@ class ScenarioSampler:
         # Select arm (based on angle - right arm for right-side approach)
         reaching_arm = "right_arm" if 270 < angle or angle < 90 else "left_arm"
         
+        # --- Trajectory type selection (based on disruption type) ---
+        trajectory_type = self._select_trajectory_type(disruption_type, rng)
+        
+        # Sample trajectory parameters
+        pass_by_offset = rng.uniform(*self.params.pass_by_offset_range)
+        closest_approach = rng.uniform(*self.params.closest_approach_range)
+        loiter_duration = rng.uniform(*self.params.loiter_duration_range)
+        departure_angle = rng.uniform(*self.params.departure_angle_range)
+        walk_speed = rng.uniform(*self.params.walk_speed_range)
+        arc_radius = rng.uniform(*self.params.arc_radius_range)
+        arc_extent = rng.uniform(*self.params.arc_extent_range)
+        pass_by_side = rng.choice([-1, 1])  # Random side
+        
         # Create disruption config with sampled noise values
         base_config = DEFAULT_CONFIGS.get(
             disruption_type,
@@ -198,6 +231,15 @@ class ScenarioSampler:
             approach_angle=angle,
             spawn_distance=distance,
             reaching_arm=reaching_arm,
+            trajectory_type=trajectory_type,
+            pass_by_offset=pass_by_offset,
+            closest_approach=closest_approach,
+            loiter_duration=loiter_duration,
+            departure_angle=departure_angle,
+            walk_speed=walk_speed,
+            arc_radius=arc_radius,
+            arc_extent=arc_extent,
+            pass_by_side=pass_by_side,
             seed=seed,
         )
     
@@ -212,6 +254,27 @@ class ScenarioSampler:
         
         idx = rng.choice(len(types), p=probs)
         return types[idx]
+    
+    @staticmethod
+    def _select_trajectory_type(
+        disruption_type: DisruptionType, rng: np.random.Generator
+    ) -> str:
+        """Choose trajectory type based on disruption type."""
+        if disruption_type in {
+            DisruptionType.SHARED_GOAL,
+            DisruptionType.DIRECT,
+            DisruptionType.OBSTRUCTION,
+        }:
+            # These need the human to stop near the robot
+            return "APPROACH_LOITER_DEPART"
+        elif disruption_type == DisruptionType.INCIDENTAL:
+            # Incidental: walk past (PASS_BY or ARC)
+            return rng.choice(["PASS_BY", "ARC"])
+        elif disruption_type == DisruptionType.RANDOM_PERTURBED:
+            # Similar to incidental but with noise
+            return "PASS_BY"
+        else:
+            return "PASS_BY"
     
     def sample_batch(self, n: int, base_seed: int = 0) -> List[ScenarioParams]:
         """

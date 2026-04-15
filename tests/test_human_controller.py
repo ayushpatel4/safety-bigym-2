@@ -66,7 +66,9 @@ class TestHumanController:
     @pytest.fixture
     def sample_clip_path(self):
         """Path to sample motion clip."""
-        return "/Users/ayushpatel/Documents/FYP3/CMU/CMU/01/01_01_poses.npz"
+        import os
+        data_dir = os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU")
+        return f"{data_dir}/01/01_01_poses.npz"
     
     def test_human_controller_creation(self, model_and_data):
         """Test human controller can be created."""

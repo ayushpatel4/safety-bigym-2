@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import os
 import time
 import numpy as np
 import mujoco
@@ -60,7 +61,7 @@ def demo_scenario(seed: int = 0, motion_dir: str = None):
     """
     # Setup motion directory
     if motion_dir is None:
-        motion_dir = Path("/Users/ayushpatel/Documents/FYP3/CMU/CMU")
+        motion_dir = Path(os.environ.get("AMASS_DATA_DIR", "/home/ap2322/Documents/CMU/CMU"))
     else:
         motion_dir = Path(motion_dir)
     
@@ -104,15 +105,8 @@ def demo_scenario(seed: int = 0, motion_dir: str = None):
     controller = HumanController(model, data)
     ik = HumanIK(model, data)
     
-    # Load clip (using simplified ScenarioParams from controller)
-    from safety_bigym.human.human_controller import ScenarioParams as ControllerScenarioParams
-    ctrl_scenario = ControllerScenarioParams(
-        clip_path=scenario.clip_path,
-        trigger_time=scenario.trigger_time,
-        blend_duration=scenario.blend_duration,
-        speed_multiplier=scenario.speed_multiplier,
-    )
-    controller.set_scenario(ctrl_scenario)
+    # Load clip and set scenario (ScenarioParams is now unified)
+    controller.set_scenario(scenario)
     controller.reset()
     
     print("Launching viewer...")
