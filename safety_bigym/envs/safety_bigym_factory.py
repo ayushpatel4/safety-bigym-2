@@ -27,6 +27,7 @@ from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             f"inject_human={inject_human}, clips={len(motion_clip_paths)}"
         )
 
-        return make_safety_env(
+        env = make_safety_env(
             task_cls=task_cls,
             action_mode=action_mode,
             safety_config=safety_config,
@@ -168,4 +169,5 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             control_frequency=CONTROL_FREQUENCY_MAX
             // cfg.env.demo_down_sample_rate,
         )
+        return EpisodeSafetyMetrics(env)
 

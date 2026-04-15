@@ -34,11 +34,10 @@ norm_obs: true
 
 update_every_steps: 1
 
-# Logging
+# Logging — inherits project/name/tags from root safety_config.yaml
 wandb:
   use: false
-  project: dp_safety_bigym
-  name: null
+  tags: ["phase-0", "baseline", "dp-pixel"]
 
 replay:
   nstep: 1
