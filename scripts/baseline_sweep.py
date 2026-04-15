@@ -1,19 +1,31 @@
 #!/usr/bin/env python
-"""Phase-0 baseline sweep over (task × disruption type).
+"""Phase-0 baseline sweep — eval-from-snapshot × 5 disruption types.
 
-Prints the command grid for a baseline DP run across the 3 Phase-0 tasks
-and 5 ISO 15066 disruption types. Does NOT launch training itself — Claude
-Code must not start multi-hour jobs. The human copies the printed commands
-onto a GPU node.
+The Phase-0 deliverable is a baseline table: for each of 3 tasks, evaluate
+one trained Diffusion Policy against each of the 5 ISO 15066 disruption
+types, logging `info["episode_safety"]` to W&B under `phase-0-baseline`.
 
-Smoke test:
+That means 1 DP per task (NOT one per (task, disruption) cell), and
+15 short eval runs total — disruption is an *environment* knob applied via
+`env.disruption_type=<NAME>` which forces the scenario sampler to emit that
+single disruption on every episode (see SafetyBiGymEnvFactory).
+
+Snapshots are expected at:
+    exp_local/dp_safety/<task>_<ts>/snapshots/100000_snapshot.pt
+
+If `dishwasher_close` has no snapshot, run `--train-missing` first (on GPU).
+
+Usage:
+    # 1. Print the training command for the one missing DP (run on GPU)
+    python scripts/baseline_sweep.py --train-missing
+
+    # 2. Print the 15 eval commands (run on GPU)
+    python scripts/baseline_sweep.py --eval
+
+    # 3. Local smoke test (≤1 eval episode, one cell) — verifies plumbing
     python scripts/baseline_sweep.py --smoke
-    # → runs train_safety.py for 100 frames on one (task, disruption) cell,
-    #   verifying the pipeline + W&B episode_safety/* wiring end-to-end.
 
-Full sweep (run on GPU):
-    python scripts/baseline_sweep.py --print
-    # → prints all 15 shell commands; redirect or eval them as needed.
+Claude Code must not launch multi-hour jobs — it only prints / smokes.
 """
 
 from __future__ import annotations
@@ -39,6 +51,18 @@ DISRUPTIONS = (
     "RANDOM_PERTURBED",
 )
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Snapshots produced by prior training runs. Paths are relative to REPO_ROOT.
+# Update these when new snapshots land.
+SNAPSHOTS: dict[str, str | None] = {
+    "reach_target_single":
+        "exp_local/dp_safety/reach_target_single_20260218193921/snapshots/100000_snapshot.pt",
+    "dishwasher_load_plates":
+        "exp_local/dp_safety/dishwasher_load_plates_20260304161104/snapshots/100000_snapshot.pt",
+    "dishwasher_close": None,  # not yet trained — see --train-missing
+}
+
 
 def _require_amass() -> str:
     amass = os.environ.get("AMASS_DATA_DIR")
@@ -51,86 +75,146 @@ def _require_amass() -> str:
     return amass
 
 
-def _build_cmd(
-    task: str,
-    disruption: str,
-    *,
-    num_frames: int,
-    wandb_use: bool,
-    seed: int,
-) -> list[str]:
-    run_name = f"phase0-{task}-{disruption.lower()}-s{seed}"
-    args = [
+def _resolved_snapshot(task: str) -> Path | None:
+    rel = SNAPSHOTS.get(task)
+    if rel is None:
+        return None
+    p = REPO_ROOT / rel
+    return p if p.is_file() else None
+
+
+def _train_cmd(task: str, seed: int = 0) -> list[str]:
+    run_name = f"phase0-train-{task}-s{seed}"
+    return [
         sys.executable,
         "train_safety.py",
         "launch=dp_pixel_safety_bigym",
         f"env=safety_bigym/{task}",
-        f"num_train_frames={num_frames}",
-        f"num_pretrain_steps={min(num_frames, 100)}",
+        f"seed={seed}",
+        "wandb.use=true",
+        f"wandb.name={run_name}",
+        f'+wandb.tags=["phase-0","baseline","train","{task}"]',
+    ]
+
+
+def _eval_cmd(
+    task: str,
+    disruption: str,
+    snapshot: Path,
+    *,
+    seed: int,
+    num_eval_episodes: int,
+    wandb_use: bool,
+) -> list[str]:
+    run_name = f"phase0-eval-{task}-{disruption.lower()}-s{seed}"
+    return [
+        sys.executable,
+        "train_safety.py",
+        "launch=dp_pixel_safety_bigym",
+        f"env=safety_bigym/{task}",
+        f"+env.disruption_type={disruption}",
+        f"+snapshot_path={snapshot}",
+        "num_train_frames=0",
+        "num_pretrain_steps=0",
+        f"num_eval_episodes={num_eval_episodes}",
+        "eval_every_steps=1",
         f"seed={seed}",
         f"wandb.use={'true' if wandb_use else 'false'}",
         f"wandb.name={run_name}",
-        f'+wandb.tags=["phase-0","baseline","{task}","{disruption.lower()}"]',
+        (
+            f'+wandb.tags=["phase-0-baseline","eval","{task}",'
+            f'"{disruption.lower()}"]'
+        ),
     ]
-    return args
+
+
+def _print_grid(seed: int, num_eval_episodes: int) -> int:
+    print("# Phase-0 baseline eval sweep — run on GPU node")
+    print(f"# AMASS_DATA_DIR={os.environ['AMASS_DATA_DIR']}")
+    print(
+        f"# {len(TASKS)} tasks × {len(DISRUPTIONS)} disruptions = "
+        f"{len(TASKS) * len(DISRUPTIONS)} eval runs "
+        f"({num_eval_episodes} episodes each)\n"
+    )
+    missing: list[str] = []
+    for task in TASKS:
+        snap = _resolved_snapshot(task)
+        if snap is None:
+            missing.append(task)
+            print(f"# SKIP {task}: no snapshot on disk "
+                  f"(rel={SNAPSHOTS.get(task)!r})")
+            continue
+        print(f"# --- {task}  (snapshot: {snap.relative_to(REPO_ROOT)}) ---")
+        for disruption in DISRUPTIONS:
+            cmd = _eval_cmd(
+                task, disruption, snap,
+                seed=seed,
+                num_eval_episodes=num_eval_episodes,
+                wandb_use=True,
+            )
+            print(" ".join(shlex.quote(c) for c in cmd))
+        print()
+    if missing:
+        print(f"# {len(missing)} task(s) missing snapshots: {missing}")
+        print("# Run `python scripts/baseline_sweep.py --train-missing` first.")
+    return 0 if not missing else 2
+
+
+def _print_train_missing(seed: int) -> int:
+    missing = [t for t in TASKS if _resolved_snapshot(t) is None]
+    if not missing:
+        print("# All task snapshots already present. Nothing to train.")
+        return 0
+    print("# Phase-0 training for missing DPs — run on GPU")
+    print(f"# AMASS_DATA_DIR={os.environ['AMASS_DATA_DIR']}")
+    print(f"# Missing: {missing}\n")
+    for task in missing:
+        cmd = _train_cmd(task, seed=seed)
+        print(" ".join(shlex.quote(c) for c in cmd))
+    return 0
+
+
+def _smoke(task: str, disruption: str, seed: int) -> int:
+    snap = _resolved_snapshot(task)
+    if snap is None:
+        sys.stderr.write(
+            f"No snapshot for task={task}. Pick one of: "
+            f"{[t for t in TASKS if _resolved_snapshot(t)]}\n"
+        )
+        return 1
+    cmd = _eval_cmd(
+        task, disruption, snap,
+        seed=seed,
+        num_eval_episodes=1,
+        wandb_use=False,
+    )
+    print(">>> smoke:", " ".join(shlex.quote(c) for c in cmd))
+    return subprocess.run(cmd, cwd=REPO_ROOT).returncode
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--smoke",
-        action="store_true",
-        help="Run a ≤100-step smoke test against one (task, disruption).",
-    )
-    parser.add_argument(
-        "--print",
-        dest="print_only",
-        action="store_true",
-        help="Print the full sweep commands and exit (default).",
-    )
-    parser.add_argument(
-        "--task", default=TASKS[0], help="Task for --smoke run."
-    )
-    parser.add_argument(
-        "--disruption",
-        default=DISRUPTIONS[0],
-        help="Disruption type for --smoke run.",
-    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--eval", action="store_true",
+                      help="Print the 15 eval-from-snapshot commands.")
+    mode.add_argument("--train-missing", action="store_true",
+                      help="Print training commands for tasks without snapshots.")
+    mode.add_argument("--smoke", action="store_true",
+                      help="Run one eval episode locally (pipeline check).")
+    parser.add_argument("--task", default=TASKS[0])
+    parser.add_argument("--disruption", default=DISRUPTIONS[0])
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--wandb", action="store_true")
+    parser.add_argument("--num-eval-episodes", type=int, default=20)
     args = parser.parse_args()
 
     _require_amass()
-    repo_root = Path(__file__).resolve().parent.parent
 
+    if args.train_missing:
+        return _print_train_missing(args.seed)
     if args.smoke:
-        cmd = _build_cmd(
-            args.task,
-            args.disruption,
-            num_frames=100,
-            wandb_use=args.wandb,
-            seed=args.seed,
-        )
-        print(">>> smoke:", " ".join(shlex.quote(c) for c in cmd))
-        result = subprocess.run(cmd, cwd=repo_root)
-        return result.returncode
-
-    # Default: print full grid (user launches on GPU).
-    print("# Phase-0 baseline sweep — run on GPU node")
-    print(f"# AMASS_DATA_DIR={os.environ['AMASS_DATA_DIR']}")
-    print(f"# {len(TASKS)} tasks × {len(DISRUPTIONS)} disruptions = "
-          f"{len(TASKS) * len(DISRUPTIONS)} runs\n")
-    for task in TASKS:
-        for disruption in DISRUPTIONS:
-            cmd = _build_cmd(
-                task,
-                disruption,
-                num_frames=100_000,
-                wandb_use=True,
-                seed=args.seed,
-            )
-            print(" ".join(shlex.quote(c) for c in cmd))
-    return 0
+        return _smoke(args.task, args.disruption, args.seed)
+    # Default action is --eval (the deliverable).
+    return _print_grid(args.seed, args.num_eval_episodes)
 
 
 if __name__ == "__main__":

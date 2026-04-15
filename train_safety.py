@@ -29,10 +29,20 @@ def main(cfg):
 
     workspace = Workspace(cfg, env_factory=SafetyBiGymEnvFactory())
 
-    snapshot = root_dir / "snapshot.pt"
-    if snapshot.exists():
-        print(f"Resuming from: {snapshot}")
-        workspace.load_snapshot()
+    # Explicit snapshot override (e.g. baseline_sweep.py eval runs):
+    #   +snapshot_path=/abs/path/to/100000_snapshot.pt
+    explicit = cfg.get("snapshot_path", None)
+    if explicit:
+        snapshot = Path(explicit)
+        if not snapshot.is_file():
+            raise FileNotFoundError(f"snapshot_path={snapshot} not found.")
+        print(f"Loading snapshot from override: {snapshot}")
+        workspace.load_snapshot(snapshot)
+    else:
+        snapshot = root_dir / "snapshot.pt"
+        if snapshot.exists():
+            print(f"Resuming from: {snapshot}")
+            workspace.load_snapshot()
 
     workspace.train()
 

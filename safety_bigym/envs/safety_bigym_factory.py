@@ -28,6 +28,8 @@ from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
 from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
+from safety_bigym.scenarios.disruption_types import DisruptionType
+from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +151,28 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             terminate_on_violation=False,
         )
 
+        # Optional eval knob: force every episode to use one disruption type.
+        # Used by baseline_sweep.py to evaluate a trained DP against each of
+        # the 5 ISO 15066 disruption types independently.
+        forced = cfg.env.get("disruption_type", None)
+        scenario_sampler = None
+        if forced:
+            try:
+                dtype = DisruptionType[forced]
+            except KeyError as e:
+                raise ValueError(
+                    f"env.disruption_type={forced!r} is not a DisruptionType "
+                    f"(expected one of {[d.name for d in DisruptionType]})"
+                ) from e
+            scenario_sampler = ScenarioSampler(
+                parameter_space=ParameterSpace(
+                    clip_paths=motion_clip_paths,
+                    disruption_weights={dtype: 1.0},
+                ),
+                motion_dir=motion_clip_dir,
+            )
+            logger.info(f"Forcing disruption_type={dtype.name} for every episode.")
+
         logger.info(
             f"Creating SafetyBiGymEnv: task={task_cls.__name__}, "
             f"inject_human={inject_human}, clips={len(motion_clip_paths)}"
@@ -159,6 +183,7 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             action_mode=action_mode,
             safety_config=safety_config,
             human_config=human_config,
+            scenario_sampler=scenario_sampler,
             inject_human=inject_human,
             render_mode=cfg.env.render_mode,
             observation_config=ObservationConfig(
