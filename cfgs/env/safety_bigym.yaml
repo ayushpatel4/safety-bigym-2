@@ -23,4 +23,20 @@ env:
     - "09/09_03_poses.npz"
     - "122/122_04_poses.npz"
 
+  # Phase 1: Mock BodySLAM++ perception wrapper (see
+  # safety_bigym.filters.body_slam_wrapper.BodySLAMWrapper).
+  # mode=off  -> wrapper not attached (Phase 0 baseline).
+  # mode=oracle -> wrapper attached, sigma=0, no occlusion/dropout/latency.
+  # mode=noisy  -> full noise/latency/occlusion/dropout model.
+  body_slam:
+    mode: off
+    sigma: 0.05
+    alpha: 0.9
+    latency_steps: 2
+    use_occlusion: true
+    occlusion_multiplier: 3.0
+    dropout_prob: 0.02
+    camera_name: head
+    dt: 0.02
+
 demos: !!float .inf

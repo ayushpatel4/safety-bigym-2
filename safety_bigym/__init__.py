@@ -8,6 +8,7 @@ from safety_bigym.config import (
     SSMConfig,
     SafetyConfig,
     HumanConfig,
+    BodySLAMConfig,
     DEFAULT_SPAWN_POSITIONS,
     get_spawn_positions,
 )
@@ -41,8 +42,9 @@ __all__ = [
     "make_safety_env",
     # Configuration
     "SSMConfig",
-    "SafetyConfig", 
+    "SafetyConfig",
     "HumanConfig",
+    "BodySLAMConfig",
     "DEFAULT_SPAWN_POSITIONS",
     "get_spawn_positions",
     # Safety

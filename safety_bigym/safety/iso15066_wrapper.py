@@ -79,6 +79,12 @@ class SafetyInfo:
     closest_human_joint: str = ""
     closest_robot_link: str = ""
 
+    # Phase 1 (Mock BodySLAM++): full tracked skeleton as a parallel (positions,
+    # names) pair. Consumed by BodySLAMWrapper to build a noisy observation
+    # without reaching into env internals. Empty when SSM was skipped.
+    human_joint_positions: List[List[float]] = field(default_factory=list)
+    human_joint_names: List[str] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         """Convert to dictionary for info['safety']. Cast numpy scalars to
         Python primitives so the dict stays JSON-serialisable (W&B, pickle)."""
@@ -96,6 +102,8 @@ class SafetyInfo:
             'human_pos': list(self.human_pos),
             'closest_human_joint': self.closest_human_joint,
             'closest_robot_link': self.closest_robot_link,
+            'human_joint_positions': [list(p) for p in self.human_joint_positions],
+            'human_joint_names': list(self.human_joint_names),
         }
 
 
@@ -452,6 +460,8 @@ class ISO15066Wrapper:
             info.human_pos = human_arr[h_idx].tolist()
         if 0 <= r_idx < len(robot_arr):
             info.robot_pos = robot_arr[r_idx].tolist()
+        info.human_joint_positions = [row.tolist() for row in human_arr]
+        info.human_joint_names = list(human_names) if human_names is not None else []
 
     def _pfl_into(self, info, contacts):
         max_force = 0.0

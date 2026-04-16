@@ -601,3 +601,55 @@ class TestSSMClosestJoint:
         assert info.closest_human_joint == "wrist"
         assert info.closest_robot_link == "ee"
         assert info.min_separation == pytest.approx(0.1, abs=0.01)
+
+    def test_build_safety_info_exposes_full_joint_array(self):
+        """Phase 1 needs all tracked joint positions, not just the closest one,
+        so BodySLAMWrapper can build a skeleton-level noisy observation."""
+        wrapper = _make_wrapper()
+        human_positions = np.array([
+            [2.0, 0.0, 0.0],
+            [0.3, 0.0, 0.0],
+            [1.5, 0.1, 0.2],
+        ])
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=human_positions,
+            human_vel=0.0,
+            human_names=["pelvis", "wrist", "head"],
+            robot_names=["base"],
+        )
+        joints = np.asarray(info.human_joint_positions)
+        assert joints.shape == (3, 3)
+        np.testing.assert_allclose(joints, human_positions)
+        assert info.human_joint_names == ["pelvis", "wrist", "head"]
+
+    def test_build_safety_info_joint_array_survives_to_dict(self):
+        """to_dict() must serialise the new fields so info['safety'] carries
+        them through the gym step pipeline."""
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[1.0, 0.0, 0.0], [0.5, 0.5, 0.0]]),
+            human_vel=0.0,
+            human_names=["a", "b"],
+            robot_names=["base"],
+        )
+        d = info.to_dict()
+        assert "human_joint_positions" in d
+        assert "human_joint_names" in d
+        # Nested list, not ndarray (JSON-serialisable).
+        assert isinstance(d["human_joint_positions"], list)
+        assert isinstance(d["human_joint_positions"][0], list)
+        assert d["human_joint_names"] == ["a", "b"]
+
+    def test_build_safety_info_no_ssm_keeps_joints_empty(self):
+        """If build_safety_info is called without SSM inputs (e.g. no human
+        injected), the joint arrays default to empty lists."""
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(contacts=[])
+        assert info.human_joint_positions == []
+        assert info.human_joint_names == []

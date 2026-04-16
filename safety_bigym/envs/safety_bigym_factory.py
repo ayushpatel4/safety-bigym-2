@@ -26,7 +26,8 @@ from robobase.envs.utils.bigym_utils import TASK_MAP
 from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
-from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym import BodySLAMConfig, make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.filters.body_slam_wrapper import BodySLAMWrapper
 from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
 from safety_bigym.scenarios.disruption_types import DisruptionType
 from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
@@ -146,9 +147,12 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             motion_clip_paths=motion_clip_paths,
         )
 
+        body_slam_cfg = _build_body_slam_config(cfg)
+
         safety_config = SafetyConfig(
             log_violations=False,
             terminate_on_violation=False,
+            body_slam=body_slam_cfg,
         )
 
         # Optional eval knob: force every episode to use one disruption type.
@@ -194,5 +198,36 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             control_frequency=CONTROL_FREQUENCY_MAX
             // cfg.env.demo_down_sample_rate,
         )
+        if body_slam_cfg is not None:
+            env = BodySLAMWrapper(env, config=body_slam_cfg)
+            logger.info(
+                f"Attached BodySLAMWrapper (mode={body_slam_cfg.mode}, "
+                f"sigma={body_slam_cfg.sigma}, latency={body_slam_cfg.latency_steps})."
+            )
         return EpisodeSafetyMetrics(env)
+
+
+def _build_body_slam_config(cfg: DictConfig):
+    """Translate cfg.env.body_slam to a BodySLAMConfig, or None when mode=off.
+
+    OmegaConf parses the bare YAML key `off` as Python False, so we coerce
+    both False and the string "off" to the disabled sentinel.
+    """
+    section = cfg.env.get("body_slam", None)
+    if section is None:
+        return None
+    mode = section.get("mode", "off")
+    if mode is False or (isinstance(mode, str) and mode.lower() == "off"):
+        return None
+    return BodySLAMConfig(
+        mode=str(mode),
+        sigma=float(section.get("sigma", 0.05)),
+        alpha=float(section.get("alpha", 0.9)),
+        latency_steps=int(section.get("latency_steps", 2)),
+        use_occlusion=bool(section.get("use_occlusion", True)),
+        occlusion_multiplier=float(section.get("occlusion_multiplier", 3.0)),
+        dropout_prob=float(section.get("dropout_prob", 0.02)),
+        camera_name=str(section.get("camera_name", "head")),
+        dt=float(section.get("dt", 0.02)),
+    )
 

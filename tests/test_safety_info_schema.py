@@ -31,6 +31,9 @@ EXPECTED_SCHEMA = {
     "violations_by_region": dict,
     "robot_pos": list,
     "human_pos": list,
+    # Phase 1 additions: full SMPL-H skeleton exposed for BodySLAMWrapper.
+    "human_joint_positions": list,
+    "human_joint_names": list,
 }
 
 
@@ -129,6 +132,44 @@ def test_closest_pair_names_reported_with_human(env_with_human):
     assert "closest_robot_link" in safety
     assert isinstance(safety["closest_human_joint"], str)
     assert isinstance(safety["closest_robot_link"], str)
+
+
+def test_full_joint_array_matches_ssm_body_names(env_with_human):
+    """Phase 1: info['safety'] must expose all SSM-tracked joints as a
+    parallel (positions, names) pair so BodySLAMWrapper can build its
+    skeleton-level observation without reaching into env internals.
+
+    The canonical list is SafetyBiGymEnv._HUMAN_SSM_BODY_NAMES; the names
+    actually reported must be the in-order subset whose MuJoCo bodies exist
+    in the merged world+human model (some SMPL-H joints may collapse into
+    compound bodies and not carry their own MuJoCo name)."""
+    from safety_bigym.envs.safety_env import SafetyBiGymEnv
+
+    action = np.zeros(env_with_human.action_space.shape)
+    _, _, _, _, info = env_with_human.step(action)
+    safety = info["safety"]
+
+    positions = safety["human_joint_positions"]
+    names = safety["human_joint_names"]
+    assert isinstance(positions, list)
+    assert isinstance(names, list)
+
+    canonical = SafetyBiGymEnv._HUMAN_SSM_BODY_NAMES
+    # Reported names must be a non-empty, in-order subset of the canonical list.
+    assert len(names) > 0
+    canonical_order = {n: i for i, n in enumerate(canonical)}
+    for n in names:
+        assert n in canonical_order, f"unexpected joint name: {n!r}"
+    sorted_idxs = [canonical_order[n] for n in names]
+    assert sorted_idxs == sorted(sorted_idxs), (
+        f"names must preserve canonical order, got {names}"
+    )
+
+    assert len(positions) == len(names)
+    for p in positions:
+        assert isinstance(p, list) and len(p) == 3
+        for c in p:
+            assert isinstance(c, float)
 
 
 if not HAS_AMASS:

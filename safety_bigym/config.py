@@ -55,24 +55,51 @@ class SSMConfig:
         return S_p
 
 
-@dataclass  
+@dataclass
+class BodySLAMConfig:
+    """Mock BodySLAM++ perception config (Phase 1).
+
+    Controls the noisy human-state observation produced by
+    safety_bigym.filters.body_slam_wrapper.BodySLAMWrapper.
+    mode:
+        "off"    — wrapper is not attached (baseline run).
+        "oracle" — attached but sigma=0, no occlusion, no dropout, no latency
+                   (upper-bound on what human state can contribute).
+        "noisy"  — full BodySLAM++ failure mode model.
+    """
+
+    mode: str = "off"
+    sigma: float = 0.05                # m, per-axis position noise std (~3cm ATE)
+    alpha: float = 0.9                 # OU temporal correlation
+    latency_steps: int = 2             # 2-3 step delay buffer (15 FPS / 50 Hz)
+    use_occlusion: bool = True
+    occlusion_multiplier: float = 3.0  # sigma scaling when joint is occluded
+    dropout_prob: float = 0.02         # per-step tracking-lost probability
+    camera_name: str = "head"
+    dt: float = 0.02                   # control-loop dt for staleness (50 Hz)
+
+
+@dataclass
 class SafetyConfig:
     """Configuration for ISO 15066 safety monitoring."""
-    
+
     # SSM parameters
     ssm: SSMConfig = field(default_factory=SSMConfig)
-    
+
     # PFL settings
     use_pfl: bool = True
-    
+
     # Behavior on violation
     terminate_on_violation: bool = False
     add_violation_penalty: bool = False
     violation_penalty: float = -1.0
-    
+
     # Logging
     log_violations: bool = True
     log_all_contacts: bool = False
+
+    # Phase 1: BodySLAM++ perception wrapper (optional).
+    body_slam: Optional[BodySLAMConfig] = None
 
 
 @dataclass
