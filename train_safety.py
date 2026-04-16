@@ -44,7 +44,25 @@ def main(cfg):
             print(f"Resuming from: {snapshot}")
             workspace.load_snapshot()
 
-    workspace.train()
+    if cfg.num_train_frames == 0 and getattr(cfg, "num_pretrain_steps", 0) == 0:
+        print("Pure eval mode detected. Running evaluation only...")
+        eval_metrics = workspace._eval()
+        eval_metrics.update(workspace._get_common_metrics())
+        workspace.logger.log_metrics(eval_metrics, workspace.global_env_steps, prefix="eval")
+        
+        explicit_out = getattr(cfg, "eval_output_path", None)
+        if explicit_out:
+            import json
+            import numpy as np
+            import torch
+            def safe_convert(o):
+                if isinstance(o, np.generic): return o.item()
+                if isinstance(o, torch.Tensor): return o.item()
+                return str(o)
+            with open(explicit_out, "w") as f:
+                json.dump(eval_metrics, f, default=safe_convert)
+    else:
+        workspace.train()
 
 
 if __name__ == "__main__":

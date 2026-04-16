@@ -37,7 +37,9 @@ class EpisodeSafetyMetrics(gym.Wrapper):
 
     def reset(self, **kwargs):
         self._reset_state()
-        return self.env.reset(**kwargs)
+        obs, info = self.env.reset(**kwargs)
+        info["episode_safety"] = self._summary()
+        return obs, info
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
@@ -46,8 +48,8 @@ class EpisodeSafetyMetrics(gym.Wrapper):
         if safety is not None:
             self._accumulate(safety)
 
-        if terminated or truncated:
-            info["episode_safety"] = self._summary()
+        # Always inject it so VectorEnv allocates the key
+        info["episode_safety"] = self._summary()
 
         return obs, reward, terminated, truncated, info
 

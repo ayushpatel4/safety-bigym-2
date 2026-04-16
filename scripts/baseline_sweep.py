@@ -64,7 +64,7 @@ SNAPSHOTS: dict[str, str | None] = {
         "exp_local/dp_safety/reach_target_single_20260218193921/snapshots/100000_snapshot.pt",
     "dishwasher_load_plates":
         "exp_local/dp_safety/dishwasher_load_plates_20260304161104/snapshots/100000_snapshot.pt",
-    "dishwasher_close": None,  # not yet trained — see --train-missing
+    "dishwasher_close": "exp_local/dp_safety/dishwasher_close_20260415174502/snapshots/100000_snapshot.pt",  # not yet trained — see --train-missing
 }
 
 
@@ -166,6 +166,102 @@ def _print_grid(seed: int, num_eval_episodes: int) -> int:
     return 0 if not missing else 2
 
 
+def _run_grid(seed: int, num_eval_episodes: int) -> int:
+    import json
+    import tempfile
+    print(f"# Running {len(TASKS) * len(DISRUPTIONS)} eval runs sequentially...")
+    missing: list[str] = []
+    
+    # Check for missing tasks first
+    for task in TASKS:
+        if _resolved_snapshot(task) is None:
+            missing.append(task)
+            
+    if missing:
+        print(f"# {len(missing)} task(s) missing snapshots: {missing}")
+        print("# Run `python scripts/baseline_sweep.py --train-missing` first.")
+        return 2
+
+    # Loop through and run
+    env = os.environ.copy()
+    results = {}
+    
+    for task in TASKS:
+        snap = _resolved_snapshot(task)
+        results[task] = {}
+        print(f"\n# === Running Task: {task} ===")
+        for disruption in DISRUPTIONS:
+            print(f"\n# --- Disruption: {disruption} ---")
+            
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+                tmp_out = tmp.name
+                
+            cmd = _eval_cmd(
+                task, disruption, snap,
+                seed=seed,
+                num_eval_episodes=num_eval_episodes,
+                wandb_use=True,
+            )
+            cmd.append(f"+eval_output_path={tmp_out}")
+            
+            argv = list(cmd)
+            run_env = env.copy()
+            # Extract headless env variables to add to subprocess runtime env
+            while argv and "=" in argv[0] and not argv[0].startswith("-"):
+                k, v = argv.pop(0).split("=", 1)
+                run_env[k] = v
+                
+            print(">>>", " ".join(shlex.quote(c) for c in argv))
+            ret = subprocess.run(argv, cwd=REPO_ROOT, env=run_env).returncode
+            if ret != 0:
+                print(f"Command failed with code {ret}")
+                try: os.remove(tmp_out)
+                except: pass
+                return ret
+                
+            try:
+                with open(tmp_out, "r") as f:
+                    metrics = json.load(f)
+                results[task][disruption] = metrics
+            except Exception as e:
+                print(f"Failed to read metrics for {task}/{disruption}: {e}")
+            finally:
+                try: os.remove(tmp_out)
+                except: pass
+    
+    # Dump all results locally
+    out_file = REPO_ROOT / "baseline_sweep_results.json"
+    with open(out_file, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\n# Saved full JSON results to {out_file}")
+
+    # Print summary table
+    print("\n\n" + "="*100)
+    print("BASELINE SWEEP RESULTS SUMMARY")
+    print("="*100)
+    
+    headers = ["Task", "Disruption", "Success Rate", "SSM Viol Rate", "Max Force (N)", "1st Viol Step"]
+    row_format = "{:<25} | {:<20} | {:<12} | {:<13} | {:<13} | {:<13}"
+    print(row_format.format(*headers))
+    print("-" * 100)
+    
+    for task in TASKS:
+        for disruption in DISRUPTIONS:
+            m = results[task].get(disruption, {})
+            succ_val = m.get("episode_success")
+            succ = f"{succ_val:.2f}" if succ_val is not None else "N/A"
+            
+            safety = m.get("env_info/episode_safety", {})
+            ssm = f"{safety.get('ep_ssm_violation_rate', 0.0):.2f}"
+            force = f"{safety.get('ep_max_contact_force', 0.0):.2f}"
+            first = str(safety.get('ep_time_to_first_violation', -1))
+            
+            print(row_format.format(task, disruption, succ, ssm, force, first))
+        print("-" * 100)
+
+    return 0
+
+
 def _print_train_missing(seed: int) -> int:
     missing = [t for t in TASKS if _resolved_snapshot(t) is None]
     if not missing:
@@ -208,6 +304,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--eval", action="store_true",
                       help="Print the 15 eval-from-snapshot commands.")
+    mode.add_argument("--run", action="store_true",
+                      help="Run the 15 eval-from-snapshot commands sequentially.")
     mode.add_argument("--train-missing", action="store_true",
                       help="Print training commands for tasks without snapshots.")
     mode.add_argument("--smoke", action="store_true",
@@ -224,6 +322,8 @@ def main() -> int:
         return _print_train_missing(args.seed)
     if args.smoke:
         return _smoke(args.task, args.disruption, args.seed)
+    if args.run:
+        return _run_grid(args.seed, args.num_eval_episodes)
     # Default action is --eval (the deliverable).
     return _print_grid(args.seed, args.num_eval_episodes)
 
