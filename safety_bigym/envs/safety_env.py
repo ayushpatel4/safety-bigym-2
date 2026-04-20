@@ -151,7 +151,13 @@ class SafetyBiGymEnv(BiGymEnv):
         # Robot geom names for collision detection
         self._robot_geom_names: List[str] = []
         self._collect_robot_geoms()
-        
+
+        # Wire up the human<->{robot, floor} collision channel (bit 1). The
+        # human MJCF uses contype/conaffinity=2 so scene props (dishwasher,
+        # cabinets) on the default bit-0 channel never see the human.
+        if self._inject_human:
+            self._configure_collision_bits()
+
         # Initialize safety wrapper and human controller
         if self._inject_human:
             self._init_safety_wrapper()
@@ -262,12 +268,49 @@ class SafetyBiGymEnv(BiGymEnv):
         # Exclude human collision geoms (they end with _col)
         if name.endswith("_col"):
             return False
-        
+
         # Robot geoms typically have patterns like "h1/*", etc.
         # Only match h1/ prefix to avoid matching human body parts
         robot_patterns = ["h1/", "robotiq"]
         name_lower = name.lower()
         return any(p in name_lower for p in robot_patterns)
+
+    _HUMAN_CHANNEL_BIT = 0b10  # bit 1 — the human<->{robot,floor} collision channel
+
+    def _configure_collision_bits(self) -> None:
+        """OR bit 1 into contype/conaffinity for every geom that must still
+        collide with the human: robot collision geoms and the floor.
+
+        Scene geoms (dishwasher, cabinets, walls) are intentionally left on the
+        default bit-0 channel so the human passes through them. The human XML
+        uses contype=conaffinity=2 (bit 1 only), so an object must be promoted
+        into bit 1 here to physically interact with the human.
+
+        Safety semantics are preserved: SSM is geometric (distance between
+        tracked body centers, not contact-based), so it keeps working; PFL
+        still observes human<->robot contact forces because that pair is on
+        the shared bit-1 channel.
+        """
+        model = self._mojo.model
+        bit = self._HUMAN_CHANNEL_BIT
+        promoted = 0
+        for gid in range(model.ngeom):
+            name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, gid)
+            if not name:
+                continue
+            # Skip geoms that are disabled from collision entirely (visual-only).
+            if model.geom_contype[gid] == 0 and model.geom_conaffinity[gid] == 0:
+                continue
+            is_robot = self._is_robot_geom(name)
+            is_floor = name == "floor" or name.endswith("/floor") or "ground" in name.lower()
+            if is_robot or is_floor:
+                model.geom_contype[gid] = int(model.geom_contype[gid]) | bit
+                model.geom_conaffinity[gid] = int(model.geom_conaffinity[gid]) | bit
+                promoted += 1
+        logger.info(
+            f"Promoted {promoted} geoms onto human collision channel "
+            f"(bit={bit}); scene geoms remain isolated from the human."
+        )
     
 
     
