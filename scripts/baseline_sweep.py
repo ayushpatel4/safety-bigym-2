@@ -60,11 +60,9 @@ HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
 # Snapshots produced by prior training runs. Paths are relative to REPO_ROOT.
 # Update these when new snapshots land.
 SNAPSHOTS: dict[str, str | None] = {
-    "reach_target_single":
-        "exp_local/dp_safety/reach_target_single_20260218193921/snapshots/100000_snapshot.pt",
-    "dishwasher_load_plates":
-        "exp_local/dp_safety/dishwasher_load_plates_20260304161104/snapshots/100000_snapshot.pt",
-    "dishwasher_close": "exp_local/dp_safety/dishwasher_close_20260415174502/snapshots/100000_snapshot.pt",  # not yet trained — see --train-missing
+    "reach_target_single": None,
+    "dishwasher_load_plates": None,
+    "dishwasher_close": None
 }
 
 
