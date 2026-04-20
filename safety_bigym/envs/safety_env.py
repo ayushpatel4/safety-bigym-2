@@ -644,6 +644,11 @@ class SafetyBiGymEnv(BiGymEnv):
             linvel = float(np.linalg.norm(data.cvel[bid, 3:6]))
             if linvel > max_vel:
                 max_vel = linvel
+        # AMASS playback teleports qpos every sub-step, so MuJoCo's implicit
+        # cvel = (qpos_new - qpos_old) / PHYSICS_DT can be absurdly large (tens
+        # of m/s) and blows up S_p. ISO 15066 assumes a bounded walking human
+        # anyway — cap at v_h_max.
+        max_vel = min(max_vel, float(self.safety_config.ssm.v_h_max))
         if self._human_pelvis_id is not None:
             self._prev_human_pos = data.xpos[self._human_pelvis_id].copy()
             self._prev_sim_time = data.time
