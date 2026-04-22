@@ -10,10 +10,15 @@ That means 1 DP per task (NOT one per (task, disruption) cell), and
 `env.disruption_type=<NAME>` which forces the scenario sampler to emit that
 single disruption on every episode (see SafetyBiGymEnvFactory).
 
-Snapshots are expected at:
-    exp_local/dp_safety/<task>_<ts>/snapshots/100000_snapshot.pt
+Snapshots are produced at every pretrain-eval interval (default every 20k steps)
+under:
+    exp_local/dp_safety/<task>_<ts>/snapshots/<step>_snapshot.pt
 
-If `dishwasher_close` has no snapshot, run `--train-missing` first (on GPU).
+After each retrain, inspect `pretrain_eval/episode_success` on W&B and update the
+`SNAPSHOTS` dict below to point at the peak step — NOT blindly 100000, which on
+small pixel demo sets is usually past the over-fit inflection.
+
+If any task has no snapshot, run `--train-missing` first (on GPU).
 
 Usage:
     # 1. Print the training command for the one missing DP (run on GPU)
@@ -58,11 +63,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
 
 # Snapshots produced by prior training runs. Paths are relative to REPO_ROOT.
-# Update these when new snapshots land.
+# Pick the peak-by-W&B-curve checkpoint for each task, not the final one.
+# Expected shape:
+#   exp_local/dp_safety/<task>_<YYYYMMDDHHMMSS>/snapshots/<step>_snapshot.pt
 SNAPSHOTS: dict[str, str | None] = {
     "reach_target_single": None,
     "dishwasher_load_plates": None,
-    "dishwasher_close": None
+    "dishwasher_close": None,
 }
 
 
@@ -87,6 +94,11 @@ def _resolved_snapshot(task: str) -> Path | None:
 
 def _train_cmd(task: str, seed: int = 0) -> list[str]:
     run_name = f"phase0-train-{task}-s{seed}"
+    # save_snapshot=true is load-bearing: with the robobase drift patch,
+    # Workspace._pretrain_on_demos writes `snapshots/<step>_snapshot.pt` at every
+    # pretrain-eval interval (default every 20k steps). Without this flag only the
+    # final checkpoint persists, and prior runs have shown DP over-fits past its
+    # eval-success peak on small pixel demo sets.
     return [
         *HEADLESS_ENV,
         sys.executable,
@@ -94,6 +106,7 @@ def _train_cmd(task: str, seed: int = 0) -> list[str]:
         "launch=dp_pixel_safety_bigym",
         f"env=safety_bigym/{task}",
         f"seed={seed}",
+        "save_snapshot=true",
         "wandb.use=true",
         f"wandb.name={run_name}",
         f'+wandb.tags=["phase-0","baseline","train","{task}"]',
@@ -110,6 +123,10 @@ def _eval_cmd(
     wandb_use: bool,
 ) -> list[str]:
     run_name = f"phase0-eval-{task}-{disruption.lower()}-s{seed}"
+    # demos=0 is load-bearing: snapshots saved by the robobase drift patch carry
+    # `action_stats`/`obs_stats` in-payload, and Workspace.__init__ seeds them onto
+    # the env_factory before wrappers capture them by reference. Re-fetching 30-50
+    # demos at eval just to recompute identical stats wastes ~1-3 min per cell.
     return [
         *HEADLESS_ENV,
         sys.executable,
@@ -120,6 +137,7 @@ def _eval_cmd(
         f"+snapshot_path={snapshot}",
         "num_train_frames=0",
         "num_pretrain_steps=0",
+        "demos=0",
         f"num_eval_episodes={num_eval_episodes}",
         "eval_every_steps=1",
         f"seed={seed}",
