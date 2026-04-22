@@ -11,8 +11,8 @@ defaults:
 demos: 30
 num_pretrain_steps: 100000
 num_train_frames: 0
-eval_every_steps: 20000
-num_eval_episodes: 5
+eval_every_steps: 10000
+num_eval_episodes: 10
 batch_size: 256
 save_snapshot: true
 snapshot_every_n: 0
