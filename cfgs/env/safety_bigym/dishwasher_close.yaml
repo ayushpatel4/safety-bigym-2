@@ -10,3 +10,7 @@ env:
   episode_length: 7000
   demo_down_sample_rate: 20
   enable_all_floating_dof: true
+
+# Per-task override: DemoStore has 69 demos; 50 is a safe default above the 30 used
+# for the original training run.
+demos: 50
