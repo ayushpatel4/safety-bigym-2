@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: saucepan_to_hob
+  # SaucepanToHob is a pick-and-place task: take a saucepan from a cabinet and
+  # deposit it on the hob. Upstream robobase sets episode_length=11000 at
+  # demo_down_sample_rate=25 → 440 control-rate steps. Give a little headroom
+  # for the human-in-scene rollouts where the robot may be slowed by disruption.
+  episode_length: 25000
+  # Down-sample from 100 Hz to 4 Hz to match the control-rate demos were recorded at.
+  demo_down_sample_rate: 36
+  # Demos were recorded with 4 floating DOFs (pelvis_x, y, z, rz).
+  enable_all_floating_dof: true

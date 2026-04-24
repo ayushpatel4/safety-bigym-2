@@ -44,7 +44,7 @@ from pathlib import Path
 
 TASKS = (
     "reach_target_single",
-    "dishwasher_load_plates",
+    "saucepan_to_hob",
     "dishwasher_close",
 )
 
@@ -68,7 +68,7 @@ HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
 #   exp_local/dp_safety/<task>_<YYYYMMDDHHMMSS>/snapshots/<step>_snapshot.pt
 SNAPSHOTS: dict[str, str | None] = {
     "reach_target_single": None,
-    "dishwasher_load_plates": None,
+    "saucepan_to_hob": None,
     "dishwasher_close": None,
 }
 
