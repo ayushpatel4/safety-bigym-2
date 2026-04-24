@@ -10,8 +10,12 @@ env:
   # deposit it on the hob. Upstream robobase sets episode_length=11000 at
   # demo_down_sample_rate=25 → 440 control-rate steps. Give a little headroom
   # for the human-in-scene rollouts where the robot may be slowed by disruption.
+  # p95 demo length = 425 control-rate steps at demo_down_sample_rate=25
+  # → 25000 raw = 1000 control steps, ~2.35× headroom for human-disruption slowdown.
   episode_length: 25000
-  # Down-sample from 100 Hz to 4 Hz to match the control-rate demos were recorded at.
-  demo_down_sample_rate: 36
+  # Demos were recorded at 500/25 = 20 Hz control. Any other value fails BiGym's
+  # CONTROL_FREQUENCY_MIN=20 assertion or produces demo-rate mismatch.
+  demo_down_sample_rate: 25
+  demos: 36
   # Demos were recorded with 4 floating DOFs (pelvis_x, y, z, rz).
   enable_all_floating_dof: true
