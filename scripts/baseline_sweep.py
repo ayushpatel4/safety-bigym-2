@@ -46,6 +46,7 @@ TASKS = (
     "reach_target_single",
     "saucepan_to_hob",
     "dishwasher_close",
+    "drawers_open_all",
 )
 
 DISRUPTIONS = (
@@ -67,9 +68,10 @@ HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
 # Expected shape:
 #   exp_local/dp_safety/<task>_<YYYYMMDDHHMMSS>/snapshots/<step>_snapshot.pt
 SNAPSHOTS: dict[str, str | None] = {
-    "reach_target_single": None,
+    "reach_target_single": "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260422193458/snapshots/50000_snapshot.pt",
     "saucepan_to_hob": None,
-    "dishwasher_close": None,
+    "dishwasher_close": "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/dishwasher_close_20260422193511/snapshots/70000_snapshot.pt",
+    "drawers_open_all": None
 }
 
 

@@ -1,0 +1,18 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: drawers_open_all
+  stddev_schedule: linear(1.0,0.1,500000)
+  # DrawersOpenAll is a slightly longer task. 
+  # p95 demo length = 552 control-rate steps at demo_down_sample_rate=20
+  # -> 11040 raw steps. Giving ~2.1x headroom for human-in-scene disruption.
+  episode_length: 24000
+  demo_down_sample_rate: 20
+  enable_all_floating_dof: true
+
+# Per-task override: DemoStore has 54 demos.
+demos: 50
