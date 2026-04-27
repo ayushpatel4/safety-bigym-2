@@ -7,11 +7,13 @@ defaults:
 env:
   task_name: drawers_open_all
   stddev_schedule: linear(1.0,0.1,500000)
-  # DrawersOpenAll is a slightly longer task. 
-  # p95 demo length = 552 control-rate steps at demo_down_sample_rate=20
-  # -> 11040 raw steps. Giving ~2.1x headroom for human-in-scene disruption.
-  episode_length: 24000
-  demo_down_sample_rate: 20
+  # DrawersOpenAll. demo_down_sample_rate=25 matches upstream robobase
+  # (20 Hz control); previously 20 caused a demo/env control-rate drift.
+  # p95 demo length ≈ 552 control-rate steps at downsample=25 → 13800 raw.
+  # 30000 raw = 1200 control steps @ 20 Hz, ~2.2× headroom — BC rollouts run
+  # slower than demos and human-disruption adds further slowdown.
+  episode_length: 30000
+  demo_down_sample_rate: 25
   enable_all_floating_dof: true
 
 # Per-task override: DemoStore has 54 demos.
