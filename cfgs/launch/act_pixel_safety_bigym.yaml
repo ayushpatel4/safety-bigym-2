@@ -1,0 +1,47 @@
+# @package _global_
+# Launch config: Action Chunking Transformer (ACT) on SafetyBiGym (pixel-based imitation learning)
+#
+# Usage:
+#   python train_safety.py launch=act_pixel_safety_bigym env=safety_bigym/reach_target_single
+
+defaults:
+  - ../env: null
+  - ../method: act
+
+demos: 30
+num_pretrain_steps: 100000
+num_train_frames: 0
+eval_every_steps: 10000
+num_eval_episodes: 10
+batch_size: 256
+save_snapshot: true
+snapshot_every_n: 0
+replay_size_before_train: 500
+
+pixels: true
+frame_stack: 1
+
+is_imitation_learning: true
+
+action_repeat: 1
+action_sequence: 16
+execution_length: 1
+temporal_ensemble: true
+use_standardization: false
+use_min_max_normalization: true
+min_max_margin: 0
+norm_obs: true
+
+update_every_steps: 1
+
+# Logging — inherits project/name/tags from root safety_config.yaml
+wandb:
+  use: false
+  tags: ["phase-0", "baseline", "act-pixel"]
+
+replay:
+  nstep: 1
+
+hydra:
+  run:
+    dir: ./exp_local/act_safety/${env.task_name}_${now:%Y%m%d%H%M%S}
