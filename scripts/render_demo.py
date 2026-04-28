@@ -1,6 +1,6 @@
 import sys
 import imageio
-from bigym.action_modes import JointPositionActionMode
+from bigym.action_modes import JointPositionActionMode, PelvisDof
 from bigym.envs.cupboards import DrawersAllOpen
 from bigym.utils.observation_config import ObservationConfig, CameraConfig
 from demonstrations.demo_player import DemoPlayer
@@ -10,9 +10,13 @@ from demonstrations.utils import Metadata
 # Use a high control frequency for playback to be smoother
 control_frequency = 50
 
-# Setup the environment
+# Setup the environment - Note the specific 4 DOFs required to match the demos!
 env = DrawersAllOpen(
-    action_mode=JointPositionActionMode(floating_base=True, absolute=True),
+    action_mode=JointPositionActionMode(
+        floating_base=True, 
+        absolute=True, 
+        floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ]
+    ),
     control_frequency=control_frequency,
     observation_config=ObservationConfig(
         cameras=[
@@ -50,7 +54,5 @@ env.close()
 
 output_path = sys.argv[1] if len(sys.argv) > 1 else "demo.mp4"
 print(f"Saving video to {output_path}...")
-# Save using imageio
 imageio.mimsave(output_path, frames, fps=25)
 print("Done!")
-

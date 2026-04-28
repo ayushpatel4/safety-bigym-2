@@ -47,6 +47,8 @@ TASKS = (
     "saucepan_to_hob",
     "dishwasher_close",
     "drawers_open_all",
+    "drawer_top_close",
+    "sandwich_remove",
 )
 
 DISRUPTIONS = (
@@ -71,7 +73,9 @@ SNAPSHOTS: dict[str, str | None] = {
     "reach_target_single": "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260422193458/snapshots/50000_snapshot.pt",
     "saucepan_to_hob": None,
     "dishwasher_close": "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/dishwasher_close_20260422193511/snapshots/70000_snapshot.pt",
-    "drawers_open_all": None
+    "drawers_open_all": None,
+    "drawer_top_close": None,
+    "sandwich_remove": None,
 }
 
 
