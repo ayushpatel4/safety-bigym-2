@@ -52,11 +52,11 @@ from pathlib import Path
 
 TASKS = (
     "reach_target_single",
-    "saucepan_to_hob",
+    # "saucepan_to_hob",
     "dishwasher_close",
-    "drawers_open_all",
-    "drawer_top_close",
-    "sandwich_remove",
+    # "drawers_open_all",ß
+    # "drawer_top_close",
+    # "sandwich_remove",
 )
 
 DISRUPTIONS = (
@@ -95,12 +95,12 @@ SNAPSHOTS: dict[str, dict[str, str | None]] = {
         "sandwich_remove": None,
     },
     "act": {
-        "reach_target_single": None,
-        "saucepan_to_hob": None,
-        "dishwasher_close": None,
-        "drawers_open_all": None,
-        "drawer_top_close": None,
-        "sandwich_remove": None,
+        # "reach_target_single": None,
+        "saucepan_to_hob": "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260428205105/snapshots/50000_snapshot.pt",
+        "dishwasher_close": "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260428235941/snapshots/40000_snapshot.pt",
+        "drawers_open_all": "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260429000018/snapshots/40000_snapshot.pt",
+        # "drawer_top_close": None,
+        # "sandwich_remove": None,
     },
 }
 
