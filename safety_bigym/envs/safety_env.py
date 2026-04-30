@@ -500,7 +500,17 @@ class SafetyBiGymEnv(BiGymEnv):
             "clip_path": self._current_scenario.clip_path,
             "trajectory_type": traj_type_str,
         }
-        
+
+        # Phase-1 contract: downstream wrappers (BodySLAMWrapper) expect
+        # human_pos in info["safety"] at reset. The full SafetyInfo is
+        # only computed on step, so emit just the pelvis xpos here.
+        if self._human_pelvis_id is not None:
+            if "safety" not in info:
+                info["safety"] = {}
+            info["safety"]["human_pos"] = list(
+                self._mojo.data.xpos[self._human_pelvis_id].copy()
+            )
+
         return obs, info
     
     def _step_mujoco_simulation(self, action):

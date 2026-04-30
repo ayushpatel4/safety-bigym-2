@@ -27,6 +27,12 @@ from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.perception import (
+    AMASSDemoPositionProvider,
+    BodySLAMWrapper,
+    MujocoRayOcclusion,
+    NoOcclusion,
+)
 from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
 from safety_bigym.scenarios.disruption_types import DisruptionType
 from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
@@ -194,5 +200,135 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             control_frequency=CONTROL_FREQUENCY_MAX
             // cfg.env.demo_down_sample_rate,
         )
+        env = self._maybe_wrap_bodyslam(env, cfg)
         return EpisodeSafetyMetrics(env)
+
+    def _maybe_wrap_bodyslam(self, env, cfg: DictConfig):
+        """Insert BodySLAMWrapper between SafetyBiGymEnv and EpisodeSafetyMetrics.
+
+        Driven by the `bodyslam` Hydra config group (cfgs/bodyslam/{off,
+        oracle,noisy}.yaml). When `mode='off'` or the block is missing, the
+        env is returned untouched — preserves baseline behaviour for runs
+        that don't opt into the perception layer.
+        """
+        bs = cfg.env.get("bodyslam") if hasattr(cfg, "env") else None
+        if bs is None:
+            return env
+        mode = str(bs.get("mode", "off"))
+        if mode == "off":
+            return env
+        if mode not in ("oracle", "noisy"):
+            raise ValueError(
+                f"env.bodyslam.mode must be one of 'off', 'oracle', 'noisy'; got {mode!r}"
+            )
+
+        occlusion_fn = NoOcclusion
+        if mode == "noisy" and bool(bs.get("use_occlusion", False)):
+            occlusion_fn = self._build_ray_occlusion(env) or NoOcclusion
+
+        logger.info(
+            f"Inserting BodySLAMWrapper(mode={mode}, "
+            f"occlusion={'ray' if occlusion_fn is not NoOcclusion else 'none'})."
+        )
+        return BodySLAMWrapper(
+            env,
+            mode=mode,
+            ou_alpha=float(bs.get("ou_alpha", 0.9)),
+            noise_std=float(bs.get("noise_std", 0.05)),
+            latency_steps=int(bs.get("latency_steps", 3)),
+            occlusion_noise_mult=float(bs.get("occlusion_noise_mult", 3.0)),
+            dropout_prob=float(bs.get("dropout_prob", 0.02)),
+            seed=int(bs.get("seed", 0)),
+            occlusion_fn=occlusion_fn,
+        )
+
+    def _wrap_env(self, env, cfg, demo_env=False, train=True, return_raw_spaces=False):
+        """Override parent wrap to inject BodySLAMWrapper into the demo path.
+
+        The demo env is a `DemoEnv` replaying recorded BiGym timesteps; it
+        emits no `info["safety"]`, so the wrapper switches to demo_replay
+        mode and pulls per-step pelvis positions from an AMASS clip via
+        AMASSDemoPositionProvider. Without this override, the demo and
+        train envs disagree on `low_dim_state` width and the replay buffer
+        rejects demos at load time.
+        """
+        if demo_env:
+            env = self._maybe_wrap_demo_bodyslam(env, cfg)
+        return super()._wrap_env(
+            env, cfg,
+            demo_env=demo_env,
+            train=train,
+            return_raw_spaces=return_raw_spaces,
+        )
+
+    def _maybe_wrap_demo_bodyslam(self, env, cfg: DictConfig):
+        bs = cfg.env.get("bodyslam") if hasattr(cfg, "env") else None
+        if bs is None:
+            return env
+        mode = str(bs.get("mode", "off"))
+        if mode == "off":
+            return env
+        if mode not in ("oracle", "noisy"):
+            raise ValueError(
+                f"env.bodyslam.mode must be one of 'off', 'oracle', 'noisy'; got {mode!r}"
+            )
+
+        motion_dir = cfg.env.get(
+            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+        )
+        clip_paths = list(cfg.env.get("motion_clip_paths", []))
+        if not motion_dir or not clip_paths:
+            raise RuntimeError(
+                "BodySLAM demo replay requires motion_clip_dir + motion_clip_paths "
+                "in env config (or AMASS_DATA_DIR env var)."
+            )
+        provider = AMASSDemoPositionProvider(
+            clip_paths=clip_paths,
+            motion_dir=motion_dir,
+            seed=int(bs.get("seed", 0)) ^ 0xDEAD,
+        )
+        logger.info(
+            f"Inserting BodySLAMWrapper(mode={mode}, demo_replay=True) "
+            f"around DemoEnv with AMASS provider ({len(clip_paths)} clips)."
+        )
+        return BodySLAMWrapper(
+            env,
+            mode=mode,
+            ou_alpha=float(bs.get("ou_alpha", 0.9)),
+            noise_std=float(bs.get("noise_std", 0.05)),
+            latency_steps=int(bs.get("latency_steps", 3)),
+            occlusion_noise_mult=float(bs.get("occlusion_noise_mult", 3.0)),
+            dropout_prob=float(bs.get("dropout_prob", 0.02)),
+            seed=int(bs.get("seed", 0)),
+            occlusion_fn=NoOcclusion,
+            position_provider=provider,
+            demo_replay=True,
+        )
+
+    def _build_ray_occlusion(self, env):
+        """Best-effort MujocoRayOcclusion factory; returns None on failure."""
+        try:
+            import mujoco
+            unwrapped = env.unwrapped
+            model = getattr(unwrapped, "_mojo", None)
+            model = model.physics.model._model if model is not None else None
+            data = unwrapped._mojo.physics.data._data
+            cam_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_CAMERA, "head"
+            )
+            geom_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_GEOM, "Pelvis_col"
+            )
+            if cam_id < 0 or geom_id < 0:
+                logger.warning(
+                    "BodySLAM occlusion lookup failed (cam_id=%d, geom_id=%d); "
+                    "falling back to no-occlusion.", cam_id, geom_id,
+                )
+                return None
+            return MujocoRayOcclusion(model, data, cam_id, geom_id)
+        except Exception as exc:
+            logger.warning(
+                "BodySLAM ray occlusion init failed: %s; falling back.", exc,
+            )
+            return None
 
