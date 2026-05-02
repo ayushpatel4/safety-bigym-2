@@ -59,7 +59,7 @@ DISRUPTIONS = (
 # Fill these in after training. Keyed by (method, task, bodyslam_mode).
 # Path is relative to REPO_ROOT, pointing at the peak-by-W&B-curve snapshot.
 SNAPSHOTS: dict[tuple[str, str, str], str | None] = {
-    (m, t, b): None
+    ("dp", "reach_target_single", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260502122856/snapshots/40000_snapshot.pt"
     for m in METHODS
     for t in PHASE1_TASKS
     for b in BODYSLAM_MODES
