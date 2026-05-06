@@ -49,8 +49,8 @@ class ScenarioParams:
     # Target body part for IK (when applicable)
     reaching_arm: str = "right_arm"
     
-    # --- Trajectory parameters (NEW) ---
-    trajectory_type: str = "PASS_BY"      # PASS_BY | APPROACH_LOITER_DEPART | ARC
+    # --- Trajectory parameters ---
+    trajectory_type: str = "PASS_BY"      # PASS_BY | APPROACH_LOITER_DEPART | ARC | APPROACH_AND_PRESS
     pass_by_offset: float = 1.0           # Lateral offset from robot (meters)
     closest_approach: float = 1.0         # How close before stopping (meters)
     loiter_duration: float = 2.0          # Time near robot (seconds)
@@ -81,35 +81,44 @@ class ParameterSpace:
     
     # Disruption type probabilities
     disruption_weights: Dict[DisruptionType, float] = field(default_factory=lambda: {
-        DisruptionType.INCIDENTAL: 0.3,
-        DisruptionType.SHARED_GOAL: 0.2,
-        DisruptionType.DIRECT: 0.2,
-        DisruptionType.OBSTRUCTION: 0.15,
-        DisruptionType.RANDOM_PERTURBED: 0.15,
+        DisruptionType.INCIDENTAL: 0.15,
+        DisruptionType.SHARED_GOAL: 0.15,
+        DisruptionType.DIRECT: 0.20,
+        DisruptionType.OBSTRUCTION: 0.20,
+        DisruptionType.RANDOM_PERTURBED: 0.10,
+        DisruptionType.CONTACT: 0.20,
     })
-    
+
     # Timing ranges
     trigger_time_range: tuple = (0.5, 5.0)  # seconds
     blend_duration_range: tuple = (0.2, 0.6)  # seconds
-    
+
     # Motion modifiers
     speed_range: tuple = (0.5, 2.0)
-    
+
     # Human anthropometry
     height_percentile_range: tuple = (0.05, 0.95)
-    
+
     # Spatial configuration
     approach_angle_range: tuple = (0.0, 360.0)  # degrees
-    spawn_distance_range: tuple = (1.0, 2.0)  # meters
-    
-    # --- Trajectory parameter ranges (NEW) ---
-    pass_by_offset_range: tuple = (0.3, 2.0)       # Lateral offset (meters)
-    closest_approach_range: tuple = (0.5, 1.5)     # Stop distance (meters)
-    loiter_duration_range: tuple = (1.0, 5.0)      # Near-robot time (seconds)
+    spawn_distance_range: tuple = (0.8, 1.8)  # meters
+
+    # --- Trajectory parameter ranges ---
+    # Tightened to push the human into the contact regime in a fraction
+    # of episodes; CONTACT and OBSTRUCTION add no_retract on top.
+    pass_by_offset_range: tuple = (0.05, 1.2)      # Lateral offset (meters)
+    closest_approach_range: tuple = (0.0, 0.8)     # Stop distance (meters)
+    loiter_duration_range: tuple = (3.0, 10.0)     # Near-robot time (seconds)
     departure_angle_range: tuple = (120.0, 240.0)  # Departure angle (degrees)
-    walk_speed_range: tuple = (0.8, 1.6)           # Walk speed (m/s)
-    arc_radius_range: tuple = (1.0, 2.5)           # Arc radius (meters)
+    walk_speed_range: tuple = (1.0, 2.0)           # Walk speed (m/s)
+    arc_radius_range: tuple = (0.5, 1.8)           # Arc radius (meters)
     arc_extent_range: tuple = (90.0, 180.0)        # Arc extent (degrees)
+    embed_distance_range: tuple = (0.0, 0.05)      # CONTACT: meters past surface
+
+    # Episode horizon (seconds). Used by OBSTRUCTION and CONTACT to set
+    # loiter_duration so the human plants for the rest of the episode.
+    # Default: 60s (3000 steps @ 50Hz). Override from env at construction.
+    episode_duration_s: float = 60.0
 
 
 class ScenarioSampler:
@@ -197,25 +206,57 @@ class ScenarioSampler:
         arc_radius = rng.uniform(*self.params.arc_radius_range)
         arc_extent = rng.uniform(*self.params.arc_extent_range)
         pass_by_side = rng.choice([-1, 1])  # Random side
-        
+
         # Create disruption config with sampled noise values
         base_config = DEFAULT_CONFIGS.get(
             disruption_type,
             DisruptionConfig(disruption_type=disruption_type)
         )
-        
-        # For OBSTRUCTION, sample a fixed target position
+
         if disruption_type == DisruptionType.OBSTRUCTION:
-            # Random point in robot workspace (will be refined in integration)
+            # Passive intrusion: human plants inside the robot's task
+            # workspace and stays there for the rest of the episode so
+            # the robot is the one that has to drive around them.
             obstruction_target = np.array([
-                0.3 + rng.uniform(-0.2, 0.2),
-                rng.uniform(-0.3, 0.3),
-                0.8 + rng.uniform(-0.2, 0.2),
+                0.45 + rng.uniform(-0.10, 0.15),
+                rng.uniform(-0.15, 0.15),
+                0.75 + rng.uniform(-0.10, 0.15),
             ])
+            episode_remaining = max(
+                self.params.episode_duration_s - trigger_time - 0.5,
+                6.0,
+            )
+            loiter_duration = max(loiter_duration, episode_remaining)
+            closest_approach = rng.uniform(0.2, 0.5)
             disruption_config = DisruptionConfig(
                 disruption_type=disruption_type,
                 obstruction_target=obstruction_target,
-                hold_duration=rng.uniform(1.0, 3.0),
+                hold_duration=loiter_duration,
+                no_retract=True,
+            )
+        elif disruption_type == DisruptionType.CONTACT:
+            # Active reach: human walks into the robot, stops at/inside
+            # the closest_approach band, and presses there for the rest
+            # of the episode. embed_distance puts the IK target slightly
+            # past the link surface so reaching is unambiguously a press.
+            target_part = rng.choice(
+                ["ee", "left_forearm", "right_forearm", "torso"],
+                p=[0.40, 0.25, 0.25, 0.10],
+            )
+            embed_distance = rng.uniform(*self.params.embed_distance_range)
+            # CONTACT is the most aggressive type — pin closest_approach low.
+            closest_approach = rng.uniform(0.0, 0.2)
+            episode_remaining = max(
+                self.params.episode_duration_s - trigger_time - 0.5,
+                6.0,
+            )
+            loiter_duration = max(loiter_duration, episode_remaining)
+            disruption_config = DisruptionConfig(
+                disruption_type=disruption_type,
+                target_noise_std=0.0,
+                contact_target_part=str(target_part),
+                embed_distance=float(embed_distance),
+                no_retract=True,
             )
         else:
             disruption_config = base_config
@@ -260,6 +301,9 @@ class ScenarioSampler:
         disruption_type: DisruptionType, rng: np.random.Generator
     ) -> str:
         """Choose trajectory type based on disruption type."""
+        if disruption_type == DisruptionType.CONTACT:
+            # Active press into robot; no depart phase.
+            return "APPROACH_AND_PRESS"
         if disruption_type in {
             DisruptionType.SHARED_GOAL,
             DisruptionType.DIRECT,

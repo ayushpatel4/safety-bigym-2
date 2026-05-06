@@ -23,4 +23,24 @@ env:
     - "09/09_03_poses.npz"
     - "122/122_04_poses.npz"
 
+  # Disruption sampling. Tuned to put ~60% of episodes into a meaningful
+  # SSM/PFL violation regime, split between passive intrusion (OBSTRUCTION:
+  # human plants in workspace, robot drives into them) and active reach
+  # (CONTACT: human walks into and presses on the robot).
+  disruptions:
+    weights:
+      INCIDENTAL: 0.15
+      SHARED_GOAL: 0.15
+      DIRECT: 0.20
+      OBSTRUCTION: 0.20
+      RANDOM_PERTURBED: 0.10
+      CONTACT: 0.20
+    closest_approach_range: [0.0, 0.8]
+    pass_by_offset_range: [0.05, 1.2]
+    loiter_duration_range: [3.0, 10.0]
+    embed_distance_range: [0.0, 0.05]
+    walk_speed_range: [1.0, 2.0]
+    spawn_distance_range: [0.8, 1.8]
+    arc_radius_range: [0.5, 1.8]
+
 demos: !!float .inf

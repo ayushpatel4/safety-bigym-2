@@ -157,11 +157,49 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             terminate_on_violation=False,
         )
 
+        # Build a ParameterSpace honouring any cfg.env.disruptions overrides.
+        # YAML may set per-type weights and tightened range fields; we copy
+        # them onto the ParameterSpace defaults so the rest of the sampler
+        # picks them up unchanged.
+        param_space_kwargs: dict = {"clip_paths": motion_clip_paths}
+
+        # Compute episode_duration_s from episode_length / control frequency
+        # so OBSTRUCTION/CONTACT plant for the rest of the episode.
+        episode_length = int(cfg.env.get("episode_length", 3000))
+        downsample = int(cfg.env.get("demo_down_sample_rate", 25))
+        control_freq = max(CONTROL_FREQUENCY_MAX // max(downsample, 1), 1)
+        param_space_kwargs["episode_duration_s"] = float(episode_length) / control_freq
+
+        disruptions_cfg = cfg.env.get("disruptions", None)
+        if disruptions_cfg is not None:
+            weights_cfg = disruptions_cfg.get("weights", None)
+            if weights_cfg is not None:
+                weights: dict = {}
+                for name, weight in weights_cfg.items():
+                    try:
+                        weights[DisruptionType[name]] = float(weight)
+                    except KeyError as e:
+                        raise ValueError(
+                            f"disruptions.weights[{name!r}] is not a DisruptionType"
+                        ) from e
+                param_space_kwargs["disruption_weights"] = weights
+            for range_field in (
+                "closest_approach_range",
+                "pass_by_offset_range",
+                "loiter_duration_range",
+                "embed_distance_range",
+                "walk_speed_range",
+                "spawn_distance_range",
+                "arc_radius_range",
+            ):
+                value = disruptions_cfg.get(range_field, None)
+                if value is not None:
+                    param_space_kwargs[range_field] = tuple(value)
+
         # Optional eval knob: force every episode to use one disruption type.
-        # Used by baseline_sweep.py to evaluate a trained DP against each of
-        # the 5 ISO 15066 disruption types independently.
+        # Used by baseline_sweep.py to evaluate a trained DP against each
+        # disruption type independently. Overrides any YAML weights.
         forced = cfg.env.get("disruption_type", None)
-        scenario_sampler = None
         if forced:
             try:
                 dtype = DisruptionType[forced]
@@ -170,14 +208,13 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                     f"env.disruption_type={forced!r} is not a DisruptionType "
                     f"(expected one of {[d.name for d in DisruptionType]})"
                 ) from e
-            scenario_sampler = ScenarioSampler(
-                parameter_space=ParameterSpace(
-                    clip_paths=motion_clip_paths,
-                    disruption_weights={dtype: 1.0},
-                ),
-                motion_dir=motion_clip_dir,
-            )
+            param_space_kwargs["disruption_weights"] = {dtype: 1.0}
             logger.info(f"Forcing disruption_type={dtype.name} for every episode.")
+
+        scenario_sampler = ScenarioSampler(
+            parameter_space=ParameterSpace(**param_space_kwargs),
+            motion_dir=motion_clip_dir,
+        )
 
         logger.info(
             f"Creating SafetyBiGymEnv: task={task_cls.__name__}, "

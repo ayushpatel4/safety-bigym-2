@@ -7,58 +7,72 @@ interacts with the robot workspace.
 
 from enum import Enum, auto
 from dataclasses import dataclass
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict
 import numpy as np
 
 
 class DisruptionType(Enum):
     """Types of human disruption behaviours."""
-    
+
     INCIDENTAL = auto()
     """AMASS motion that happens to cross robot workspace.
     No IK - pure motion playback. The human is not intentionally
     interacting with the robot."""
-    
+
     SHARED_GOAL = auto()
     """Human reaches toward an object near the robot's task goal.
     IK target: task object position + noise."""
-    
+
     DIRECT = auto()
     """Human reaches toward the robot's end-effector.
     IK target: robot EE position with lag and noise."""
-    
+
     OBSTRUCTION = auto()
     """Human moves into robot's path and holds position.
-    IK target: fixed point in robot's planned trajectory."""
-    
+    IK target: fixed point in robot's planned trajectory.
+    Reshaped to be passive intrusion: human plants in robot
+    workspace and stays for the rest of the episode."""
+
     RANDOM_PERTURBED = auto()
     """AMASS motion with Gaussian noise on trajectory.
     No IK - perturbed motion playback."""
+
+    CONTACT = auto()
+    """Human deliberately walks into and presses on the robot.
+    IK target: a specific robot link, offset slightly inside the
+    surface (embed_distance). no_retract is set so the human does
+    not pull back during the episode."""
 
 
 @dataclass
 class DisruptionConfig:
     """Configuration for a specific disruption type."""
-    
+
     disruption_type: DisruptionType
-    
+
     # For IK-based disruptions
     target_noise_std: float = 0.03  # meters
     tracking_lag: float = 0.0  # seconds (for DIRECT type)
-    
+
     # For RANDOM_PERTURBED
     trajectory_noise_std: float = 0.02  # radians per joint
-    
+
     # For OBSTRUCTION
     obstruction_target: Optional[np.ndarray] = None  # Fixed world position
     hold_duration: float = 2.0  # seconds to hold position
-    
+
+    # For CONTACT (active press into robot)
+    contact_target_part: str = "ee"  # "ee" | "left_forearm" | "right_forearm" | "torso"
+    embed_distance: float = 0.0  # meters past the link surface (toward human)
+    no_retract: bool = False  # if True, IK target persists for the rest of the episode
+
     def requires_ik(self) -> bool:
         """Check if this disruption type uses IK targeting."""
         return self.disruption_type in {
             DisruptionType.SHARED_GOAL,
             DisruptionType.DIRECT,
             DisruptionType.OBSTRUCTION,
+            DisruptionType.CONTACT,
         }
     
     def get_ik_target(
@@ -96,7 +110,26 @@ class DisruptionConfig:
             # Fallback: use robot base area
             robot_base = robot_state.get('robot_base_pos', np.array([0, 0, 0]))
             return robot_base + np.array([0.3, 0, 0.8])  # In front at chest height
-        
+
+        elif self.disruption_type == DisruptionType.CONTACT:
+            link_pos: Optional[Dict[str, np.ndarray]] = robot_state.get('link_pos')
+            if link_pos and self.contact_target_part in link_pos:
+                base = np.asarray(link_pos[self.contact_target_part], dtype=float)
+            else:
+                base = robot_state.get('ee_pos')
+                if base is None:
+                    return None
+                base = np.asarray(base, dtype=float)
+
+            if self.embed_distance > 0.0:
+                pelvis = robot_state.get('human_pelvis_pos')
+                if pelvis is not None:
+                    direction = np.asarray(pelvis, dtype=float) - base
+                    norm = np.linalg.norm(direction)
+                    if norm > 1e-6:
+                        return base + (direction / norm) * self.embed_distance
+            return base
+
         return None
 
 
@@ -121,5 +154,12 @@ DEFAULT_CONFIGS = {
     DisruptionType.RANDOM_PERTURBED: DisruptionConfig(
         disruption_type=DisruptionType.RANDOM_PERTURBED,
         trajectory_noise_std=0.02,
+    ),
+    DisruptionType.CONTACT: DisruptionConfig(
+        disruption_type=DisruptionType.CONTACT,
+        target_noise_std=0.0,
+        contact_target_part="ee",
+        embed_distance=0.05,
+        no_retract=True,
     ),
 }

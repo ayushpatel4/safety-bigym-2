@@ -456,6 +456,7 @@ class SafetyBiGymEnv(BiGymEnv):
             "PASS_BY": TrajectoryType.PASS_BY,
             "APPROACH_LOITER_DEPART": TrajectoryType.APPROACH_LOITER_DEPART,
             "ARC": TrajectoryType.ARC,
+            "APPROACH_AND_PRESS": TrajectoryType.APPROACH_AND_PRESS,
         }
         traj_type_str = getattr(self._current_scenario, 'trajectory_type', 'PASS_BY')
         traj_type = trajectory_type_map.get(traj_type_str, TrajectoryType.PASS_BY)
@@ -565,24 +566,57 @@ class SafetyBiGymEnv(BiGymEnv):
         # Aggregate safety info for this step
         self._aggregate_safety_info()
     
+    # Candidate MuJoCo body names for CONTACT IK targets, in priority order.
+    # Lookup is best-effort: missing names are silently dropped.
+    _ROBOT_LINK_NAMES = {
+        "ee": ["h1/right_hand", "h1/left_hand", "h1/right_wrist_link", "h1/left_wrist_link"],
+        "right_forearm": ["h1/right_elbow_link", "h1/right_forearm", "h1/right_lower_arm_link"],
+        "left_forearm": ["h1/left_elbow_link", "h1/left_forearm", "h1/left_lower_arm_link"],
+        "torso": ["h1/torso_link", "h1/torso", "h1/chest_link"],
+    }
+
     def _get_robot_state(self) -> Dict[str, Any]:
         """Get current robot state for IK computation."""
-        state = {}
-        
-        # Robot pelvis position
+        state: Dict[str, Any] = {}
+
+        # Robot pelvis / base position
         try:
-            pelvis_pos = self._robot.pelvis.get_position()
+            pelvis_pos = np.asarray(self._robot.pelvis.get_position(), dtype=float)
             state["robot_pos"] = pelvis_pos
-        except:
+            state["robot_base_pos"] = pelvis_pos
+        except Exception:
             state["robot_pos"] = np.zeros(3)
-        
-        # End effector positions (if available)
+            state["robot_base_pos"] = np.zeros(3)
+
+        # End effector position
+        ee_pos: Optional[np.ndarray] = None
         try:
-            # This depends on the robot type
-            state["ee_pos"] = self._robot.get_ee_position()
-        except:
+            ee_pos = np.asarray(self._robot.get_ee_position(), dtype=float)
+            state["ee_pos"] = ee_pos
+        except Exception:
             pass
-        
+
+        # Per-link positions for CONTACT IK targeting
+        link_pos: Dict[str, np.ndarray] = {}
+        if ee_pos is not None:
+            link_pos["ee"] = ee_pos
+        model = self._mojo.model
+        data = self._mojo.data
+        for part, candidates in self._ROBOT_LINK_NAMES.items():
+            if part in link_pos:
+                continue
+            for name in candidates:
+                bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+                if bid >= 0:
+                    link_pos[part] = data.xpos[bid].copy()
+                    break
+        if link_pos:
+            state["link_pos"] = link_pos
+
+        # Human pelvis position (CONTACT uses this to bias embed direction).
+        if self._human_pelvis_id is not None:
+            state["human_pelvis_pos"] = data.xpos[self._human_pelvis_id].copy()
+
         return state
     
     def _aggregate_safety_info(self):

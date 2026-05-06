@@ -31,12 +31,13 @@ def test_pass_by_trajectory():
     )
     
     planner = TrajectoryPlanner(config)
-    
+
     print(f"  Duration: {planner.duration:.2f}s")
     print(f"  Waypoints: {len(planner.waypoints)}")
     print(f"  Min distance to robot: {planner.closest_distance_to_robot():.2f}m")
-    
-    # Should never get closer than pass_by_offset
+
+    # With pass_by_offset=1.0 the trajectory should respect that offset
+    # (allowing a small tolerance for waypoint quantisation).
     assert planner.closest_distance_to_robot() >= 0.9, \
         f"Pass-by too close: {planner.closest_distance_to_robot():.2f}m"
     
@@ -173,11 +174,16 @@ def test_scenario_sampler_trajectory_params():
         
         trajectory_types_seen.add(scenario.trajectory_type)
         
-        # Validate ranges
-        assert 0.3 <= scenario.pass_by_offset <= 2.0, f"pass_by_offset out of range: {scenario.pass_by_offset}"
-        assert 0.5 <= scenario.closest_approach <= 1.5, f"closest_approach out of range: {scenario.closest_approach}"
-        assert 1.0 <= scenario.loiter_duration <= 5.0, f"loiter_duration out of range: {scenario.loiter_duration}"
-        assert 0.8 <= scenario.walk_speed <= 1.6, f"walk_speed out of range: {scenario.walk_speed}"
+        # Validate ranges (must match ParameterSpace defaults)
+        assert 0.05 <= scenario.pass_by_offset <= 1.2, f"pass_by_offset out of range: {scenario.pass_by_offset}"
+        # closest_approach is overridden per-type for OBSTRUCTION/CONTACT,
+        # so just check it's within the ParameterSpace bounds for those types
+        # too (both override down, never up).
+        assert 0.0 <= scenario.closest_approach <= 0.8, f"closest_approach out of range: {scenario.closest_approach}"
+        # loiter_duration may be bumped to "rest of episode" for OBSTRUCTION
+        # / CONTACT, so just enforce the lower bound from the range.
+        assert scenario.loiter_duration >= 3.0, f"loiter_duration too small: {scenario.loiter_duration}"
+        assert 1.0 <= scenario.walk_speed <= 2.0, f"walk_speed out of range: {scenario.walk_speed}"
     
     print(f"  Trajectory types seen: {trajectory_types_seen}")
     assert len(trajectory_types_seen) >= 2, \

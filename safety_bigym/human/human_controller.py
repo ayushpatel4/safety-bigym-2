@@ -381,19 +381,32 @@ class HumanController:
                     targets[0:7] = amass_targets[0:7]
             
             elif phase == "depart":
-                # Check if we just left loiter — blend IK back to AMASS
-                blend = self.scenario.blend_duration if self.scenario else 0.4
-                loiter_end = self._get_loiter_end_time()
-                depart_elapsed = self.t - loiter_end
-                
-                if depart_elapsed < blend:
-                    # Blend back: IK arms → AMASS
-                    alpha = 1.0 - (depart_elapsed / blend)
+                # If the disruption requested no retraction (CONTACT,
+                # OBSTRUCTION), keep the IK target fully engaged through
+                # depart instead of blending back to AMASS.
+                no_retract = bool(
+                    self.scenario is not None
+                    and self.scenario.disruption_config is not None
+                    and getattr(self.scenario.disruption_config, "no_retract", False)
+                )
+                if no_retract:
+                    targets = self._get_ik_targets(robot_state)
                     amass_targets = self._get_amass_targets(self.t)
-                    ik_targets = self._get_ik_targets(robot_state)
-                    targets = (1 - alpha) * amass_targets + alpha * ik_targets
+                    targets[0:7] = amass_targets[0:7]
                 else:
-                    targets = self._get_amass_targets(self.t)
+                    # Check if we just left loiter — blend IK back to AMASS
+                    blend = self.scenario.blend_duration if self.scenario else 0.4
+                    loiter_end = self._get_loiter_end_time()
+                    depart_elapsed = self.t - loiter_end
+
+                    if depart_elapsed < blend:
+                        # Blend back: IK arms → AMASS
+                        alpha = 1.0 - (depart_elapsed / blend)
+                        amass_targets = self._get_amass_targets(self.t)
+                        ik_targets = self._get_ik_targets(robot_state)
+                        targets = (1 - alpha) * amass_targets + alpha * ik_targets
+                    else:
+                        targets = self._get_amass_targets(self.t)
             else:
                 # "approach" or "walk" → pure AMASS
                 targets = self._get_amass_targets(self.t)

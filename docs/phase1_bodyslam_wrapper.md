@@ -227,26 +227,48 @@ env = BodySLAMWrapper(env, mode="noisy", demo_replay=True, position_provider=pro
 
 ### Sweep scripts
 
-All three follow the same pattern: `--train` prints commands, `--eval`
-prints commands once `SNAPSHOTS` is filled, `--smoke` runs ≤100 steps
-locally for plumbing checks. Like `baseline_sweep.py`, the scripts only
-print/smoke — the actual multi-hour runs go to GPU.
+Each script has four modes:
+
+- `--train` prints training commands (one per cell).
+- `--eval` prints eval commands once `SNAPSHOTS` is filled (one per cell ×
+  disruption).
+- `--run` executes every eval cell sequentially, captures per-cell metrics
+  via `+eval_output_path=<tmp.json>`, dumps the aggregate JSON to the repo
+  root, and prints a summary table.
+- `--smoke` runs ≤100 train frames locally for a plumbing check.
 
 ```bash
-# E1.1 — does the obs help? (3 tasks × 2 methods × 3 modes = 18 runs)
+# E1.1 — does the obs help? (3 tasks × 2 methods × 3 modes = 18 train cells)
 python scripts/phase1_obs_ablation.py --train | tee phase1_e11_train.sh
+# … train all cells on GPU, fill SNAPSHOTS with peak-by-W&B-curve checkpoints …
+python scripts/phase1_obs_ablation.py --run     # 90 eval cells + summary table
 
-# E1.2 — at what σ does it stop helping? (5 σ values)
-python scripts/phase1_noise_sweep.py --method dp --task reach_target_single --train
+# E1.2 — at what σ does it stop helping? (5 σ values × 5 disruptions)
+python scripts/phase1_noise_sweep.py --method <m> --task <t> --train
+python scripts/phase1_noise_sweep.py --method <m> --task <t> --run
 
-# E1.3 — does temporal structure matter, or just marginal σ? (3 variants)
-python scripts/phase1_temporal_ablation.py --method dp --task reach_target_single --train
+# E1.3 — does temporal structure matter, or just marginal σ? (3 variants × 5 disruptions)
+python scripts/phase1_temporal_ablation.py --method <m> --task <t> --train
+python scripts/phase1_temporal_ablation.py --method <m> --task <t> --run
 ```
 
-After each phase, fill in the script's `SNAPSHOTS` dict with peak-by-W&B-curve
-checkpoints (NOT the final snapshot — DP over-fits past its eval-success
-peak on small pixel demo sets, see `PHASE_0_HUMAN_FIX.md`), then re-run
-with `--eval`.
+After training, pick **peak-by-W&B-curve** checkpoints (NOT the final
+snapshot — DP over-fits past its eval-success peak on small pixel demo
+sets, see [PHASE_0_HUMAN_FIX.md](PHASE_0_HUMAN_FIX.md)), fill the script's
+`SNAPSHOTS` dict, then `--run`.
+
+**Output of `--run` (E1.1):**
+
+- `phase1_obs_ablation_results.json` — full per-cell `eval_metrics` keyed
+  by `[method][task][mode][disruption]`.
+- A summary table grouped by `(method, task)` with `ssm_viol`, `pfl_viol`,
+  `episode_success` (averaged across the 5 disruption types), the
+  off→mode SSM-rate reduction, and a **PASS** flag when reduction ≥ 20%.
+- Per-method and overall criterion check
+  (`PASS` / `FAIL — Phase 2/3 contingency triggers`).
+
+E1.2 and E1.3 produce analogous JSON dumps and trend tables (E1.2 by σ,
+E1.3 by variant with reduction relative to `iid`).
 
 ---
 
