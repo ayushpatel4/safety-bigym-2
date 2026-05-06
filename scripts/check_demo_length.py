@@ -2,12 +2,12 @@
 import numpy as np
 from bigym.action_modes import JointPositionActionMode, PelvisDof
 from bigym.bigym_env import CONTROL_FREQUENCY_MAX
-from bigym.envs.reach_target import ReachTargetDual
+from bigym.envs.cupboards import DrawersAllOpen
 from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
-DEMO_DOWN_SAMPLE = 10   # from cfgs/env/safety_bigym/dishwasher_close.yaml
-TASK_CLS = ReachTargetDual
+DEMO_DOWN_SAMPLE = 20   # from cfgs/env/safety_bigym/drawers_open_all.yaml
+TASK_CLS = DrawersAllOpen
 
 action_mode = JointPositionActionMode(
     floating_base=True, absolute=True,

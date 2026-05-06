@@ -1,0 +1,10 @@
+{
+  "weights_changed": 444,
+  "weights_unchanged": 62,
+  "inter_action_std": 0.5137542486190796,
+  "action_mean": -0.005777610000222921,
+  "rollout_reward_mean": 0.0,
+  "rollout_reward_sum": 0.0,
+  "action_norm_mean": 11.283561706542969,
+  "action_norm_std": 0.31650835275650024
+}
