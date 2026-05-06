@@ -181,6 +181,170 @@ def _print_eval(seed: int, num_eval_episodes: int) -> int:
     return 0 if not missing else 2
 
 
+def _safety_lookup(metrics: dict, key: str, default=0.0):
+    """eval_metrics may flatten nested keys with '/' or keep them nested.
+    Try both shapes."""
+    nested = metrics.get("env_info/episode_safety")
+    if isinstance(nested, dict) and key in nested:
+        return nested[key]
+    flat = metrics.get(f"env_info/episode_safety/{key}")
+    if flat is not None:
+        return flat
+    return default
+
+
+def _run_grid(seed: int, num_eval_episodes: int) -> int:
+    """Execute eval cells sequentially, capture per-cell JSON, print a
+    summary table with the 20%-SSM-reduction success-criterion check."""
+    import json
+    import tempfile
+
+    missing = [
+        (m, t, b)
+        for m in METHODS for t in PHASE1_TASKS for b in BODYSLAM_MODES
+        if _resolved_snapshot(m, t, b) is None
+    ]
+    if missing:
+        print(f"# {len(missing)} cell(s) missing snapshots: {missing}")
+        print("# Run `python scripts/phase1_obs_ablation.py --train` first.")
+        return 2
+
+    base_env = os.environ.copy()
+    results: dict = {}
+
+    n_cells = len(METHODS) * len(PHASE1_TASKS) * len(BODYSLAM_MODES) * len(DISRUPTIONS)
+    print(f"# Running {n_cells} eval cells sequentially "
+          f"({num_eval_episodes} eps each)...")
+
+    cell_idx = 0
+    for method in METHODS:
+        results.setdefault(method, {})
+        for task in PHASE1_TASKS:
+            results[method].setdefault(task, {})
+            snap = _resolved_snapshot(method, task, BODYSLAM_MODES[0])  # any
+            for mode_ in BODYSLAM_MODES:
+                snap = _resolved_snapshot(method, task, mode_)
+                results[method][task].setdefault(mode_, {})
+                for disruption in DISRUPTIONS:
+                    cell_idx += 1
+                    print(f"\n# [{cell_idx}/{n_cells}] {method} / {task} / "
+                          f"bs={mode_} / {disruption}")
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".json", delete=False
+                    ) as tmp:
+                        tmp_out = tmp.name
+                    cmd = _eval_cmd(
+                        method, task, mode_, disruption, snap,
+                        seed=seed,
+                        num_eval_episodes=num_eval_episodes,
+                        wandb_use=True,
+                    )
+                    cmd.append(f"+eval_output_path={tmp_out}")
+
+                    argv = list(cmd)
+                    run_env = base_env.copy()
+                    while argv and "=" in argv[0] and not argv[0].startswith("-"):
+                        k, v = argv.pop(0).split("=", 1)
+                        run_env[k] = v
+
+                    print(">>>", " ".join(shlex.quote(c) for c in argv))
+                    rc = subprocess.run(argv, cwd=REPO_ROOT, env=run_env).returncode
+                    if rc != 0:
+                        print(f"# Cell failed (rc={rc}); aborting.")
+                        try: os.remove(tmp_out)
+                        except: pass
+                        return rc
+                    try:
+                        with open(tmp_out) as f:
+                            results[method][task][mode_][disruption] = json.load(f)
+                    except Exception as exc:
+                        print(f"# Failed to read {tmp_out}: {exc}")
+                    finally:
+                        try: os.remove(tmp_out)
+                        except: pass
+
+    out_path = REPO_ROOT / "phase1_obs_ablation_results.json"
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\n# Full JSON: {out_path}")
+
+    _print_summary(results)
+    return 0
+
+
+def _print_summary(results: dict) -> None:
+    """Per (method, task), average across disruptions for each mode and
+    print: ep_ssm_violation_rate, ep_pfl_violation_rate, episode_success,
+    and the off→oracle / off→noisy reduction. Flag the 20%-cut criterion.
+    """
+    print("\n" + "=" * 110)
+    print("PHASE-1 E1.1 OBS-ABLATION SUMMARY  "
+          "(averaged across {} disruption types)".format(len(DISRUPTIONS)))
+    print("=" * 110)
+
+    header = (
+        f"{'method':<6} {'task':<25} {'mode':<8} "
+        f"{'ssm_viol':>10} {'pfl_viol':>10} {'success':>9} "
+        f"{'ssm_redux':>11} {'criterion':>11}"
+    )
+    print(header)
+    print("-" * 110)
+
+    any_pass = False
+    per_method_pass: dict[str, bool] = {}
+
+    for method in METHODS:
+        method_pass = False
+        for task in PHASE1_TASKS:
+            cell = results.get(method, {}).get(task, {})
+            avgs: dict[str, dict[str, float]] = {}
+            for mode_ in BODYSLAM_MODES:
+                runs = cell.get(mode_, {})
+                if not runs:
+                    avgs[mode_] = {}
+                    continue
+                ssm = [_safety_lookup(m, "ep_ssm_violation_rate") for m in runs.values()]
+                pfl = [_safety_lookup(m, "ep_pfl_violation_rate") for m in runs.values()]
+                succ = [m.get("episode_success", 0.0) for m in runs.values()]
+                avgs[mode_] = {
+                    "ssm": sum(ssm) / len(ssm),
+                    "pfl": sum(pfl) / len(pfl),
+                    "success": sum(succ) / len(succ),
+                }
+
+            off_ssm = avgs.get("off", {}).get("ssm", float("nan"))
+            for mode_ in BODYSLAM_MODES:
+                a = avgs.get(mode_, {})
+                if not a:
+                    print(f"{method:<6} {task:<25} {mode_:<8} "
+                          f"{'-':>10} {'-':>10} {'-':>9} {'-':>11} {'-':>11}")
+                    continue
+                if mode_ == "off" or off_ssm == 0 or off_ssm != off_ssm:
+                    redux_str = "-"
+                    crit = "-"
+                else:
+                    redux = (off_ssm - a["ssm"]) / off_ssm
+                    redux_str = f"{redux*100:+.1f}%"
+                    if redux >= 0.20:
+                        crit = "PASS"
+                        method_pass = True
+                        any_pass = True
+                    else:
+                        crit = ""
+                print(f"{method:<6} {task:<25} {mode_:<8} "
+                      f"{a['ssm']:>10.3f} {a['pfl']:>10.3f} {a['success']:>9.2f} "
+                      f"{redux_str:>11} {crit:>11}")
+            print("-" * 110)
+        per_method_pass[method] = method_pass
+
+    print()
+    print("Success criterion: oracle ≥ 20% reduction in SSM violation rate vs "
+          "`off`, on at least one of DP / ACT.")
+    for m, ok in per_method_pass.items():
+        print(f"  {m}: {'PASS' if ok else 'FAIL'}")
+    print(f"  overall: {'PASS' if any_pass else 'FAIL — Phase 2/3 contingency triggers'}")
+
+
 def _smoke(method: str, task: str, mode: str, seed: int) -> int:
     cmd = [
         *HEADLESS_ENV,
@@ -212,6 +376,8 @@ def main() -> int:
                       help="Print training commands (18 cells).")
     mode.add_argument("--eval", action="store_true",
                       help="Print eval commands (requires SNAPSHOTS filled).")
+    mode.add_argument("--run", action="store_true",
+                      help="Run all 90 eval cells, dump JSON, print summary table.")
     mode.add_argument("--smoke", action="store_true",
                       help="Run a 100-step train smoke locally (no W&B).")
     parser.add_argument("--method", default="dp", choices=sorted(METHODS))
@@ -225,6 +391,8 @@ def main() -> int:
 
     if args.smoke:
         return _smoke(args.method, args.task, args.bodyslam, args.seed)
+    if args.run:
+        return _run_grid(args.seed, args.num_eval_episodes)
     if args.eval:
         return _print_eval(args.seed, args.num_eval_episodes)
     return _print_train(args.seed)

@@ -132,6 +132,89 @@ def _print_eval(method: str, task: str, seed: int, num_eval_episodes: int) -> in
     return 0 if not missing else 2
 
 
+def _safety_lookup(metrics: dict, key: str, default=0.0):
+    nested = metrics.get("env_info/episode_safety")
+    if isinstance(nested, dict) and key in nested:
+        return nested[key]
+    flat = metrics.get(f"env_info/episode_safety/{key}")
+    return flat if flat is not None else default
+
+
+def _run_grid(method: str, task: str, seed: int, num_eval_episodes: int) -> int:
+    import json
+    import tempfile
+
+    missing = [s for s in NOISE_STDS if _resolved_snapshot(method, task, s) is None]
+    if missing:
+        print(f"# missing snapshots for sigma in {missing}; run --train first.")
+        return 2
+
+    base_env = os.environ.copy()
+    results: dict = {}
+    n_cells = len(NOISE_STDS) * len(DISRUPTIONS)
+    cell_idx = 0
+    for sigma in NOISE_STDS:
+        results.setdefault(sigma, {})
+        snap = _resolved_snapshot(method, task, sigma)
+        for disruption in DISRUPTIONS:
+            cell_idx += 1
+            print(f"\n# [{cell_idx}/{n_cells}] sigma={sigma} / {disruption}")
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+                tmp_out = tmp.name
+            cmd = _eval_cmd(
+                method, task, sigma, disruption, snap,
+                seed=seed, num_eval_episodes=num_eval_episodes, wandb_use=True,
+            )
+            cmd.append(f"+eval_output_path={tmp_out}")
+
+            argv = list(cmd)
+            run_env = base_env.copy()
+            while argv and "=" in argv[0] and not argv[0].startswith("-"):
+                k, v = argv.pop(0).split("=", 1)
+                run_env[k] = v
+            print(">>>", " ".join(shlex.quote(c) for c in argv))
+            rc = subprocess.run(argv, cwd=REPO_ROOT, env=run_env).returncode
+            if rc != 0:
+                print(f"# Cell failed (rc={rc}); aborting.")
+                try: os.remove(tmp_out)
+                except: pass
+                return rc
+            try:
+                with open(tmp_out) as f:
+                    results[sigma][disruption] = json.load(f)
+            except Exception as exc:
+                print(f"# Failed to read {tmp_out}: {exc}")
+            finally:
+                try: os.remove(tmp_out)
+                except: pass
+
+    out_path = REPO_ROOT / f"phase1_noise_sweep_{method}_{task}_results.json"
+    with open(out_path, "w") as f:
+        json.dump({str(k): v for k, v in results.items()}, f, indent=2)
+    print(f"\n# Full JSON: {out_path}")
+
+    print("\n" + "=" * 80)
+    print(f"PHASE-1 E1.2 NOISE SWEEP — {method}/{task}  "
+          f"(avg over {len(DISRUPTIONS)} disruptions)")
+    print("=" * 80)
+    print(f"{'sigma':>8} {'ssm_viol':>10} {'pfl_viol':>10} {'success':>9}")
+    print("-" * 80)
+    for sigma in NOISE_STDS:
+        runs = results.get(sigma, {})
+        if not runs:
+            print(f"{sigma:>8.2f} {'-':>10} {'-':>10} {'-':>9}")
+            continue
+        ssm = [_safety_lookup(m, "ep_ssm_violation_rate") for m in runs.values()]
+        pfl = [_safety_lookup(m, "ep_pfl_violation_rate") for m in runs.values()]
+        succ = [m.get("episode_success", 0.0) for m in runs.values()]
+        print(f"{sigma:>8.2f} {sum(ssm)/len(ssm):>10.3f} "
+              f"{sum(pfl)/len(pfl):>10.3f} {sum(succ)/len(succ):>9.2f}")
+    print("-" * 80)
+    print("Look for the σ at which ssm_viol stops being lower than the "
+          "off-baseline (consult E1.1 results).")
+    return 0
+
+
 def _smoke(method: str, task: str, sigma: float, seed: int) -> int:
     cmd = [
         *HEADLESS_ENV,
@@ -162,6 +245,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--train", action="store_true")
     mode.add_argument("--eval", action="store_true")
+    mode.add_argument("--run", action="store_true",
+                      help="Run all eval cells, dump JSON, print sweep table.")
     mode.add_argument("--smoke", action="store_true")
     parser.add_argument("--method", default="dp", choices=sorted(METHODS))
     parser.add_argument("--task", default="reach_target_single")
@@ -174,6 +259,8 @@ def main() -> int:
 
     if args.smoke:
         return _smoke(args.method, args.task, args.sigma, args.seed)
+    if args.run:
+        return _run_grid(args.method, args.task, args.seed, args.num_eval_episodes)
     if args.eval:
         return _print_eval(args.method, args.task, args.seed, args.num_eval_episodes)
     return _print_train(args.method, args.task, args.seed)

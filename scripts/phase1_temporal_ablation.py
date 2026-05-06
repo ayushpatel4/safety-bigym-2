@@ -152,6 +152,111 @@ def _print_eval(method: str, task: str, seed: int, num_eval_episodes: int) -> in
     return 0 if not missing else 2
 
 
+def _safety_lookup(metrics: dict, key: str, default=0.0):
+    nested = metrics.get("env_info/episode_safety")
+    if isinstance(nested, dict) and key in nested:
+        return nested[key]
+    flat = metrics.get(f"env_info/episode_safety/{key}")
+    return flat if flat is not None else default
+
+
+def _run_grid(method: str, task: str, seed: int, num_eval_episodes: int) -> int:
+    import json
+    import tempfile
+
+    missing = [v for v in VARIANTS if _resolved_snapshot(method, task, v) is None]
+    if missing:
+        print(f"# missing snapshots for variants {missing}; run --train first.")
+        return 2
+
+    base_env = os.environ.copy()
+    results: dict = {}
+    n_cells = len(VARIANTS) * len(DISRUPTIONS)
+    cell_idx = 0
+    for variant in VARIANTS:
+        results.setdefault(variant, {})
+        snap = _resolved_snapshot(method, task, variant)
+        for disruption in DISRUPTIONS:
+            cell_idx += 1
+            print(f"\n# [{cell_idx}/{n_cells}] variant={variant} / {disruption}")
+            with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+                tmp_out = tmp.name
+            cmd = _eval_cmd(
+                method, task, variant, disruption, snap,
+                seed=seed, num_eval_episodes=num_eval_episodes, wandb_use=True,
+            )
+            cmd.append(f"+eval_output_path={tmp_out}")
+
+            argv = list(cmd)
+            run_env = base_env.copy()
+            while argv and "=" in argv[0] and not argv[0].startswith("-"):
+                k, v = argv.pop(0).split("=", 1)
+                run_env[k] = v
+            print(">>>", " ".join(shlex.quote(c) for c in argv))
+            rc = subprocess.run(argv, cwd=REPO_ROOT, env=run_env).returncode
+            if rc != 0:
+                print(f"# Cell failed (rc={rc}); aborting.")
+                try: os.remove(tmp_out)
+                except: pass
+                return rc
+            try:
+                with open(tmp_out) as f:
+                    results[variant][disruption] = json.load(f)
+            except Exception as exc:
+                print(f"# Failed to read {tmp_out}: {exc}")
+            finally:
+                try: os.remove(tmp_out)
+                except: pass
+
+    out_path = REPO_ROOT / f"phase1_temporal_ablation_{method}_{task}_results.json"
+    with open(out_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"\n# Full JSON: {out_path}")
+
+    print("\n" + "=" * 80)
+    print(f"PHASE-1 E1.3 TEMPORAL ABLATION — {method}/{task}  "
+          f"(avg over {len(DISRUPTIONS)} disruptions)")
+    print("=" * 80)
+    print(f"{'variant':<8} {'ssm_viol':>10} {'pfl_viol':>10} {'success':>9} "
+          f"{'vs iid':>10}")
+    print("-" * 80)
+
+    iid_ssm = None
+    rows = {}
+    for variant in VARIANTS:
+        runs = results.get(variant, {})
+        if not runs:
+            rows[variant] = None
+            continue
+        ssm = [_safety_lookup(m, "ep_ssm_violation_rate") for m in runs.values()]
+        pfl = [_safety_lookup(m, "ep_pfl_violation_rate") for m in runs.values()]
+        succ = [m.get("episode_success", 0.0) for m in runs.values()]
+        rows[variant] = {
+            "ssm": sum(ssm) / len(ssm),
+            "pfl": sum(pfl) / len(pfl),
+            "success": sum(succ) / len(succ),
+        }
+        if variant == "iid":
+            iid_ssm = rows[variant]["ssm"]
+
+    for variant in VARIANTS:
+        r = rows[variant]
+        if r is None:
+            print(f"{variant:<8} {'-':>10} {'-':>10} {'-':>9} {'-':>10}")
+            continue
+        if iid_ssm is None or iid_ssm == 0 or variant == "iid":
+            redux = "-"
+        else:
+            redux = f"{(iid_ssm - r['ssm'])/iid_ssm*100:+.1f}%"
+        print(f"{variant:<8} {r['ssm']:>10.3f} {r['pfl']:>10.3f} "
+              f"{r['success']:>9.2f} {redux:>10}")
+    print("-" * 80)
+    print("If ou/full ≈ iid on ssm_viol, the policy is using the channel as "
+          "a noisy point estimate;\ntemporal structure isn't being exploited "
+          "— that's the upper bound on Phase-2's lift.")
+    return 0
+
+
 def _smoke(method: str, task: str, variant: str, seed: int) -> int:
     cmd = [
         *HEADLESS_ENV,
@@ -182,6 +287,8 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--train", action="store_true")
     mode.add_argument("--eval", action="store_true")
+    mode.add_argument("--run", action="store_true",
+                      help="Run all eval cells, dump JSON, print ablation table.")
     mode.add_argument("--smoke", action="store_true")
     parser.add_argument("--method", default="dp", choices=sorted(METHODS))
     parser.add_argument("--task", default="reach_target_single")
@@ -194,6 +301,8 @@ def main() -> int:
 
     if args.smoke:
         return _smoke(args.method, args.task, args.variant, args.seed)
+    if args.run:
+        return _run_grid(args.method, args.task, args.seed, args.num_eval_episodes)
     if args.eval:
         return _print_eval(args.method, args.task, args.seed, args.num_eval_episodes)
     return _print_train(args.method, args.task, args.seed)
