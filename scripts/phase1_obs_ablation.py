@@ -39,10 +39,11 @@ PHASE1_TASKS = (
     "reach_target_single",
     "dishwasher_close",
     "drawers_open_all",
+    "saucepan_to_hob"
 )
 
 METHODS = {
-    "dp":  {"launch": "dp_pixel_safety_bigym",  "exp_dir": "dp_safety"},
+    # "dp":  {"launch": "dp_pixel_safety_bigym",  "exp_dir": "dp_safety"},
     "act": {"launch": "act_pixel_safety_bigym", "exp_dir": "act_safety"},
 }
 
@@ -59,10 +60,29 @@ DISRUPTIONS = (
 # Fill these in after training. Keyed by (method, task, bodyslam_mode).
 # Path is relative to REPO_ROOT, pointing at the peak-by-W&B-curve snapshot.
 SNAPSHOTS: dict[tuple[str, str, str], str | None] = {
-    ("dp", "reach_target_single", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260502122856/snapshots/40000_snapshot.pt"
-    for m in METHODS
-    for t in PHASE1_TASKS
-    for b in BODYSLAM_MODES
+    # ("dp", "reach_target_single", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260502122856/snapshots/40000_snapshot.pt"
+    # ("dp", "reach_target_single", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260502181921/snapshots/50000_snapshot.pt"
+    # ("dp", "reach_target_single", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/reach_target_single_20260502181132/snapshots/50000_snapshot.pt",
+
+    # ("dp", "dishwasher_close", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/dishwasher_close_20260503022632/snapshots/10000_snapshot.pt"
+    # ("dp", "dishwasher_close", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/dishwasher_close_20260503122249/snapshots/20000_snapshot.pt"
+    # ("dp", "dishwasher_close", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/dishwasher_close_20260503021247/snapshots/10000_snapshot.pt",
+    
+    # ("dp", "drawers_open_all", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/drawers_open_all_20260503043644/snapshots/20000_snapshot.pt"
+    # ("dp", "drawers_open_all", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/drawers_open_all_20260503045446/snapshots/20000_snapshot.pt"
+    # ("dp", "drawers_open_all", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/dp_safety/drawers_open_all_20260503044952/snapshots/20000_snapshot.pt",
+    ("act", "reach_target_single", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/reach_target_single_20260504000016/snapshots/20000_snapshot.pt",
+    ("act", "reach_target_single", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/reach_target_single_20260504000103/snapshots/20000_snapshot.pt",
+    ("act", "reach_target_single", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/reach_target_single_20260503235934/snapshots/50000_snapshot.pt",
+    ("act", "dishwasher_close", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260504133104/snapshots/20000_snapshot.pt",
+    ("act", "dishwasher_close", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260504133029/snapshots/30000_snapshot.pt",
+    ("act", "dishwasher_close", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260504133029/snapshots/30000_snapshot.pt",
+    ("act", "drawers_open_all", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260505031240/snapshots/70000_snapshot.pt",
+    ("act", "drawers_open_all", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260505031217/snapshots/20000_snapshot.pt",
+    ("act", "drawers_open_all", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260504232537/snapshots/70000_snapshot.pt",
+    ("act", "saucepan_to_hob", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260505105023/snapshots/80000_snapshot.pt",
+    ("act", "saucepan_to_hob", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260505105056/snapshots/50000_snapshot.pt",
+    ("act", "saucepan_to_hob", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260505105006/snapshots/80000_snapshot.pt",
 }
 
 
