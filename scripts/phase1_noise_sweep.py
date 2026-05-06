@@ -31,6 +31,7 @@ NOISE_STDS = (0.02, 0.05, 0.10, 0.15, 0.20)
 
 DISRUPTIONS = (
     "INCIDENTAL", "SHARED_GOAL", "DIRECT", "OBSTRUCTION", "RANDOM_PERTURBED",
+    "CONTACT",
 )
 
 # Fill in after training. Keyed by (method, task, noise_std).

@@ -34,39 +34,39 @@ def _force_disruption_sampler(disruption_type: DisruptionType) -> ScenarioSample
 
 
 def test_contact_default_config_press_intent():
-    """The DEFAULT_CONFIG for CONTACT must encode 'press, do not retract'."""
+    """The DEFAULT_CONFIG for CONTACT must encode the press metadata."""
     cfg = DEFAULT_CONFIGS[DisruptionType.CONTACT]
-    assert cfg.no_retract is True
     assert cfg.embed_distance >= 0.0
     assert cfg.contact_target_part in {"ee", "left_forearm", "right_forearm", "torso"}
     assert cfg.target_noise_std == 0.0
 
 
 def test_contact_scenarios_have_press_metadata():
-    """Sampling CONTACT must produce a config with no_retract + embed >= 0."""
+    """Sampling CONTACT must produce a press IK config and route to APPROACH_LOITER_DEPART."""
     sampler = _force_disruption_sampler(DisruptionType.CONTACT)
     for seed in range(10):
         s = sampler.sample_scenario(seed)
         assert s.disruption_type == DisruptionType.CONTACT
-        assert s.disruption_config.no_retract is True
         assert s.disruption_config.embed_distance >= 0.0
         assert s.disruption_config.contact_target_part in {
             "ee", "left_forearm", "right_forearm", "torso"
         }
-        # Routing: CONTACT must go to APPROACH_AND_PRESS
-        assert s.trajectory_type == "APPROACH_AND_PRESS"
-        # Pinned aggressive: small closest_approach, long loiter
+        # Routing: CONTACT shares the APPROACH_LOITER_DEPART trajectory so
+        # the human always eventually walks away after pressing.
+        assert s.trajectory_type == "APPROACH_LOITER_DEPART"
+        # Pinned aggressive: small closest_approach during the loiter window.
         assert s.closest_approach <= 0.2
-        assert s.loiter_duration >= 6.0
+        # Loiter is bounded — long enough to provoke a violation, short
+        # enough to leave the robot recovery time.
+        assert 4.0 <= s.loiter_duration <= 10.0
 
 
 def test_obstruction_passive_intrusion_metadata():
-    """OBSTRUCTION must plant in the workspace and stay for the rest of the episode."""
+    """OBSTRUCTION must plant in workspace, loiter, then depart."""
     sampler = _force_disruption_sampler(DisruptionType.OBSTRUCTION)
     for seed in range(10):
         s = sampler.sample_scenario(seed)
         assert s.disruption_type == DisruptionType.OBSTRUCTION
-        assert s.disruption_config.no_retract is True
 
         target = s.disruption_config.obstruction_target
         assert target is not None
@@ -74,42 +74,37 @@ def test_obstruction_passive_intrusion_metadata():
         assert 0.30 <= target[0] <= 0.65
         assert -0.20 <= target[1] <= 0.20
         assert 0.60 <= target[2] <= 0.95
-        # Plant for the rest of the episode (>= 6s after trigger).
-        assert s.loiter_duration >= 6.0
+        # Loiter is bounded so the human eventually departs.
+        assert 4.0 <= s.loiter_duration <= 10.0
         # Stop tight to the workspace point.
         assert 0.2 <= s.closest_approach <= 0.5
 
 
-def test_approach_and_press_trajectory_overlaps_robot():
-    """APPROACH_AND_PRESS with closest_approach=0 must stop at the robot.
-
-    The trajectory has no depart phase: every waypoint after approach must
-    be 'loiter', and the final waypoint must coincide with the planned
-    stop position.
-    """
+def test_contact_trajectory_has_depart_phase():
+    """All disruption types must end with a depart phase so the robot can recover."""
     config = TrajectoryConfig(
-        trajectory_type=TrajectoryType.APPROACH_AND_PRESS,
+        trajectory_type=TrajectoryType.APPROACH_LOITER_DEPART,
         robot_pos=np.array([0.0, 0.0]),
         spawn_pos=np.array([1.5, 0.0]),
         approach_yaw=np.pi,
         closest_approach=0.0,
         loiter_duration=5.0,
+        departure_angle=150.0,
         walk_speed=1.2,
     )
     planner = TrajectoryPlanner(config)
 
-    # No depart waypoints
+    # All three phases must appear, in order
     phases = {wp.phase for wp in planner.waypoints}
-    assert "depart" not in phases
-    assert phases <= {"approach", "loiter"}
+    assert phases == {"approach", "loiter", "depart"}
 
-    # Min distance is at most closest_approach + small tolerance
-    assert planner.closest_distance_to_robot() <= 0.05
+    # During loiter, the human is at/near the robot
+    assert planner.closest_distance_to_robot() <= 0.55
 
-    # Final pose is at the loiter position (overlapping the robot at origin)
+    # After full duration, the human is back somewhere far from the robot
     x, y, _, phase = planner.get_pose(planner.duration)
-    assert phase == "loiter"
-    assert np.linalg.norm([x, y]) <= 0.05
+    assert phase == "depart"
+    assert np.linalg.norm([x, y]) > 1.0
 
 
 def test_get_ik_target_contact_embed_into_link():
@@ -118,7 +113,6 @@ def test_get_ik_target_contact_embed_into_link():
         disruption_type=DisruptionType.CONTACT,
         contact_target_part="ee",
         embed_distance=0.05,
-        no_retract=True,
     )
     ee_pos = np.array([0.5, 0.0, 1.0])
     pelvis_pos = np.array([1.0, 0.0, 1.0])  # human is +X of robot EE
@@ -141,7 +135,6 @@ def test_get_ik_target_contact_falls_back_to_ee():
         disruption_type=DisruptionType.CONTACT,
         contact_target_part="left_forearm",
         embed_distance=0.0,
-        no_retract=True,
     )
     ee_pos = np.array([0.4, 0.1, 0.9])
     robot_state = {"ee_pos": ee_pos}

@@ -56,6 +56,7 @@ VARIANTS: dict[str, list[str]] = {
 
 DISRUPTIONS = (
     "INCIDENTAL", "SHARED_GOAL", "DIRECT", "OBSTRUCTION", "RANDOM_PERTURBED",
+    "CONTACT",
 )
 
 # Fill in after training. Keyed by (method, task, variant).

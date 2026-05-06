@@ -180,9 +180,8 @@ def test_scenario_sampler_trajectory_params():
         # so just check it's within the ParameterSpace bounds for those types
         # too (both override down, never up).
         assert 0.0 <= scenario.closest_approach <= 0.8, f"closest_approach out of range: {scenario.closest_approach}"
-        # loiter_duration may be bumped to "rest of episode" for OBSTRUCTION
-        # / CONTACT, so just enforce the lower bound from the range.
-        assert scenario.loiter_duration >= 3.0, f"loiter_duration too small: {scenario.loiter_duration}"
+        # Loiter is bounded so the human always eventually departs.
+        assert 4.0 <= scenario.loiter_duration <= 10.0, f"loiter_duration out of range: {scenario.loiter_duration}"
         assert 1.0 <= scenario.walk_speed <= 2.0, f"walk_speed out of range: {scenario.walk_speed}"
     
     print(f"  Trajectory types seen: {trajectory_types_seen}")

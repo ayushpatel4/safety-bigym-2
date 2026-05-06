@@ -55,6 +55,7 @@ DISRUPTIONS = (
     "DIRECT",
     "OBSTRUCTION",
     "RANDOM_PERTURBED",
+    "CONTACT",
 )
 
 # Fill these in after training. Keyed by (method, task, bodyslam_mode).

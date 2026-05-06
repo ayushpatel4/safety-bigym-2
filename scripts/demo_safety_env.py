@@ -22,6 +22,11 @@ logging.basicConfig(level=logging.INFO)
 from bigym.action_modes import JointPositionActionMode
 from bigym.bigym_env import BiGymEnv
 from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
+from safety_bigym.scenarios import (
+    DisruptionType,
+    ParameterSpace,
+    ScenarioSampler,
+)
 
 # Available tasks (import on demand)
 TASK_MAP = {
@@ -59,6 +64,12 @@ def main():
         "--task", default="default", choices=list(TASK_MAP.keys()),
         help="BiGym task to run (default: %(default)s)",
     )
+    parser.add_argument(
+        "--disruption", default=None,
+        choices=[d.name for d in DisruptionType],
+        help="Force every reset to use this disruption type "
+             "(useful for visual verification of CONTACT, OBSTRUCTION, etc.).",
+    )
     args = parser.parse_args()
 
     task_cls = load_task_cls(args.task)
@@ -90,7 +101,19 @@ def main():
         motion_clip_dir=cmu_clips_dir,
         motion_clip_paths=["74/74_01_poses.npz"],  # Walking motion
     )
-    
+
+    scenario_sampler = None
+    if args.disruption is not None:
+        forced = DisruptionType[args.disruption]
+        scenario_sampler = ScenarioSampler(
+            parameter_space=ParameterSpace(
+                clip_paths=human_config.motion_clip_paths,
+                disruption_weights={forced: 1.0},
+            ),
+            motion_dir=cmu_clips_dir,
+        )
+        print(f"Forcing every episode to disruption_type={forced.name}")
+
     # Create environment using the factory
     print(f"Creating safety env with task: {task_cls.__name__}...")
     env = make_safety_env(
@@ -98,6 +121,7 @@ def main():
         action_mode=action_mode,
         safety_config=safety_config,
         human_config=human_config,
+        scenario_sampler=scenario_sampler,
         inject_human=True,
     )
     
@@ -109,6 +133,7 @@ def main():
     obs, info = env.reset()
     print(f"✅ Environment reset")
     print(f"   Scenario: {info.get('scenario', {})}")
+    current_scenario = dict(info.get("scenario", {}))
     
     # Get model and data for viewer
     model = env._mojo.model
@@ -135,17 +160,21 @@ def main():
                 human_pos = data.xpos[env._human_pelvis_id] if env._human_pelvis_id else [0,0,0]
                 sep = safety.get('min_separation', float('inf'))
                 sep_str = f"{sep:.2f}m" if sep != float('inf') else "inf"
-                print(f"Step {step:4d} | "
+                dtype = current_scenario.get("disruption_type", "?")
+                ttype = current_scenario.get("trajectory_type", "?")
+                phase = info.get("human_phase", "?")
+                print(f"Step {step:4d} | {dtype}/{ttype} [{phase}] | "
                       f"Sep: {sep_str} | "
                       f"SSM: {'⚠️' if safety.get('ssm_violation') else '✓'} | "
                       f"PFL: {'⚠️' if safety.get('pfl_violation') else '✓'} | "
                       f"Force: {safety.get('max_contact_force', 0):.1f}N | "
                       f"Human: ({human_pos[0]:.2f}, {human_pos[1]:.2f}, {human_pos[2]:.2f})")
-            
+
             # Check termination
             if terminated or truncated:
                 print("Episode ended, resetting...")
                 obs, info = env.reset()
+                current_scenario = dict(info.get("scenario", {}))
                 step = 0
             
             # Sync viewer

@@ -28,20 +28,19 @@ class DisruptionType(Enum):
     IK target: robot EE position with lag and noise."""
 
     OBSTRUCTION = auto()
-    """Human moves into robot's path and holds position.
-    IK target: fixed point in robot's planned trajectory.
-    Reshaped to be passive intrusion: human plants in robot
-    workspace and stays for the rest of the episode."""
+    """Human moves into robot's path and holds position for the loiter
+    window, then departs. IK target: a fixed point inside the robot's
+    task workspace. Passive intrusion — the robot is the one that has
+    to wait/avoid until the human walks away."""
 
     RANDOM_PERTURBED = auto()
     """AMASS motion with Gaussian noise on trajectory.
     No IK - perturbed motion playback."""
 
     CONTACT = auto()
-    """Human deliberately walks into and presses on the robot.
-    IK target: a specific robot link, offset slightly inside the
-    surface (embed_distance). no_retract is set so the human does
-    not pull back during the episode."""
+    """Human deliberately walks into and presses on the robot during
+    the loiter phase, then departs. IK target: a specific robot link,
+    offset slightly inside the surface (embed_distance)."""
 
 
 @dataclass
@@ -64,7 +63,6 @@ class DisruptionConfig:
     # For CONTACT (active press into robot)
     contact_target_part: str = "ee"  # "ee" | "left_forearm" | "right_forearm" | "torso"
     embed_distance: float = 0.0  # meters past the link surface (toward human)
-    no_retract: bool = False  # if True, IK target persists for the rest of the episode
 
     def requires_ik(self) -> bool:
         """Check if this disruption type uses IK targeting."""
@@ -160,6 +158,5 @@ DEFAULT_CONFIGS = {
         target_noise_std=0.0,
         contact_target_part="ee",
         embed_distance=0.05,
-        no_retract=True,
     ),
 }

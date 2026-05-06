@@ -163,13 +163,6 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
         # picks them up unchanged.
         param_space_kwargs: dict = {"clip_paths": motion_clip_paths}
 
-        # Compute episode_duration_s from episode_length / control frequency
-        # so OBSTRUCTION/CONTACT plant for the rest of the episode.
-        episode_length = int(cfg.env.get("episode_length", 3000))
-        downsample = int(cfg.env.get("demo_down_sample_rate", 25))
-        control_freq = max(CONTROL_FREQUENCY_MAX // max(downsample, 1), 1)
-        param_space_kwargs["episode_duration_s"] = float(episode_length) / control_freq
-
         disruptions_cfg = cfg.env.get("disruptions", None)
         if disruptions_cfg is not None:
             weights_cfg = disruptions_cfg.get("weights", None)

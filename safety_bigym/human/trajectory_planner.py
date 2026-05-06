@@ -24,7 +24,6 @@ class TrajectoryType(Enum):
     PASS_BY = auto()
     APPROACH_LOITER_DEPART = auto()
     ARC = auto()
-    APPROACH_AND_PRESS = auto()
 
 
 @dataclass
@@ -99,8 +98,6 @@ class TrajectoryPlanner:
             self._build_approach_loiter_depart()
         elif config.trajectory_type == TrajectoryType.ARC:
             self._build_arc()
-        elif config.trajectory_type == TrajectoryType.APPROACH_AND_PRESS:
-            self._build_approach_and_press()
         else:
             raise ValueError(f"Unknown trajectory type: {config.trajectory_type}")
     
@@ -346,66 +343,6 @@ class TrajectoryPlanner:
         
         self._total_duration = total_time
     
-    def _build_approach_and_press(self):
-        """
-        Build APPROACH_AND_PRESS trajectory.
-
-        Human walks toward the robot, stops at closest_approach distance
-        (which may be 0.0 — overlap with robot), and stays there for the
-        rest of the trajectory. No depart phase. Used by the CONTACT
-        disruption type to produce sustained human->robot contact.
-
-        Geometry:
-            spawn ---approach---> (stop at/near robot) ---loiter--- (until end)
-        """
-        cfg = self.config
-
-        to_robot = cfg.robot_pos - cfg.spawn_pos
-        dist_to_robot = np.linalg.norm(to_robot)
-
-        if dist_to_robot < 0.01:
-            forward = np.array([np.cos(cfg.approach_yaw), np.sin(cfg.approach_yaw)])
-        else:
-            forward = to_robot / dist_to_robot
-
-        approach_yaw = np.arctan2(forward[1], forward[0])
-
-        # Allow 0.0 — full overlap with robot. Floor at 0.0 (no negative walks).
-        approach_dist = max(dist_to_robot - cfg.closest_approach, 0.0)
-        loiter_pos = cfg.spawn_pos + forward * approach_dist
-
-        approach_time = approach_dist / max(cfg.walk_speed, 0.1)
-        loiter_end_time = approach_time + max(cfg.loiter_duration, 0.1)
-
-        self._waypoints = [
-            TrajectoryWaypoint(
-                position=cfg.spawn_pos.copy(),
-                yaw=approach_yaw,
-                time=0.0,
-                phase="approach",
-            ),
-            TrajectoryWaypoint(
-                position=loiter_pos.copy(),
-                yaw=approach_yaw,
-                time=approach_time,
-                phase="approach",
-            ),
-            TrajectoryWaypoint(
-                position=loiter_pos.copy(),
-                yaw=approach_yaw,
-                time=approach_time + 0.01,
-                phase="loiter",
-            ),
-            TrajectoryWaypoint(
-                position=loiter_pos.copy(),
-                yaw=approach_yaw,
-                time=loiter_end_time,
-                phase="loiter",
-            ),
-        ]
-
-        self._total_duration = loiter_end_time
-
     def _build_arc(self):
         """
         Build ARC trajectory.

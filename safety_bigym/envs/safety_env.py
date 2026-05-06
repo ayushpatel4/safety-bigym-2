@@ -456,7 +456,6 @@ class SafetyBiGymEnv(BiGymEnv):
             "PASS_BY": TrajectoryType.PASS_BY,
             "APPROACH_LOITER_DEPART": TrajectoryType.APPROACH_LOITER_DEPART,
             "ARC": TrajectoryType.ARC,
-            "APPROACH_AND_PRESS": TrajectoryType.APPROACH_AND_PRESS,
         }
         traj_type_str = getattr(self._current_scenario, 'trajectory_type', 'PASS_BY')
         traj_type = trajectory_type_map.get(traj_type_str, TrajectoryType.PASS_BY)
