@@ -35,9 +35,9 @@ import argparse
 import logging
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -88,10 +88,13 @@ class CollectionPlan:
     max_steps: int
     bodyslam_mode: str
     output_dir: Path
-    snapshot_path: Optional[Path] = None
     seed: int = 0
     motion_clips: Tuple[str, ...] = DEFAULT_CLIPS
     demos_per_task: int = 30  # used only by the demo source
+    # Per-task snapshot path overrides — populated by --snapshot-override CLI
+    # flags. Empty by default; the resolver falls through to
+    # safety_bigym.filters.snapshots.SNAPSHOTS.
+    snapshot_overrides: Mapping[str, str] = field(default_factory=dict)
 
     @classmethod
     def smoke(cls, output_dir: Path) -> "CollectionPlan":
@@ -502,9 +505,15 @@ def _collect_live_env_source(
     writer,
     use_pfl: bool,
 ) -> Tuple[int, int]:
-    """Random / snapshot collection — both use a live env + a policy callable."""
+    """Random / snapshot collection — both use a live env + a policy callable.
+
+    For ``source="snapshot"`` the per-task path is resolved via
+    :func:`safety_bigym.filters.snapshots.resolve_snapshot`; tasks whose
+    SNAPSHOTS entry is ``None`` are skipped with a warning.
+    """
     from safety_bigym.filters.feature_extractor import CriticFeatureSpec
     from safety_bigym.filters.dataset import TransitionShardWriter
+    from safety_bigym.filters.snapshots import resolve_snapshot
 
     source_code = SOURCE_CODES[source]
     shard_idx = 0
@@ -512,6 +521,21 @@ def _collect_live_env_source(
 
     for task_key in plan.tasks:
         task_id = TASK_REGISTRY[task_key][1]
+
+        # Snapshot path is per-task — resolve before doing any heavy env setup.
+        snapshot_path: Optional[Path] = None
+        if source == "snapshot":
+            snapshot_path = resolve_snapshot(
+                task_key, overrides=plan.snapshot_overrides
+            )
+            if snapshot_path is None:
+                logger.warning(
+                    f"No snapshot configured for task {task_key!r} "
+                    "(SNAPSHOTS entry is None and no --snapshot-override given). "
+                    "Skipping snapshot source for this task."
+                )
+                continue
+
         for disruption in plan.disruptions:
             logger.info(
                 f"Collecting source={source} task={task_key} disruption={disruption} "
@@ -524,7 +548,7 @@ def _collect_live_env_source(
             if source == "random":
                 policy = random_policy(env, rng)
             elif source == "snapshot":
-                policy = load_snapshot_policy(plan.snapshot_path, env)
+                policy = load_snapshot_policy(snapshot_path, env)
             else:
                 raise ValueError(f"_collect_live_env_source got source={source!r}")
 
@@ -715,7 +739,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=Path,
         default=REPO_ROOT / "datasets" / "svf_v1",
     )
-    p.add_argument("--snapshot-path", type=Path, default=None)
+    p.add_argument(
+        "--snapshot-override",
+        action="append",
+        default=[],
+        metavar="TASK=PATH",
+        help=(
+            "Override a snapshot path for one task; takes precedence over the "
+            "SNAPSHOTS dict in safety_bigym/filters/snapshots.py. Repeatable."
+        ),
+    )
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--use-pfl", action="store_true",
                    help="Set once the PFL contact-detection bug is fixed.")
@@ -730,6 +763,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
+    snapshot_overrides = _parse_snapshot_overrides(args.snapshot_override)
+
     if args.smoke:
         plan = CollectionPlan.smoke(args.output_dir)
     else:
@@ -741,13 +776,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             max_steps=args.max_steps,
             bodyslam_mode=args.bodyslam_mode,
             output_dir=args.output_dir,
-            snapshot_path=args.snapshot_path,
+            snapshot_overrides=snapshot_overrides,
             seed=args.seed,
             demos_per_task=args.demos_per_task,
         )
 
     run_collection(plan, use_pfl=args.use_pfl)
     return 0
+
+
+def _parse_snapshot_overrides(raw: Sequence[str]) -> Dict[str, str]:
+    """Turn ``--snapshot-override TASK=PATH`` flags into a mapping."""
+    out: Dict[str, str] = {}
+    for entry in raw:
+        if "=" not in entry:
+            raise SystemExit(
+                f"--snapshot-override expects TASK=PATH; got {entry!r}"
+            )
+        task, _, path = entry.partition("=")
+        if not task or not path:
+            raise SystemExit(
+                f"--snapshot-override expects TASK=PATH; got {entry!r}"
+            )
+        out[task] = path
+    return out
 
 
 if __name__ == "__main__":

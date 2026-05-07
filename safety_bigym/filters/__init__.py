@@ -26,6 +26,7 @@ from safety_bigym.filters.feature_extractor import (
 )
 from safety_bigym.filters.labeling import label_transition
 from safety_bigym.filters.runtime_wrapper import SafetyFilterWrapper
+from safety_bigym.filters.snapshots import SNAPSHOTS, resolve_snapshot
 from safety_bigym.filters.threshold_sweep import (
     ThresholdEvalResult,
     evaluate_threshold,
@@ -39,6 +40,7 @@ __all__ = [
     "EmptyAuxProvider",
     "Fallback",
     "FallbackRegistry",
+    "SNAPSHOTS",
     "SafetyCritic",
     "SafetyFilterWrapper",
     "SafetyTransitionDataset",
@@ -49,5 +51,6 @@ __all__ = [
     "label_transition",
     "make_critic_input",
     "make_oversampler",
+    "resolve_snapshot",
     "sweep_thresholds",
 ]

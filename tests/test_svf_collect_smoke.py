@@ -93,9 +93,14 @@ def test_smoke_dataset_loadable(tmp_path):
     assert sample["obs"]["human_pos_estimate"].shape == (6,)
 
 
-def test_snapshot_source_missing_path_raises_file_not_found(tmp_path):
-    """Snapshot source requires --snapshot-path. Until Phase-0 retrain lands
-    the path will typically be missing; the script must fail loudly."""
+def test_snapshot_source_skips_when_dict_unset(tmp_path, monkeypatch):
+    """If SNAPSHOTS[task] is None and no override is given, the snapshot
+    source skips that task with a warning. Total transitions then = 0,
+    so the run errors at the "0 transitions produced" guard."""
+    from safety_bigym.filters import snapshots as snapmod
+
+    monkeypatch.setattr(snapmod, "SNAPSHOTS", {"reach_target_single": None})
+
     mod = _import_script()
     plan = mod.CollectionPlan(
         sources=("snapshot",),
@@ -105,13 +110,20 @@ def test_snapshot_source_missing_path_raises_file_not_found(tmp_path):
         max_steps=10,
         bodyslam_mode="oracle",
         output_dir=tmp_path,
-        snapshot_path=None,
     )
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(RuntimeError, match="0 transitions"):
         mod.run_collection(plan)
 
 
-def test_snapshot_source_nonexistent_path_raises_file_not_found(tmp_path):
+def test_snapshot_source_invalid_path_in_dict_raises(tmp_path, monkeypatch):
+    """If SNAPSHOTS[task] points to a missing file (typo / stale path), the
+    resolver raises FileNotFoundError — that's a config bug, not deliberate skip."""
+    from safety_bigym.filters import snapshots as snapmod
+
+    monkeypatch.setattr(
+        snapmod, "SNAPSHOTS", {"reach_target_single": "/nope/missing.pt"}
+    )
+
     mod = _import_script()
     plan = mod.CollectionPlan(
         sources=("snapshot",),
@@ -121,10 +133,51 @@ def test_snapshot_source_nonexistent_path_raises_file_not_found(tmp_path):
         max_steps=10,
         bodyslam_mode="oracle",
         output_dir=tmp_path,
-        snapshot_path=tmp_path / "nope.pt",
     )
     with pytest.raises(FileNotFoundError):
         mod.run_collection(plan)
+
+
+def test_snapshot_source_invalid_override_path_raises(tmp_path, monkeypatch):
+    from safety_bigym.filters import snapshots as snapmod
+
+    monkeypatch.setattr(snapmod, "SNAPSHOTS", {"reach_target_single": None})
+
+    mod = _import_script()
+    plan = mod.CollectionPlan(
+        sources=("snapshot",),
+        tasks=("reach_target_single",),
+        disruptions=("INCIDENTAL",),
+        episodes_per_cell=1,
+        max_steps=10,
+        bodyslam_mode="oracle",
+        output_dir=tmp_path,
+        snapshot_overrides={"reach_target_single": "/nope/missing.pt"},
+    )
+    with pytest.raises(FileNotFoundError):
+        mod.run_collection(plan)
+
+
+def test_parse_snapshot_overrides():
+    mod = _import_script()
+    parsed = mod._parse_snapshot_overrides([
+        "reach_target_single=/path/a.pt",
+        "dishwasher_close=/path/b.pt",
+    ])
+    assert parsed == {
+        "reach_target_single": "/path/a.pt",
+        "dishwasher_close": "/path/b.pt",
+    }
+
+
+def test_parse_snapshot_overrides_rejects_malformed():
+    mod = _import_script()
+    with pytest.raises(SystemExit):
+        mod._parse_snapshot_overrides(["no_equals_sign"])
+    with pytest.raises(SystemExit):
+        mod._parse_snapshot_overrides(["=missing_task"])
+    with pytest.raises(SystemExit):
+        mod._parse_snapshot_overrides(["task="])
 
 
 def test_demo_source_writes_safe_transitions(tmp_path):
