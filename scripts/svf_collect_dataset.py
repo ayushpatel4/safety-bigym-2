@@ -272,8 +272,12 @@ def fetch_demos(task_key: str, num_demos: int, frequency: int = 50):
 
     Returns the list of ``Demo`` objects (each with ``.timesteps``). The env is
     constructed only for ``Metadata.from_env`` and closed immediately after.
+
+    If the store has no demos matching this task's metadata signature, returns
+    an empty list and logs a warning (the caller skips the task rather than
+    crashing the whole collection run).
     """
-    from demonstrations.demo_store import DemoStore
+    from demonstrations.demo_store import DemoStore, DemoNotFoundError
     from demonstrations.utils import Metadata
     from bigym.action_modes import JointPositionActionMode
 
@@ -283,11 +287,20 @@ def fetch_demos(task_key: str, num_demos: int, frequency: int = 50):
     )
     try:
         store = DemoStore()
-        demos = store.get_demos(
-            Metadata.from_env(env),
-            amount=num_demos,
-            frequency=frequency,
-        )
+        try:
+            demos = store.get_demos(
+                Metadata.from_env(env),
+                amount=num_demos,
+                frequency=frequency,
+            )
+        except DemoNotFoundError as e:
+            logger.warning(
+                f"DemoStore has no demos matching {task_key} metadata "
+                f"(action_mode=JointPositionActionMode, floating_base=True). "
+                f"Skipping demo source for this task. "
+                f"Underlying error: {e}"
+            )
+            return []
         for demo in demos:
             for ts in demo.timesteps:
                 ts.observation = {
@@ -610,6 +623,11 @@ def _collect_demo_source(
         except Exception as e:  # noqa: BLE001 — surface DemoStore failures clearly
             logger.error(f"DemoStore fetch failed for {task_key}: {e}")
             raise
+        if not demos:
+            logger.warning(
+                f"No demos available for {task_key}; skipping demo source for this task."
+            )
+            continue
 
         for demo_idx, demo in enumerate(demos):
             payload = demo_episode_to_transitions(
