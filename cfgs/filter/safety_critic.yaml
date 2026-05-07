@@ -1,0 +1,23 @@
+# Phase 2 — SafetyCritic + CQL trainer config.
+#
+# Mirrors the CLI defaults in scripts/svf_train_critic.py so the GPU operator
+# has a single source of truth for what was trained. The script is currently
+# argparse-driven; promotion to a Hydra entrypoint is a follow-up.
+
+critic:
+  gamma: 0.99            # → q_max = 1/(1-γ) = 100.0
+  hidden_dims: [256, 256, 256]
+
+trainer:
+  cql_alpha: 5.0         # v1 single-α run; full {1, 5, 10} sweep deferred
+  cql_n_actions: 10      # OOD action samples per state for the CQL term
+  aux_weight: 0.0        # kept inert until aux_unsafe_provider lands fully
+  target_tau: 5.0e-3     # Polyak smoothing on the target critic
+  lr: 3.0e-4
+  batch_size: 512
+  num_steps: 200000      # full GPU run; smoke uses 100
+  target_violation_rate: 0.3   # WeightedRandomSampler oversample target
+  seed: 0
+
+output:
+  checkpoint_dir: ${oc.env:SVF_CRITIC_DIR,checkpoints/svf_v1}
