@@ -87,15 +87,27 @@ class HumanController:
         
         # Build joint name to qpos index mapping
         self._build_joint_mapping()
-        
-        # Store initial standing pose (all zeros for human joints)
+
+        # Look up the Pelvis mocap index — root pose is written to
+        # data.mocap_pos / data.mocap_quat rather than qpos[0:7].
+        pelvis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Pelvis")
+        if pelvis_id >= 0:
+            mid = int(self.model.body_mocapid[pelvis_id])
+            self._mocap_id = mid if mid >= 0 else -1
+        else:
+            self._mocap_id = -1
+
+        # Per-step root pose (written to mocap each step). Tracked separately
+        # from qpos because Pelvis is a mocap body and has no qpos entries.
+        self._root_pose = np.zeros(7)
+        self._root_pose[3] = 1.0  # identity quaternion (w,x,y,z)
+
+        # Standing pose for body joints only; matches qpos size.
         self._standing_pose = np.zeros(self.model.nq)
-        # Keep root at initial position
-        self._standing_pose[3:7] = [0, 0, 0, 1]  # Identity quaternion
-        
+
         # Root position offset (to shift AMASS motion to spawn position)
         self._root_offset = np.zeros(3)
-        
+
         # Root yaw rotation (rotate AMASS motion direction toward robot)
         self._root_yaw = 0.0  # radians
         self._clip_origin = np.zeros(3)  # First frame root position
@@ -229,67 +241,63 @@ class HumanController:
             # Set initial pose from clip
             self._apply_amass_frame(0)
     
-    def _get_amass_targets(self, t: float) -> np.ndarray:
+    def _get_amass_targets(self, t: float):
         """
         Get joint targets from AMASS motion at time t.
-        
+
         If a TrajectoryPlanner is set, root XY and yaw come from the planner.
         Body joint angles always come from the AMASS clip.
-        
-        Args:
-            t: Time in seconds
-            
+
         Returns:
-            Target qpos array
+            Tuple (qpos_targets, root_pose) where qpos_targets is the
+            full-sized qpos buffer with body joint angles set, and
+            root_pose is a (7,) array [x, y, z, qw, qx, qy, qz] meant
+            to be written to data.mocap_pos / data.mocap_quat.
         """
         if self.clip is None:
-            # Return standing pose as fallback (keeps human upright)
+            # Standing pose fallback. Read current root pose from mocap.
             targets = self._standing_pose.copy()
-            # Preserve current root position
-            targets[0:7] = self.data.qpos[0:7]
-            return targets
-        
+            root_pose = self._root_pose.copy()
+            if self._mocap_id >= 0:
+                root_pose[0:3] = self.data.mocap_pos[self._mocap_id]
+                root_pose[3:7] = self.data.mocap_quat[self._mocap_id]
+            return targets, root_pose
+
         # Apply speed multiplier
         speed = self.scenario.speed_multiplier if self.scenario else 1.0
         frame_idx = self.clip.get_time_frame(t * speed)
-        
+
         # Get motion data
         joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
-        
-        # Build target qpos
+
+        # Build target qpos for body joints (root not in qpos any more)
         targets = self.data.qpos.copy()
-        
+        root_pose = np.empty(7)
+
         # --- Root position and orientation ---
         if self._trajectory_planner is not None:
             # USE TRAJECTORY PLANNER for root XY and yaw
             px, py, plan_yaw, phase = self._trajectory_planner.get_pose(t)
-            
-            targets[0] = px
-            targets[1] = py
-            targets[2] = root_trans[2]  # Z from AMASS (pelvis height)
-            
-            # Orientation from planner yaw
-            targets[3:7] = self._quat_from_yaw(plan_yaw)
+            root_pose[0] = px
+            root_pose[1] = py
+            root_pose[2] = root_trans[2]  # Z from AMASS (pelvis height)
+            root_pose[3:7] = self._quat_from_yaw(plan_yaw)
         else:
             # Fall back to original AMASS root motion with offset/yaw
-            # Rotate root position around clip origin, then translate to spawn
             pos_centered = root_trans - self._clip_origin
-            
             cos_y = np.cos(self._root_yaw)
             sin_y = np.sin(self._root_yaw)
             rotated_x = cos_y * pos_centered[0] - sin_y * pos_centered[1]
             rotated_y = sin_y * pos_centered[0] + cos_y * pos_centered[1]
-            
-            targets[0] = rotated_x + self._root_offset[0]
-            targets[1] = rotated_y + self._root_offset[1]
-            targets[2] = root_trans[2]
-            
+            root_pose[0] = rotated_x + self._root_offset[0]
+            root_pose[1] = rotated_y + self._root_offset[1]
+            root_pose[2] = root_trans[2]
             if abs(self._root_yaw) > 1e-6:
                 yaw_quat = self._quat_from_yaw(self._root_yaw)
-                targets[3:7] = self._quat_multiply(yaw_quat, root_quat)
+                root_pose[3:7] = self._quat_multiply(yaw_quat, root_quat)
             else:
-                targets[3:7] = root_quat
-        
+                root_pose[3:7] = root_quat
+
         # --- Body joint angles always from AMASS ---
         for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):
             for axis_idx, axis in enumerate(["x", "y", "z"]):
@@ -298,127 +306,121 @@ class HumanController:
                     qpos_idx = self.joint_to_qpos[full_name]
                     # joint_angles[0] is Pelvis (root), skip it
                     targets[qpos_idx] = joint_angles[joint_idx + 1, axis_idx]
-        
-        return targets
+
+        return targets, root_pose
     
     def _get_ik_targets(self, robot_state: dict) -> np.ndarray:
-        """
-        Get joint targets from IK solver.
-        
-        Args:
-            robot_state: Current robot state dict
-            
-        Returns:
-            Target qpos array
+        """Get qpos targets from IK solver (body joints only — IK does not
+        modify the root pose).
+
+        Returns the same qpos buffer as `_get_amass_targets`'s first return
+        value when no IK callback is wired. External callbacks must
+        likewise return a qpos-sized array.
         """
         if self._ik_target_callback is not None:
             return self._ik_target_callback(robot_state)
-        else:
-            # Default: hold current AMASS pose
-            return self._get_amass_targets(self.t)
-    
+        # Default: hold current AMASS pose
+        targets, _ = self._get_amass_targets(self.t)
+        return targets
+
+    def _write_root_mocap(self, root_pose: np.ndarray) -> None:
+        """Write the 7-element root pose to the Pelvis mocap slot."""
+        if self._mocap_id < 0:
+            return
+        self.data.mocap_pos[self._mocap_id] = root_pose[0:3]
+        self.data.mocap_quat[self._mocap_id] = root_pose[3:7]
+
     def _apply_amass_frame(self, frame_idx: int):
         """Directly set qpos from AMASS frame (for initialization)."""
         if self.clip is None:
             return
-            
+
         joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
-        
-        # Set root
-        self.data.qpos[0:3] = root_trans
-        self.data.qpos[3:7] = root_quat
-        
-        # Set joints
+
+        # Root pose -> mocap (Pelvis is a mocap body, not in qpos)
+        if self._mocap_id >= 0:
+            self.data.mocap_pos[self._mocap_id] = root_trans
+            self.data.mocap_quat[self._mocap_id] = root_quat
+
+        # Set body joint qpos
         for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):
             for axis_idx, axis in enumerate(["x", "y", "z"]):
                 full_name = f"{joint_name}_{axis}"
                 if full_name in self.joint_to_qpos:
                     qpos_idx = self.joint_to_qpos[full_name]
                     self.data.qpos[qpos_idx] = joint_angles[joint_idx + 1, axis_idx]
-        
+
         # Forward kinematics
         mujoco.mj_kinematics(self.model, self.data)
-    
+
     def step(self, dt: float, robot_state: Optional[dict] = None):
         """
         Step the controller forward in time.
-        
+
         When a TrajectoryPlanner is set, IK blending is driven by the
         planner's phase rather than a fixed trigger_time:
         - "approach" / "walk" / "depart" → pure AMASS body joints
         - "loiter" → blend AMASS body + IK arm reaching
-        
-        Args:
-            dt: Time step in seconds
-            robot_state: Current robot state (for IK computation)
+
+        The root pose (Pelvis) is always sourced from AMASS / the
+        trajectory planner — IK never modifies it. Root pose is written
+        to data.mocap_pos / data.mocap_quat each step; body joints are
+        PD-controlled.
         """
         robot_state = robot_state or {}
-        
-        # Determine current phase
+
+        # Always compute amass targets first; root pose comes from here.
+        amass_targets, root_pose = self._get_amass_targets(self.t)
+
+        # Determine current phase and blend body qpos accordingly.
         if self._trajectory_planner is not None:
-            # Phase driven by trajectory planner
             _, _, _, phase = self._trajectory_planner.get_pose(self.t)
-            
+
             if phase == "loiter":
-                # During loiter: blend AMASS body with IK arms
                 blend = self.scenario.blend_duration if self.scenario else 0.4
-                
-                # How far into the loiter phase? Use blend_duration for smooth entry
                 loiter_start = self._get_loiter_start_time()
                 loiter_elapsed = self.t - loiter_start
-                
+                ik_targets = self._get_ik_targets(robot_state)
                 if loiter_elapsed < blend:
-                    # Blend in: AMASS → IK arms
                     alpha = loiter_elapsed / blend
-                    amass_targets = self._get_amass_targets(self.t)
-                    ik_targets = self._get_ik_targets(robot_state)
                     targets = (1 - alpha) * amass_targets + alpha * ik_targets
                 else:
-                    # Full IK arms
-                    targets = self._get_ik_targets(robot_state)
-                    # But override root from planner (not IK)
-                    amass_targets = self._get_amass_targets(self.t)
-                    targets[0:7] = amass_targets[0:7]
-            
+                    targets = ik_targets
             elif phase == "depart":
-                # Check if we just left loiter — blend IK back to AMASS
                 blend = self.scenario.blend_duration if self.scenario else 0.4
                 loiter_end = self._get_loiter_end_time()
                 depart_elapsed = self.t - loiter_end
-
                 if depart_elapsed < blend:
-                    # Blend back: IK arms → AMASS
                     alpha = 1.0 - (depart_elapsed / blend)
-                    amass_targets = self._get_amass_targets(self.t)
                     ik_targets = self._get_ik_targets(robot_state)
                     targets = (1 - alpha) * amass_targets + alpha * ik_targets
                 else:
-                    targets = self._get_amass_targets(self.t)
+                    targets = amass_targets
             else:
                 # "approach" or "walk" → pure AMASS
-                targets = self._get_amass_targets(self.t)
+                targets = amass_targets
         else:
             # Legacy mode: fixed trigger_time-based phase switching
             trigger = self.scenario.trigger_time if self.scenario else float('inf')
             blend = self.scenario.blend_duration if self.scenario else 0.4
-            
+
             if self.t < trigger:
-                targets = self._get_amass_targets(self.t)
+                targets = amass_targets
             elif self.t < trigger + blend:
                 alpha = (self.t - trigger) / blend
-                amass_targets = self._get_amass_targets(self.t)
                 ik_targets = self._get_ik_targets(robot_state)
                 targets = (1 - alpha) * amass_targets + alpha * ik_targets
             else:
                 targets = self._get_ik_targets(robot_state)
-        
-        # Set targets and apply control
+
+        # Body joints: PD control
         self.pd_controller.set_targets(targets)
         self.pd_controller.apply_control()
-        
-        # Directly set root position/orientation (freejoint can't be PD controlled)
-        self.data.qpos[0:7] = targets[0:7]
-        
+
+        # Root: mocap teleport (kinematic, refreshes collision broadphase
+        # via the next mj_step)
+        self._write_root_mocap(root_pose)
+
         # Advance time
         self.t += dt
     

@@ -164,11 +164,19 @@ def test_human_floor_pairs_enabled(env):
 
 
 def test_human_bits_exact(env):
-    """Human collision geoms must carry only bit 1 (contype=conaffinity=2)."""
+    """Human collision geoms emit on bit 1 and accept bit 2.
+
+    Cross-paired channel: human contype=bit1, conaffinity=bit2;
+    robot/floor contype |= bit2, conaffinity |= bit1. This makes
+    human<->human cross zero (no self-collision) while keeping
+    human<->robot and human<->floor cross non-zero in both directions
+    as required by MuJoCo's contact-eligibility rule.
+    """
     model, humans, _, _, _ = _enumerate(env)
-    expected = env._HUMAN_CHANNEL_BIT  # 0b10
+    expected_ct = env._HUMAN_EMIT_BIT  # 0b010
+    expected_ca = env._ROBOT_EMIT_BIT  # 0b100
     for gid, name in humans:
         ct = int(model.geom_contype[gid])
         ca = int(model.geom_conaffinity[gid])
-        assert ct == expected, f"{name}: contype={ct:b}, expected {expected:b}"
-        assert ca == expected, f"{name}: conaffinity={ca:b}, expected {expected:b}"
+        assert ct == expected_ct, f"{name}: contype={ct:b}, expected {expected_ct:b}"
+        assert ca == expected_ca, f"{name}: conaffinity={ca:b}, expected {expected_ca:b}"

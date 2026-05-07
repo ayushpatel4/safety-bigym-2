@@ -99,7 +99,9 @@ class SafetyBiGymEnv(BiGymEnv):
         
         # Human body IDs (set during injection)
         self._human_pelvis_id: Optional[int] = None
-        self._human_root_qpos_start: Optional[int] = None
+        # Pelvis is a mocap body; this is its index into data.mocap_pos /
+        # data.mocap_quat. None when no human is injected.
+        self._human_pelvis_mocapid: Optional[int] = None
         
         # If injecting human, we need to do it BEFORE parent __init__ creates robot
         # because robot binds to physics and changing model after breaks bindings.
@@ -206,32 +208,36 @@ class SafetyBiGymEnv(BiGymEnv):
             for act in human_actuators:
                 world_actuator.append(copy.deepcopy(act))
         
-        # Write merged XML
+        # Note: BiGym attaches the H1 robot programmatically after model
+        # load (via mojo), so the merged XML never contains robot geoms
+        # — there is no compile-time hook to inject `<contact><pair>`
+        # entries between human and robot. Pair-injection workarounds
+        # for the BiGym-specific human<->robot collision suppression
+        # need to happen via a different mechanism (TBD).
         with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as f:
             f.write(etree.tostring(world_root, encoding="unicode"))
             return f.name
-    
+
     def _setup_human_indices(self):
         """Find human body/joint indices after model is loaded."""
         model = self._mojo.model
-        
+
         # Find Pelvis body
         self._human_pelvis_id = mujoco.mj_name2id(
             model, mujoco.mjtObj.mjOBJ_BODY, "Pelvis"
         )
-        
-        # Find root freejoint
-        root_joint_id = mujoco.mj_name2id(
-            model, mujoco.mjtObj.mjOBJ_JOINT, "root"
-        )
-        if root_joint_id >= 0:
-            self._human_root_qpos_start = model.jnt_qposadr[root_joint_id]
-        
+
+        # Pelvis is a mocap body; resolve its index into data.mocap_pos /
+        # data.mocap_quat. body_mocapid is -1 for non-mocap bodies.
+        if self._human_pelvis_id is not None and self._human_pelvis_id >= 0:
+            mid = int(model.body_mocapid[self._human_pelvis_id])
+            self._human_pelvis_mocapid = mid if mid >= 0 else None
+
         self._setup_human_ssm_bodies()
 
         logger.info(
             f"Human indices: pelvis_id={self._human_pelvis_id}, "
-            f"root_qpos_start={self._human_root_qpos_start}, "
+            f"pelvis_mocapid={self._human_pelvis_mocapid}, "
             f"ssm_bodies={len(self._human_body_ids)}"
         )
 
@@ -275,25 +281,47 @@ class SafetyBiGymEnv(BiGymEnv):
         name_lower = name.lower()
         return any(p in name_lower for p in robot_patterns)
 
-    _HUMAN_CHANNEL_BIT = 0b10  # bit 1 — the human<->{robot,floor} collision channel
+    # Two-bit cross-paired channel for human<->{robot,floor} collisions.
+    # Human geoms emit on _HUMAN_EMIT and accept _ROBOT_EMIT; robot/floor
+    # geoms get the cross set OR'd onto their existing bits. This keeps
+    # human<->robot pairs eligible while making human<->human pairs
+    # ineligible (their cross is `(emit & accept) = 0`).
+    _HUMAN_EMIT_BIT = 0b010   # bit 1
+    _ROBOT_EMIT_BIT = 0b100   # bit 2
 
     def _configure_collision_bits(self) -> None:
-        """OR bit 1 into contype/conaffinity for every geom that must still
-        collide with the human: robot collision geoms and the floor.
+        """Wire up the cross-paired human<->{robot,floor} collision channel
+        and disable human self-collision.
 
-        Scene geoms (dishwasher, cabinets, walls) are intentionally left on the
-        default bit-0 channel so the human passes through them. The human XML
-        uses contype=conaffinity=2 (bit 1 only), so an object must be promoted
-        into bit 1 here to physically interact with the human.
+        The SMPL human MJCF puts every `_col` geom on bit 1 for both
+        contype and conaffinity. With matching bits on both sides, every
+        pair of human geoms is a collision candidate and produces wildly
+        non-physical self-overlap forces (Torso/Chest at 220 kN). These
+        dominate `data.contact` and crowd out human<->robot pairs.
 
-        Safety semantics are preserved: SSM is geometric (distance between
-        tracked body centers, not contact-based), so it keeps working; PFL
-        still observes human<->robot contact forces because that pair is on
-        the shared bit-1 channel.
+        MuJoCo's contact-eligibility rule requires BOTH
+        `(geom1.contype & geom2.conaffinity) != 0` AND
+        `(geom2.contype & geom1.conaffinity) != 0`. So we can't simply
+        zero one side — that would block human<->robot too. Instead we
+        use two bits:
+
+            human  contype = bit 1, conaffinity = bit 2
+            robot  contype |= bit 2, conaffinity |= bit 1
+            floor  contype |= bit 2, conaffinity |= bit 1
+
+        human<->human cross = (bit1 & bit2) = 0 -> ineligible.
+        human<->robot      = (bit1 & bit1) AND (bit2 & bit2), both
+                              non-zero -> eligible.
+
+        Robot's original bit-0 channel is preserved so robot<->robot
+        self-collision keeps working. Scene geoms (dishwasher, cabinets,
+        walls) stay on bit 0 only -> human passes through them.
         """
         model = self._mojo.model
-        bit = self._HUMAN_CHANNEL_BIT
+        h_emit = self._HUMAN_EMIT_BIT
+        r_emit = self._ROBOT_EMIT_BIT
         promoted = 0
+        humans_repaired = 0
         for gid in range(model.ngeom):
             name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, gid)
             if not name:
@@ -301,16 +329,28 @@ class SafetyBiGymEnv(BiGymEnv):
             # Skip geoms that are disabled from collision entirely (visual-only).
             if model.geom_contype[gid] == 0 and model.geom_conaffinity[gid] == 0:
                 continue
+            if name.endswith("_col"):
+                # Human collision geom: emit on bit 1, accept bit 2.
+                model.geom_contype[gid] = h_emit
+                model.geom_conaffinity[gid] = r_emit
+                humans_repaired += 1
+                continue
             is_robot = self._is_robot_geom(name)
             is_floor = name == "floor" or name.endswith("/floor") or "ground" in name.lower()
             if is_robot or is_floor:
-                model.geom_contype[gid] = int(model.geom_contype[gid]) | bit
-                model.geom_conaffinity[gid] = int(model.geom_conaffinity[gid]) | bit
+                # Cross-pair: emit on bit 2 (so human accepts), accept bit 1
+                # (so the human's emit reaches us). OR'd onto existing bits.
+                model.geom_contype[gid] = int(model.geom_contype[gid]) | r_emit
+                model.geom_conaffinity[gid] = int(model.geom_conaffinity[gid]) | h_emit
                 promoted += 1
         logger.info(
             f"Promoted {promoted} geoms onto human collision channel "
-            f"(bit={bit}); scene geoms remain isolated from the human."
+            f"(human_emit=bit1, robot_emit=bit2); reset {humans_repaired} "
+            "human collision geoms onto the cross-paired channel."
         )
+
+    # Backwards-compat alias: old code/tests may still read this constant.
+    _HUMAN_CHANNEL_BIT = _HUMAN_EMIT_BIT
     
 
     
@@ -367,38 +407,35 @@ class SafetyBiGymEnv(BiGymEnv):
         Args:
             spawn_config: Dict with 'pos' and 'yaw' keys
         """
-        if self._human_root_qpos_start is None:
+        if self._human_pelvis_mocapid is None:
             return
-        
+
         pos = np.array(spawn_config.get("pos", [2.0, 0.0, 0.0]))
         yaw = spawn_config.get("yaw", 0.0)
-        
+
         # Get correct Z position from AMASS clip (pelvis height when standing)
         initial_z = 1.0  # Default standing pelvis height
         if self.human_controller is not None and self.human_controller.clip is not None:
             _, root_trans, _ = self.human_controller.clip.get_frame(0)
             initial_z = root_trans[2]  # Z from AMASS first frame
-        
+
         # Set root offset in human controller (shifts AMASS motion to spawn pos)
         if self.human_controller is not None:
             self.human_controller.set_root_offset(pos)
-        
-        # Set root position (freejoint: 3 pos + 4 quat)
-        # Use XY from spawn, Z from AMASS (correct pelvis height)
-        qpos_start = self._human_root_qpos_start
-        self._mojo.data.qpos[qpos_start:qpos_start + 3] = [pos[0], pos[1], initial_z]
-        
-        # Set orientation (quaternion from yaw)
-        # Quaternion for rotation around Z axis
+
         quat = np.array([
             np.cos(yaw / 2),
             0,
             0,
-            np.sin(yaw / 2)
+            np.sin(yaw / 2),
         ])
-        self._mojo.data.qpos[qpos_start + 3:qpos_start + 7] = quat
-        
-        # Forward kinematics to update body positions
+        mid = self._human_pelvis_mocapid
+        self._mojo.data.mocap_pos[mid] = [pos[0], pos[1], initial_z]
+        self._mojo.data.mocap_quat[mid] = quat
+
+        # Forward kinematics to update body positions and propagate the
+        # new mocap pose into data.xpos / geom_xpos so the next collision
+        # detection sees the correct geometry.
         mujoco.mj_forward(self._mojo.model, self._mojo.data)
     
     def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
