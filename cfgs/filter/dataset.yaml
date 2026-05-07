@@ -1,0 +1,44 @@
+# Phase 2 — SVF transition dataset collection config.
+#
+# Wired into scripts/svf_collect_dataset.py via Hydra (TODO once the script
+# moves from argparse to Hydra). For v1 the script is argparse-driven and
+# this file documents the same defaults so the GPU operator has a single
+# source of truth for what was collected.
+
+collect:
+  # Sources to draw transitions from. v1 ships `random`; `snapshot` and
+  # `demo` are gated behind the corresponding NotImplementedError stubs in
+  # the script and will be enabled in follow-up commits on the
+  # phase-2-dataset sub-branch.
+  sources:
+    - random
+    # - snapshot       # ACT/DP via cfg.snapshot_path + demos=0 (drift)
+    # - demo           # BiGym demos via DemoStore replay
+
+  tasks:
+    - reach_target_single
+    - dishwasher_close
+    # - dishwasher_load_plates
+    # - saucepan_to_hob
+
+  disruptions:
+    - INCIDENTAL
+    - SHARED_GOAL
+    - DIRECT
+    - OBSTRUCTION
+    - RANDOM_PERTURBED
+
+  episodes_per_cell: 50    # ~10k transitions per cell at 200 steps/ep
+  max_steps: 300           # cap; episodes terminate naturally on viol/term/trunc
+  bodyslam_mode: oracle    # use clean human_pos_estimate at collection time
+  motion_clips:
+    - 74/74_01_poses.npz
+
+  output_dir: ${oc.env:SVF_DATASET_DIR,datasets/svf_v1}
+  seed: 0
+  use_pfl: false           # SSM-only labels until contact-detection bug is fixed
+
+# Sampling defaults consumed by training (filters/dataset.py::make_oversampler).
+sampling:
+  target_violation_rate: 0.30
+  shard_size: 10000        # informational; current collector writes 1 shard/episode
