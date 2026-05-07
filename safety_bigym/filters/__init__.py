@@ -15,21 +15,39 @@ from safety_bigym.filters.dataset import (
     TransitionShardWriter,
     make_oversampler,
 )
+from safety_bigym.filters.fallback import (
+    Fallback,
+    FallbackRegistry,
+    ZeroVelocityFallback,
+)
 from safety_bigym.filters.feature_extractor import (
     CriticFeatureSpec,
     make_critic_input,
 )
 from safety_bigym.filters.labeling import label_transition
+from safety_bigym.filters.runtime_wrapper import SafetyFilterWrapper
+from safety_bigym.filters.threshold_sweep import (
+    ThresholdEvalResult,
+    evaluate_threshold,
+    sweep_thresholds,
+)
 
 __all__ = [
     "AuxUnsafeProvider",
     "CQLSafetyTrainer",
     "CriticFeatureSpec",
     "EmptyAuxProvider",
+    "Fallback",
+    "FallbackRegistry",
     "SafetyCritic",
+    "SafetyFilterWrapper",
     "SafetyTransitionDataset",
+    "ThresholdEvalResult",
     "TransitionShardWriter",
+    "ZeroVelocityFallback",
+    "evaluate_threshold",
     "label_transition",
     "make_critic_input",
     "make_oversampler",
+    "sweep_thresholds",
 ]
