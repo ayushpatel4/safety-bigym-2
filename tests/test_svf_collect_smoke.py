@@ -93,7 +93,9 @@ def test_smoke_dataset_loadable(tmp_path):
     assert sample["obs"]["human_pos_estimate"].shape == (6,)
 
 
-def test_unknown_source_raises_not_implemented(tmp_path):
+def test_snapshot_source_missing_path_raises_file_not_found(tmp_path):
+    """Snapshot source requires --snapshot-path. Until Phase-0 retrain lands
+    the path will typically be missing; the script must fail loudly."""
     mod = _import_script()
     plan = mod.CollectionPlan(
         sources=("snapshot",),
@@ -103,6 +105,82 @@ def test_unknown_source_raises_not_implemented(tmp_path):
         max_steps=10,
         bodyslam_mode="oracle",
         output_dir=tmp_path,
+        snapshot_path=None,
     )
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(FileNotFoundError):
         mod.run_collection(plan)
+
+
+def test_snapshot_source_nonexistent_path_raises_file_not_found(tmp_path):
+    mod = _import_script()
+    plan = mod.CollectionPlan(
+        sources=("snapshot",),
+        tasks=("reach_target_single",),
+        disruptions=("INCIDENTAL",),
+        episodes_per_cell=1,
+        max_steps=10,
+        bodyslam_mode="oracle",
+        output_dir=tmp_path,
+        snapshot_path=tmp_path / "nope.pt",
+    )
+    with pytest.raises(FileNotFoundError):
+        mod.run_collection(plan)
+
+
+def test_demo_source_writes_safe_transitions(tmp_path):
+    """Demo source must produce r_safe=1 transitions on every step (demos are
+    safe by construction; live safety physics is not run)."""
+    mod = _import_script()
+    plan = mod.CollectionPlan(
+        sources=("demo",),
+        tasks=("reach_target_single",),
+        disruptions=(),  # demos don't iterate disruptions
+        episodes_per_cell=0,  # ignored for demo source
+        max_steps=0,         # ignored
+        bodyslam_mode="oracle",
+        output_dir=tmp_path,
+        seed=0,
+        demos_per_task=2,
+    )
+    mod.run_collection(plan)
+
+    # Expect at least one shard
+    shards = sorted(tmp_path.glob("demo__*.npz"))
+    assert shards, f"No demo shards produced under {tmp_path}"
+
+    # All transitions in those shards must be labelled safe.
+    for shard in shards:
+        with np.load(shard) as data:
+            assert (data["r_safe"] == 1.0).all(), (
+                f"{shard} contains a non-safe label; demos must be safe-by-construction"
+            )
+            # source code 0 = demo
+            assert (data["source"] == 0).all()
+            # last step done flag set
+            assert data["done"][-1] is np.True_ or bool(data["done"][-1]) is True
+
+
+def test_demo_source_human_pos_estimate_is_synthesised(tmp_path):
+    """Demos have no live human; the wrapper must synthesise a non-zero
+    ``human_pos_estimate`` so the channel is not a constant the critic ignores."""
+    mod = _import_script()
+    plan = mod.CollectionPlan(
+        sources=("demo",),
+        tasks=("reach_target_single",),
+        disruptions=(),
+        episodes_per_cell=0,
+        max_steps=0,
+        bodyslam_mode="oracle",
+        output_dir=tmp_path,
+        seed=0,
+        demos_per_task=1,
+    )
+    mod.run_collection(plan)
+
+    shard = next(tmp_path.glob("demo__*.npz"))
+    with np.load(shard) as data:
+        hpe = data["obs__human_pos_estimate"]
+        assert hpe.shape[1] == 6
+        # x or y coord should vary across the episode (AMASS playback)
+        coord_var = hpe[:, :3].std(axis=0).max()
+        assert coord_var > 1e-3, f"human_pos_estimate looks constant: std={coord_var}"
