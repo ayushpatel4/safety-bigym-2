@@ -1,0 +1,17 @@
+# Phase 2 launch config — SVF filter dataset → CQL training.
+#
+# Composes the dataset + critic configs and tags W&B for the phase-2 sweep.
+# The current scripts (svf_collect_dataset.py / svf_train_critic.py) are
+# argparse-driven; this config file documents the canonical defaults so when
+# we promote either script to Hydra the migration is mechanical.
+
+defaults:
+  - /filter/dataset
+  - /filter/safety_critic
+  - _self_
+
+wandb:
+  use: false             # set true on GPU runs
+  project: safety-critic
+  tags: ["phase-2-svf"]
+  name: "phase-2-svf_${now:%Y%m%d-%H%M%S}"

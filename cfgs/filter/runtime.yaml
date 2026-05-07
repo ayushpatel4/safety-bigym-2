@@ -1,0 +1,15 @@
+# Phase 2 — runtime safety-filter wrapper config.
+#
+# R = 1 / (2(1-γ)) at γ=0.99 is the plan's initial operating point. The
+# threshold-sweep harness traces the full Pareto curve; the GPU operator
+# picks the knee from the resulting CSV.
+
+filter:
+  threshold_R: 50.0
+  fallback: zero_velocity   # registered in safety_bigym/filters/fallback.py
+
+# Threshold-sweep grid for the Pareto plot.
+sweep:
+  thresholds: [10.0, 25.0, 50.0, 75.0, 90.0]
+  n_episodes_per_R: 10
+  max_steps_per_episode: 1000
