@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: sandwich_remove
+  stddev_schedule: linear(1.0,0.1,500000)
+  # 36 demos, max 522 control steps @ ds=25 (raw_max=13050). Long-horizon pick-and-place;
+  # 16000 raw -> 640 control steps (~1.23x max demo) leaves headroom without bloating eval.
+  episode_length: 16000
+  demo_down_sample_rate: 25
+  enable_all_floating_dof: true
+
+# Per-task override: use every available demo (DemoStore has 36 for this task).
+demos: 36

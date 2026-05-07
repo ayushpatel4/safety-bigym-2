@@ -49,7 +49,7 @@ class ScenarioParams:
     # Target body part for IK (when applicable)
     reaching_arm: str = "right_arm"
     
-    # --- Trajectory parameters (NEW) ---
+    # --- Trajectory parameters ---
     trajectory_type: str = "PASS_BY"      # PASS_BY | APPROACH_LOITER_DEPART | ARC
     pass_by_offset: float = 1.0           # Lateral offset from robot (meters)
     closest_approach: float = 1.0         # How close before stopping (meters)
@@ -81,35 +81,40 @@ class ParameterSpace:
     
     # Disruption type probabilities
     disruption_weights: Dict[DisruptionType, float] = field(default_factory=lambda: {
-        DisruptionType.INCIDENTAL: 0.3,
-        DisruptionType.SHARED_GOAL: 0.2,
-        DisruptionType.DIRECT: 0.2,
-        DisruptionType.OBSTRUCTION: 0.15,
-        DisruptionType.RANDOM_PERTURBED: 0.15,
+        DisruptionType.INCIDENTAL: 0.15,
+        DisruptionType.SHARED_GOAL: 0.15,
+        DisruptionType.DIRECT: 0.20,
+        DisruptionType.OBSTRUCTION: 0.20,
+        DisruptionType.RANDOM_PERTURBED: 0.10,
+        DisruptionType.CONTACT: 0.20,
     })
-    
+
     # Timing ranges
     trigger_time_range: tuple = (0.5, 5.0)  # seconds
     blend_duration_range: tuple = (0.2, 0.6)  # seconds
-    
+
     # Motion modifiers
     speed_range: tuple = (0.5, 2.0)
-    
+
     # Human anthropometry
     height_percentile_range: tuple = (0.05, 0.95)
-    
+
     # Spatial configuration
     approach_angle_range: tuple = (0.0, 360.0)  # degrees
-    spawn_distance_range: tuple = (1.0, 2.0)  # meters
-    
-    # --- Trajectory parameter ranges (NEW) ---
-    pass_by_offset_range: tuple = (0.3, 2.0)       # Lateral offset (meters)
-    closest_approach_range: tuple = (0.5, 1.5)     # Stop distance (meters)
-    loiter_duration_range: tuple = (1.0, 5.0)      # Near-robot time (seconds)
+    spawn_distance_range: tuple = (0.8, 1.8)  # meters
+
+    # --- Trajectory parameter ranges ---
+    # Tightened to push the human into the contact regime in a fraction
+    # of episodes. Loiter is bounded so the human always eventually
+    # departs and lets the robot continue its task.
+    pass_by_offset_range: tuple = (0.05, 1.2)      # Lateral offset (meters)
+    closest_approach_range: tuple = (0.0, 0.8)     # Stop distance (meters)
+    loiter_duration_range: tuple = (4.0, 10.0)     # Near-robot time (seconds)
     departure_angle_range: tuple = (120.0, 240.0)  # Departure angle (degrees)
-    walk_speed_range: tuple = (0.8, 1.6)           # Walk speed (m/s)
-    arc_radius_range: tuple = (1.0, 2.5)           # Arc radius (meters)
+    walk_speed_range: tuple = (1.0, 2.0)           # Walk speed (m/s)
+    arc_radius_range: tuple = (0.5, 1.8)           # Arc radius (meters)
     arc_extent_range: tuple = (90.0, 180.0)        # Arc extent (degrees)
+    embed_distance_range: tuple = (0.0, 0.05)      # CONTACT: meters past surface
 
 
 class ScenarioSampler:
@@ -197,25 +202,46 @@ class ScenarioSampler:
         arc_radius = rng.uniform(*self.params.arc_radius_range)
         arc_extent = rng.uniform(*self.params.arc_extent_range)
         pass_by_side = rng.choice([-1, 1])  # Random side
-        
+
         # Create disruption config with sampled noise values
         base_config = DEFAULT_CONFIGS.get(
             disruption_type,
             DisruptionConfig(disruption_type=disruption_type)
         )
-        
-        # For OBSTRUCTION, sample a fixed target position
+
         if disruption_type == DisruptionType.OBSTRUCTION:
-            # Random point in robot workspace (will be refined in integration)
+            # Passive intrusion: human plants inside the robot's task
+            # workspace, loiters there long enough to provoke a safety
+            # event, then walks away so the robot can continue its task.
             obstruction_target = np.array([
-                0.3 + rng.uniform(-0.2, 0.2),
-                rng.uniform(-0.3, 0.3),
-                0.8 + rng.uniform(-0.2, 0.2),
+                0.45 + rng.uniform(-0.10, 0.15),
+                rng.uniform(-0.15, 0.15),
+                0.75 + rng.uniform(-0.10, 0.15),
             ])
+            closest_approach = rng.uniform(0.2, 0.5)
             disruption_config = DisruptionConfig(
                 disruption_type=disruption_type,
                 obstruction_target=obstruction_target,
-                hold_duration=rng.uniform(1.0, 3.0),
+                hold_duration=loiter_duration,
+            )
+        elif disruption_type == DisruptionType.CONTACT:
+            # Active reach: human walks into the robot, presses for the
+            # loiter window, then departs. embed_distance puts the IK
+            # target slightly past the link surface so reaching is
+            # unambiguously a press while the human is in the loiter
+            # phase.
+            target_part = rng.choice(
+                ["ee", "left_forearm", "right_forearm", "torso"],
+                p=[0.40, 0.25, 0.25, 0.10],
+            )
+            embed_distance = rng.uniform(*self.params.embed_distance_range)
+            # CONTACT is the most aggressive type — pin closest_approach low.
+            closest_approach = rng.uniform(0.0, 0.2)
+            disruption_config = DisruptionConfig(
+                disruption_type=disruption_type,
+                target_noise_std=0.0,
+                contact_target_part=str(target_part),
+                embed_distance=float(embed_distance),
             )
         else:
             disruption_config = base_config
@@ -264,8 +290,9 @@ class ScenarioSampler:
             DisruptionType.SHARED_GOAL,
             DisruptionType.DIRECT,
             DisruptionType.OBSTRUCTION,
+            DisruptionType.CONTACT,
         }:
-            # These need the human to stop near the robot
+            # These need the human to stop near the robot, then depart.
             return "APPROACH_LOITER_DEPART"
         elif disruption_type == DisruptionType.INCIDENTAL:
             # Incidental: walk past (PASS_BY or ARC)

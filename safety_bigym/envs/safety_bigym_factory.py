@@ -27,6 +27,12 @@ from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.perception import (
+    AMASSDemoPositionProvider,
+    BodySLAMWrapper,
+    MujocoRayOcclusion,
+    NoOcclusion,
+)
 from safety_bigym.safety.episode_metrics_wrapper import EpisodeSafetyMetrics
 from safety_bigym.scenarios.disruption_types import DisruptionType
 from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
@@ -151,11 +157,42 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             terminate_on_violation=False,
         )
 
+        # Build a ParameterSpace honouring any cfg.env.disruptions overrides.
+        # YAML may set per-type weights and tightened range fields; we copy
+        # them onto the ParameterSpace defaults so the rest of the sampler
+        # picks them up unchanged.
+        param_space_kwargs: dict = {"clip_paths": motion_clip_paths}
+
+        disruptions_cfg = cfg.env.get("disruptions", None)
+        if disruptions_cfg is not None:
+            weights_cfg = disruptions_cfg.get("weights", None)
+            if weights_cfg is not None:
+                weights: dict = {}
+                for name, weight in weights_cfg.items():
+                    try:
+                        weights[DisruptionType[name]] = float(weight)
+                    except KeyError as e:
+                        raise ValueError(
+                            f"disruptions.weights[{name!r}] is not a DisruptionType"
+                        ) from e
+                param_space_kwargs["disruption_weights"] = weights
+            for range_field in (
+                "closest_approach_range",
+                "pass_by_offset_range",
+                "loiter_duration_range",
+                "embed_distance_range",
+                "walk_speed_range",
+                "spawn_distance_range",
+                "arc_radius_range",
+            ):
+                value = disruptions_cfg.get(range_field, None)
+                if value is not None:
+                    param_space_kwargs[range_field] = tuple(value)
+
         # Optional eval knob: force every episode to use one disruption type.
-        # Used by baseline_sweep.py to evaluate a trained DP against each of
-        # the 5 ISO 15066 disruption types independently.
+        # Used by baseline_sweep.py to evaluate a trained DP against each
+        # disruption type independently. Overrides any YAML weights.
         forced = cfg.env.get("disruption_type", None)
-        scenario_sampler = None
         if forced:
             try:
                 dtype = DisruptionType[forced]
@@ -164,14 +201,13 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                     f"env.disruption_type={forced!r} is not a DisruptionType "
                     f"(expected one of {[d.name for d in DisruptionType]})"
                 ) from e
-            scenario_sampler = ScenarioSampler(
-                parameter_space=ParameterSpace(
-                    clip_paths=motion_clip_paths,
-                    disruption_weights={dtype: 1.0},
-                ),
-                motion_dir=motion_clip_dir,
-            )
+            param_space_kwargs["disruption_weights"] = {dtype: 1.0}
             logger.info(f"Forcing disruption_type={dtype.name} for every episode.")
+
+        scenario_sampler = ScenarioSampler(
+            parameter_space=ParameterSpace(**param_space_kwargs),
+            motion_dir=motion_clip_dir,
+        )
 
         logger.info(
             f"Creating SafetyBiGymEnv: task={task_cls.__name__}, "
@@ -194,5 +230,135 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             control_frequency=CONTROL_FREQUENCY_MAX
             // cfg.env.demo_down_sample_rate,
         )
+        env = self._maybe_wrap_bodyslam(env, cfg)
         return EpisodeSafetyMetrics(env)
+
+    def _maybe_wrap_bodyslam(self, env, cfg: DictConfig):
+        """Insert BodySLAMWrapper between SafetyBiGymEnv and EpisodeSafetyMetrics.
+
+        Driven by the `bodyslam` Hydra config group (cfgs/bodyslam/{off,
+        oracle,noisy}.yaml). When `mode='off'` or the block is missing, the
+        env is returned untouched — preserves baseline behaviour for runs
+        that don't opt into the perception layer.
+        """
+        bs = cfg.env.get("bodyslam") if hasattr(cfg, "env") else None
+        if bs is None:
+            return env
+        mode = str(bs.get("mode", "off"))
+        if mode == "off":
+            return env
+        if mode not in ("oracle", "noisy"):
+            raise ValueError(
+                f"env.bodyslam.mode must be one of 'off', 'oracle', 'noisy'; got {mode!r}"
+            )
+
+        occlusion_fn = NoOcclusion
+        if mode == "noisy" and bool(bs.get("use_occlusion", False)):
+            occlusion_fn = self._build_ray_occlusion(env) or NoOcclusion
+
+        logger.info(
+            f"Inserting BodySLAMWrapper(mode={mode}, "
+            f"occlusion={'ray' if occlusion_fn is not NoOcclusion else 'none'})."
+        )
+        return BodySLAMWrapper(
+            env,
+            mode=mode,
+            ou_alpha=float(bs.get("ou_alpha", 0.9)),
+            noise_std=float(bs.get("noise_std", 0.05)),
+            latency_steps=int(bs.get("latency_steps", 3)),
+            occlusion_noise_mult=float(bs.get("occlusion_noise_mult", 3.0)),
+            dropout_prob=float(bs.get("dropout_prob", 0.02)),
+            seed=int(bs.get("seed", 0)),
+            occlusion_fn=occlusion_fn,
+        )
+
+    def _wrap_env(self, env, cfg, demo_env=False, train=True, return_raw_spaces=False):
+        """Override parent wrap to inject BodySLAMWrapper into the demo path.
+
+        The demo env is a `DemoEnv` replaying recorded BiGym timesteps; it
+        emits no `info["safety"]`, so the wrapper switches to demo_replay
+        mode and pulls per-step pelvis positions from an AMASS clip via
+        AMASSDemoPositionProvider. Without this override, the demo and
+        train envs disagree on `low_dim_state` width and the replay buffer
+        rejects demos at load time.
+        """
+        if demo_env:
+            env = self._maybe_wrap_demo_bodyslam(env, cfg)
+        return super()._wrap_env(
+            env, cfg,
+            demo_env=demo_env,
+            train=train,
+            return_raw_spaces=return_raw_spaces,
+        )
+
+    def _maybe_wrap_demo_bodyslam(self, env, cfg: DictConfig):
+        bs = cfg.env.get("bodyslam") if hasattr(cfg, "env") else None
+        if bs is None:
+            return env
+        mode = str(bs.get("mode", "off"))
+        if mode == "off":
+            return env
+        if mode not in ("oracle", "noisy"):
+            raise ValueError(
+                f"env.bodyslam.mode must be one of 'off', 'oracle', 'noisy'; got {mode!r}"
+            )
+
+        motion_dir = cfg.env.get(
+            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+        )
+        clip_paths = list(cfg.env.get("motion_clip_paths", []))
+        if not motion_dir or not clip_paths:
+            raise RuntimeError(
+                "BodySLAM demo replay requires motion_clip_dir + motion_clip_paths "
+                "in env config (or AMASS_DATA_DIR env var)."
+            )
+        provider = AMASSDemoPositionProvider(
+            clip_paths=clip_paths,
+            motion_dir=motion_dir,
+            seed=int(bs.get("seed", 0)) ^ 0xDEAD,
+        )
+        logger.info(
+            f"Inserting BodySLAMWrapper(mode={mode}, demo_replay=True) "
+            f"around DemoEnv with AMASS provider ({len(clip_paths)} clips)."
+        )
+        return BodySLAMWrapper(
+            env,
+            mode=mode,
+            ou_alpha=float(bs.get("ou_alpha", 0.9)),
+            noise_std=float(bs.get("noise_std", 0.05)),
+            latency_steps=int(bs.get("latency_steps", 3)),
+            occlusion_noise_mult=float(bs.get("occlusion_noise_mult", 3.0)),
+            dropout_prob=float(bs.get("dropout_prob", 0.02)),
+            seed=int(bs.get("seed", 0)),
+            occlusion_fn=NoOcclusion,
+            position_provider=provider,
+            demo_replay=True,
+        )
+
+    def _build_ray_occlusion(self, env):
+        """Best-effort MujocoRayOcclusion factory; returns None on failure."""
+        try:
+            import mujoco
+            unwrapped = env.unwrapped
+            model = getattr(unwrapped, "_mojo", None)
+            model = model.physics.model._model if model is not None else None
+            data = unwrapped._mojo.physics.data._data
+            cam_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_CAMERA, "head"
+            )
+            geom_id = mujoco.mj_name2id(
+                model, mujoco.mjtObj.mjOBJ_GEOM, "Pelvis_col"
+            )
+            if cam_id < 0 or geom_id < 0:
+                logger.warning(
+                    "BodySLAM occlusion lookup failed (cam_id=%d, geom_id=%d); "
+                    "falling back to no-occlusion.", cam_id, geom_id,
+                )
+                return None
+            return MujocoRayOcclusion(model, data, cam_id, geom_id)
+        except Exception as exc:
+            logger.warning(
+                "BodySLAM ray occlusion init failed: %s; falling back.", exc,
+            )
+            return None
 

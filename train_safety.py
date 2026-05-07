@@ -31,13 +31,12 @@ def main(cfg):
 
     # Explicit snapshot override (e.g. baseline_sweep.py eval runs):
     #   +snapshot_path=/abs/path/to/100000_snapshot.pt
-    explicit = cfg.get("snapshot_path", None)
-    if explicit:
-        snapshot = Path(explicit)
-        if not snapshot.is_file():
-            raise FileNotFoundError(f"snapshot_path={snapshot} not found.")
-        print(f"Loading snapshot from override: {snapshot}")
-        workspace.load_snapshot(snapshot)
+    # Workspace.__init__ already read the snapshot eagerly (to seed env stats
+    # before wrappers captured them by reference). Calling load_snapshot() here
+    # finishes the restore — it reuses the stashed payload instead of re-reading.
+    if cfg.get("snapshot_path", None):
+        print(f"Loading snapshot from override: {cfg.snapshot_path}")
+        workspace.load_snapshot()
     else:
         snapshot = root_dir / "snapshot.pt"
         if snapshot.exists():

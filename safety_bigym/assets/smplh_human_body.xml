@@ -6,17 +6,31 @@
       <geom type="capsule" condim="3" friction="1 0.5 0.001" density="1000"/>
     </default>
     
+    <!--
+      Cross-paired collision channel: human geoms emit bit 1 and accept
+      bit 2; SafetyBiGymEnv._configure_collision_bits promotes robot and
+      floor geoms onto contype |= bit 2 / conaffinity |= bit 1 so the
+      cross is non-zero in both directions while human<->human evaluates
+      to zero. Scene geoms (dishwasher, cabinets, walls) remain on bit 0
+      and therefore never see the human.
+    -->
     <default class="human_collision">
-      <geom type="capsule" solref="0.02 1.0" solimp="0.9 0.95 0.001" group="0" contype="1" conaffinity="1" rgba="0.8 0.6 0.5 0.8"/>
+      <geom type="capsule" solref="0.02 1.0" solimp="0.9 0.95 0.001" group="0" contype="2" conaffinity="4" rgba="0.8 0.6 0.5 0.8"/>
     </default>
-    
+
     <default class="position_actuator">
-      <position kp="2000" kv="50"/>
+      <position kp="200" kv="20"/>
     </default>
   </default>
   <worldbody>
-    <body name="Pelvis" pos="0 0 0">
-      <freejoint name="root"/>
+    <body name="Pelvis" pos="0 0 0" mocap="true">
+      <!-- Pelvis is kinematically positioned via data.mocap_pos /
+           data.mocap_quat by the trajectory planner. Child bodies
+           (L_Hip, R_Hip, ...) are still physics-simulated through their
+           hinge joints, so PD on body joints continues to work; only the
+           root is teleported, which previously bypassed contact detection
+           because direct qpos writes to a freejoint don't refresh the
+           collision broadphase. -->
       <geom name="Pelvis_col" class="human_collision" fromto="0.0000 0.0000 0.0000 0.0586 0.0177 -0.0823" size="0.1000"/>
       <body name="L_Hip" pos="0.0586 0.0177 -0.0823">
         <joint name="L_Hip_x" type="hinge" axis="1 0 0" range="-3.14 3.14" class="human"/>

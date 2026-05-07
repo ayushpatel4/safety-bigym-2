@@ -1,0 +1,14 @@
+# @package _global_
+# Phase-1 BodySLAMWrapper preset: full OU + occlusion + dropout pipeline.
+# Realistic arm for E1.1; default starting point for E1.2 / E1.3 sweeps.
+
+env:
+  bodyslam:
+    mode: noisy
+    ou_alpha: 0.9
+    noise_std: 0.05
+    latency_steps: 3
+    occlusion_noise_mult: 3.0
+    dropout_prob: 0.02
+    use_occlusion: false  # MuJoCo ray-cast; opt in once geom IDs are confirmed
+    seed: 0

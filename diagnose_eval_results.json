@@ -1,0 +1,7 @@
+{
+  "snapshot_pretrain_step": 70000,
+  "snapshot_has_agent": true,
+  "snapshot_has_action_stats": true,
+  "snapshot_has_obs_stats": true,
+  "snapshot_size_mb": 647.220019
+}

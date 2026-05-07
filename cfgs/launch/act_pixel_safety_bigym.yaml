@@ -1,12 +1,12 @@
 # @package _global_
-# Launch config: Diffusion Policy on SafetyBiGym (pixel-based imitation learning)
+# Launch config: Action Chunking Transformer (ACT) on SafetyBiGym (pixel-based imitation learning)
 #
 # Usage:
-#   python train_safety.py launch=dp_pixel_safety_bigym env=safety_bigym/reach_target_single
+#   python train_safety.py launch=act_pixel_safety_bigym env=safety_bigym/reach_target_single
 
 defaults:
   - ../env: null
-  - ../method: diffusion
+  - ../method: act
 
 demos: 30
 num_pretrain_steps: 100000
@@ -37,11 +37,11 @@ update_every_steps: 1
 # Logging — inherits project/name/tags from root safety_config.yaml
 wandb:
   use: false
-  tags: ["phase-0", "baseline", "dp-pixel"]
+  tags: ["phase-0", "baseline", "act-pixel"]
 
 replay:
   nstep: 1
 
 hydra:
   run:
-    dir: ./exp_local/dp_safety/${env.task_name}_${now:%Y%m%d%H%M%S}
+    dir: ./exp_local/act_safety/${env.task_name}_${now:%Y%m%d%H%M%S}

@@ -19,21 +19,23 @@ class TestDisruptionTypes:
     """Tests for disruption type configuration."""
     
     def test_disruption_type_enum(self):
-        """Test all 5 disruption types exist."""
-        assert len(DisruptionType) == 5
+        """Test all 6 disruption types exist."""
+        assert len(DisruptionType) == 6
         assert DisruptionType.INCIDENTAL
         assert DisruptionType.SHARED_GOAL
         assert DisruptionType.DIRECT
         assert DisruptionType.OBSTRUCTION
         assert DisruptionType.RANDOM_PERTURBED
-    
+        assert DisruptionType.CONTACT
+
     def test_disruption_config_requires_ik(self):
         """Test IK requirement detection."""
         # IK required
         assert DisruptionConfig(DisruptionType.DIRECT).requires_ik()
         assert DisruptionConfig(DisruptionType.SHARED_GOAL).requires_ik()
         assert DisruptionConfig(DisruptionType.OBSTRUCTION).requires_ik()
-        
+        assert DisruptionConfig(DisruptionType.CONTACT).requires_ik()
+
         # IK not required
         assert not DisruptionConfig(DisruptionType.INCIDENTAL).requires_ik()
         assert not DisruptionConfig(DisruptionType.RANDOM_PERTURBED).requires_ik()
@@ -71,11 +73,11 @@ class TestParameterSpace:
     def test_default_parameter_space(self):
         """Test default parameter ranges."""
         params = ParameterSpace()
-        
+
         assert params.trigger_time_range == (0.5, 5.0)
         assert params.speed_range == (0.5, 2.0)
         assert params.height_percentile_range == (0.05, 0.95)
-        assert len(params.disruption_weights) == 5
+        assert len(params.disruption_weights) == 6
     
     def test_disruption_weights_sum(self):
         """Test disruption weights are valid."""

@@ -25,3 +25,5 @@ safe_results.json
 wandb/
 recordings/
 recordings_random/
+*.csv
+*.txt
