@@ -152,9 +152,18 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             motion_clip_paths=motion_clip_paths,
         )
 
+        # Read reward-shaping fields from cfg.env.safety; defaults preserve
+        # the pre-Phase-1.4 behaviour (penalty off).
+        safety_cfg_block = cfg.env.get("safety", {}) or {}
         safety_config = SafetyConfig(
             log_violations=False,
             terminate_on_violation=False,
+            add_violation_penalty=bool(
+                safety_cfg_block.get("add_violation_penalty", False)
+            ),
+            violation_penalty=float(
+                safety_cfg_block.get("violation_penalty", 0.05)
+            ),
         )
 
         # Build a ParameterSpace honouring any cfg.env.disruptions overrides.

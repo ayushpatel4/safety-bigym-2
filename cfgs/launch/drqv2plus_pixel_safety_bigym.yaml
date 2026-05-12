@@ -1,0 +1,87 @@
+# @package _global_
+# Launch config: DrQ-V2+ (demo-driven online pixel RL) on SafetyBiGym.
+# Phase-1.4 reward-on pilot — pairs the BodySLAMWrapper obs channel with
+# online RL so the per-step safety penalty becomes a learning gradient.
+#
+# Usage:
+#   python train_safety.py launch=drqv2plus_pixel_safety_bigym \
+#     env=safety_bigym/reach_target_single \
+#     bodyslam=oracle \
+#     ++env.safety.add_violation_penalty=true
+
+defaults:
+  - ../env: null
+  - ../method: drqv2
+
+demos: 30
+num_pretrain_steps: 0
+num_explore_steps: 0
+num_train_frames: 200000
+eval_every_steps: 10000
+num_eval_episodes: 10
+batch_size: 256
+demo_batch_size: 256
+save_snapshot: true
+snapshot_every_n: 0
+replay_size_before_train: 2000  # robobase asserts >= env.episode_length for RL; reach_target_single = 2000
+use_self_imitation: true
+
+pixels: true
+frame_stack: 8
+
+is_imitation_learning: false
+
+action_repeat: 1
+action_sequence: 1
+execution_length: 1
+temporal_ensemble: false
+use_standardization: false
+use_min_max_normalization: true
+min_max_margin: 0.2
+norm_obs: true
+
+update_every_steps: 1
+log_every: 150
+
+# Reward-on by default for this launch — Phase-1.4 needs the penalty
+# turned on. Override per-run with `++env.safety.add_violation_penalty=false`
+# if you want a no-penalty control cell.
+env:
+  safety:
+    add_violation_penalty: true
+    violation_penalty: 0.05
+
+# Logging — inherits project/name/tags from root safety_config.yaml
+wandb:
+  use: false
+  tags: ["phase-1-reward", "drqv2plus", "pixel"]
+
+replay:
+  nstep: 1
+  size: 50000
+  demo_size: 50000
+  num_workers: 4
+
+method:
+  bc_lambda: 1.0
+  stddev_schedule: 0.01
+  weight_decay: 0.1
+  always_bootstrap: true
+  distributional_critic: true
+  distributional_critic_limit: 2
+  distributional_critic_atoms: 101
+  distributional_critic_transform: false
+
+  critic_model:
+    output_shape: [101, 1]
+
+  encoder_model:
+    kernel_size: 4
+    padding: 1
+    channels_multiplier: 2
+    num_downsample_convs: 4
+    num_post_downsample_convs: 0
+
+hydra:
+  run:
+    dir: ./exp_local/drqv2plus_safety/${env.task_name}_${now:%Y%m%d%H%M%S}

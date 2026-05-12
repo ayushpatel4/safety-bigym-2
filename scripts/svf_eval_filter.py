@@ -66,7 +66,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument(
         "--policy", choices=("random", "snapshot"), default="random"
     )
-    p.add_argument("--snapshot-path", type=Path, default=None)
+    p.add_argument(
+        "--snapshot-override",
+        action="append",
+        default=[],
+        metavar="TASK=PATH",
+        help=(
+            "Override a snapshot path for one task; takes precedence over the "
+            "SNAPSHOTS dict in safety_bigym/filters/snapshots.py. Repeatable."
+        ),
+    )
     p.add_argument(
         "--tasks", nargs="+", default=("reach_target_single",),
         choices=sorted(TASK_REGISTRY),
@@ -96,12 +105,39 @@ def _make_policy(name: str, env, snapshot_path: Optional[Path], rng: np.random.G
     raise ValueError(f"Unknown policy {name!r}")
 
 
+def _parse_overrides(raw: Sequence[str]) -> dict:
+    out: dict = {}
+    for entry in raw:
+        if "=" not in entry:
+            raise SystemExit(f"--snapshot-override expects TASK=PATH; got {entry!r}")
+        task, _, path = entry.partition("=")
+        if not task or not path:
+            raise SystemExit(f"--snapshot-override expects TASK=PATH; got {entry!r}")
+        out[task] = path
+    return out
+
+
 def run_eval(args: argparse.Namespace) -> list[ThresholdEvalResult]:
+    from safety_bigym.filters.snapshots import resolve_snapshot
+
     rng = np.random.default_rng(args.seed)
     critic = _load_critic(args.critic_path)
+    overrides = _parse_overrides(getattr(args, "snapshot_override", []) or [])
 
     rows: list[ThresholdEvalResult] = []
     for task_key in args.tasks:
+        # Resolve snapshot up-front for snapshot policy — skip cleanly if unset.
+        snapshot_path: Optional[Path] = None
+        if args.policy == "snapshot":
+            snapshot_path = resolve_snapshot(task_key, overrides=overrides)
+            if snapshot_path is None:
+                logger.warning(
+                    f"No snapshot configured for task {task_key!r} "
+                    "(SNAPSHOTS entry is None and no override given). "
+                    "Skipping eval for this task."
+                )
+                continue
+
         for disruption in args.disruptions:
             logger.info(
                 f"Evaluating filter on task={task_key} disruption={disruption} "
@@ -111,7 +147,7 @@ def run_eval(args: argparse.Namespace) -> list[ThresholdEvalResult]:
                 task_key, disruption, args.bodyslam_mode, DEFAULT_CLIPS
             )
             fallback = FallbackRegistry.build(args.fallback, env.action_space)
-            policy = _make_policy(args.policy, env, args.snapshot_path, rng)
+            policy = _make_policy(args.policy, env, snapshot_path, rng)
 
             result = evaluate_threshold(
                 env=env,

@@ -28,6 +28,14 @@ env:
   # human plants in workspace) and active reach (CONTACT: human walks into
   # and presses on the robot). All types loiter then depart so the robot
   # can recover and finish its task.
+  # Per-step reward shaping for safety violations. Default off — opt in
+  # per-launch (e.g. drqv2plus_pixel_safety_bigym for Phase-1.4). BC
+  # methods (ACT/DP) ignore env reward as a learning signal, so this only
+  # bites under online RL.
+  safety:
+    add_violation_penalty: false
+    violation_penalty: 0.05
+
   disruptions:
     weights:
       INCIDENTAL: 0.15

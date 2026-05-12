@@ -52,7 +52,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--thresholds", nargs="+", type=float, default=list(DEFAULT_THRESHOLDS))
     p.add_argument("--fallback", default="zero_velocity")
     p.add_argument("--policy", choices=("random", "snapshot"), default="random")
-    p.add_argument("--snapshot-path", type=Path, default=None)
+    p.add_argument(
+        "--snapshot-override",
+        action="append",
+        default=[],
+        metavar="TASK=PATH",
+        help=(
+            "Override a snapshot path for one task; takes precedence over the "
+            "SNAPSHOTS dict in safety_bigym/filters/snapshots.py. Repeatable."
+        ),
+    )
     p.add_argument(
         "--task", default="reach_target_single", choices=sorted(TASK_REGISTRY)
     )
@@ -66,7 +75,21 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def _parse_overrides(raw: Sequence[str]) -> dict:
+    out: dict = {}
+    for entry in raw:
+        if "=" not in entry:
+            raise SystemExit(f"--snapshot-override expects TASK=PATH; got {entry!r}")
+        task, _, path = entry.partition("=")
+        if not task or not path:
+            raise SystemExit(f"--snapshot-override expects TASK=PATH; got {entry!r}")
+        out[task] = path
+    return out
+
+
 def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
+    from safety_bigym.filters.snapshots import resolve_snapshot
+
     if args.critic_path is None or not args.critic_path.is_file():
         raise FileNotFoundError(f"--critic-path {args.critic_path!r} not found")
 
@@ -80,7 +103,16 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
     if args.policy == "random":
         policy = random_policy(env, rng)
     elif args.policy == "snapshot":
-        policy = load_snapshot_policy(args.snapshot_path, env)
+        overrides = _parse_overrides(getattr(args, "snapshot_override", []) or [])
+        snapshot_path = resolve_snapshot(args.task, overrides=overrides)
+        if snapshot_path is None:
+            raise SystemExit(
+                f"Snapshot policy requested but no snapshot configured for task "
+                f"{args.task!r}. Set SNAPSHOTS[{args.task!r}] in "
+                "safety_bigym/filters/snapshots.py or pass "
+                f"--snapshot-override {args.task}=PATH."
+            )
+        policy = load_snapshot_policy(snapshot_path, env)
     else:
         raise ValueError(f"Unknown policy {args.policy!r}")
 
