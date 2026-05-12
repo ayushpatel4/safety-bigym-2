@@ -76,8 +76,8 @@ Key differences from the dp/act launches:
 the smallest specialisation of the
 [phase1_obs_ablation.py](../scripts/phase1_obs_ablation.py) shape:
 
-- Hardcoded to one task (`reach_target_single`) × three obs modes (the
-  pilot scope from the plan).
+- Two tasks (`reach_target_single`, `saucepan_to_hob`) × three obs modes
+  = 6 train cells, 30 eval cells.
 - `--train` / `--eval` / `--run` / `--smoke` (same surface as
   obs_ablation).
 - `--run` writes `phase1_reward_pilot_results.json` and prints a
@@ -96,11 +96,24 @@ the training algorithm has access to a safety reward signal**. Under BC
 (E1.1), the policy fits action distributions without using rewards, so
 the channel is structurally invisible to the learning objective.
 
-**Setup.** One task, three obs modes (off / oracle / noisy), online RL
-(DrQ-V2+) with the per-step penalty turned on. 200 k env frames per
-cell. The variable that moves is the obs channel; reward shaping is held
-constant (on for all three cells). Evaluation: 5 disruption types × 20
-episodes each, post-training.
+**Setup.** Two tasks (`reach_target_single`, `saucepan_to_hob`) × three
+obs modes (off / oracle / noisy) = 6 cells. Online RL (DrQ-V2+) with
+the per-step penalty turned on. 200 k env frames per cell. The variable
+that moves is the obs channel; reward shaping is held constant (on for
+all six cells). Evaluation: 5 disruption types × 20 episodes each,
+post-training.
+
+**Task choice rationale.** `reach_target_single` is the cleanest
+baseline: E1.1 ACT achieved `episode_success = 0.88` on `off`, so the
+task is definitively learnable. `saucepan_to_hob` is the task where
+E1.1 surfaced the most interesting safety/task interaction: oracle
+improved success 0.46 → 0.64 *without* reducing SSM violations,
+suggesting the policy was using human state for task progress, not
+safety. If RL + penalty converts that "used for task" into "used for
+safety", that's the cleanest positive evidence the channel works under
+a gradient. Other E1.1 tasks (`dishwasher_close`, `drawers_open_all`)
+are deferred — running the full 4-task set would 2× the GPU cost
+without sharpening the binary diagnostic.
 
 **Reward calibration.** From E1.1 reach_target_single off-cell:
 `episode_reward ≈ 0.88` over `episode_length ≈ 53` ⇒ ≈ **0.017 task
@@ -138,11 +151,11 @@ the channel is informative but the noise we model is too aggressive.
 | Training algorithm         | ACT / DiffusionPolicy (pure BC)                                     | DrQ-V2+ (demo-driven online RL with `bc_lambda=1.0`)                   |
 | Uses env reward in loss?   | **No** — BC clones action distributions; reward is not a gradient.  | **Yes** — actor and critic both use `r_t`; safety penalty is part of `r_t`. |
 | Demos                      | 30 (action-cloning target)                                          | 30 (warm-start the replay buffer + BC regularizer)                     |
-| Tasks                      | 4 (reach, dishwasher_close, drawers_open_all, saucepan_to_hob)      | 1 (reach_target_single — pilot scope)                                  |
-| Cells                      | 12 (4 tasks × 3 modes, ACT only)                                    | 3 (1 task × 3 modes)                                                   |
+| Tasks                      | 4 (reach, dishwasher_close, drawers_open_all, saucepan_to_hob)      | 2 (reach_target_single, saucepan_to_hob)                               |
+| Cells                      | 12 (4 tasks × 3 modes, ACT only)                                    | 6 (2 tasks × 3 modes)                                                  |
 | Train budget per cell      | 100 k BC pretrain steps                                             | 200 k env interaction frames                                           |
 | Wall clock per cell        | ~1–2 GPU-hours                                                      | ~3–4 GPU-hours                                                         |
-| Total wall clock           | ~12–24 GPU-hours                                                    | ~9–12 GPU-hours                                                        |
+| Total wall clock           | ~12–24 GPU-hours                                                    | ~18–24 GPU-hours                                                       |
 | Eval metric                | `ep_ssm_violation_rate`, off → mode reduction                       | Same — directly comparable                                             |
 
 The two experiments are **complementary**, not redundant:
@@ -277,7 +290,7 @@ script's printed commands include it for the GPU box.
 ### GPU
 
 ```bash
-# 1. Train all 3 cells (~9-12 GPU-hours total)
+# 1. Train all 6 cells (~18-24 GPU-hours total)
 python scripts/phase1_reward_pilot.py --train > /tmp/p14_train.sh
 bash /tmp/p14_train.sh
 
@@ -288,9 +301,11 @@ $EDITOR scripts/phase1_reward_pilot.py
 python scripts/phase1_reward_pilot.py --run
 ```
 
-The `--run` table will print **PASS** in the rightmost column if any
-mode meets the 20% reduction criterion. The final line is the branch
-decision.
+The `--run` table is grouped by task — within each task block, prints
+**PASS** in the rightmost column for any mode meeting the 20% reduction
+criterion. The final lines summarise per-task pass/fail and the overall
+branch decision (`PASS` on either task is sufficient to greenlight
+Phase 3).
 
 ---
 
