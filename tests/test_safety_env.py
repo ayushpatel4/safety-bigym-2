@@ -98,6 +98,34 @@ def test_safety_env_with_human():
         return False
 
 
+def test_out_of_bounds_action_is_clipped_not_raised():
+    """`_step_mujoco_simulation` silently clips actions slightly outside
+    the env action space. Regression guard for the DrQ-V2+ failure where
+    `RescaleFromTanhWithMinMax`'s `min_max_margin` produced post-rescale
+    actions ~3-4% past `action_space.high`, crashing 27k-step training
+    runs at iter 27000.
+    """
+    from bigym.action_modes import JointPositionActionMode
+    from safety_bigym import SafetyBiGymEnv, SafetyConfig, HumanConfig
+
+    env = SafetyBiGymEnv(
+        action_mode=JointPositionActionMode(floating_base=True, absolute=True),
+        safety_config=SafetyConfig(),
+        human_config=HumanConfig(),
+        inject_human=False,
+    )
+    try:
+        env.reset()
+        # Build an action slightly above the upper bound on every dim
+        # (mimicking what RescaleFromTanhWithMinMax produces with
+        # min_max_margin=0.2 and a Gaussian-noisy actor).
+        oob = (env.action_space.high + 0.05).astype(env.action_space.dtype)
+        # Should NOT raise — the env clips silently and proceeds.
+        env._step_mujoco_simulation(oob)
+    finally:
+        env.close()
+
+
 def test_violation_penalty_applied_when_enabled():
     """`_reward()` subtracts `violation_penalty` when `add_violation_penalty`
     is True and `_step_safety_info` carries a violation flag. Regression

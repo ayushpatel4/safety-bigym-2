@@ -563,15 +563,19 @@ class SafetyBiGymEnv(BiGymEnv):
                 f"Action shape mismatch: "
                 f"expected {self.action_space.shape}, but got {action.shape}."
             )
+        # Soft-clip rather than raise. RoboBase's RescaleFromTanhWithMinMax
+        # produces actions in `[1.2*low, 1.2*high]` by design (margin lets
+        # the policy explore beyond demo-observed action ranges); under RL
+        # with exploration noise (DrQ-V2's stddev_schedule) the post-rescale
+        # action can sit a few percent past `action_space.{low,high}`. BC
+        # methods (ACT/DP) hug demo actions so this rarely fires for them.
+        # Either way, crashing the env mid-rollout discards an expensive
+        # rollout for a sub-millimetre overshoot — clip silently instead.
         if np.any(action < self.action_space.low) or np.any(
             action > self.action_space.high
         ):
-            clipped_action = np.clip(
+            action = np.clip(
                 action, self.action_space.low, self.action_space.high
-            )
-            raise ValueError(
-                f"Action {action} is out of the action space bounds. "
-                f"Overhead: {action - clipped_action}"
             )
         
         # Clear per-step contacts
