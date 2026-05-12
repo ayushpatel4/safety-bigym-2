@@ -180,6 +180,82 @@ def test_parse_snapshot_overrides_rejects_malformed():
         mod._parse_snapshot_overrides(["task="])
 
 
+def test_build_live_env_with_cameras_emits_rgb_keys(tmp_path):
+    """When cameras are configured, the bare env must emit rgb_<name> keys
+    with HWC uint8 arrays — that's what the snapshot policy adapter consumes."""
+    mod = _import_script()
+    env = mod._build_live_env(
+        task_key="reach_target_single",
+        disruption="INCIDENTAL",
+        mode="oracle",
+        motion_clips=mod.DEFAULT_CLIPS,
+        cameras=("head",),
+        camera_resolution=(64, 64),
+    )
+    obs, _info = env.reset()
+    assert "rgb_head" in obs, f"expected rgb_head in obs, got {sorted(obs.keys())}"
+    rgb = obs["rgb_head"]
+    assert rgb.shape == (64, 64, 3) or rgb.shape == (3, 64, 64), (
+        f"unexpected rgb_head shape {rgb.shape}"
+    )
+    assert rgb.dtype == np.uint8
+
+
+def test_build_live_env_without_cameras_emits_no_rgb_keys(tmp_path):
+    """Default (no cameras) bare env must NOT emit rgb_* keys — random/demo
+    sources avoid the render cost."""
+    mod = _import_script()
+    env = mod._build_live_env(
+        task_key="reach_target_single",
+        disruption="INCIDENTAL",
+        mode="oracle",
+        motion_clips=mod.DEFAULT_CLIPS,
+    )
+    obs, _info = env.reset()
+    rgb_keys = [k for k in obs if k.startswith("rgb")]
+    assert not rgb_keys, f"expected no rgb_* keys, got {rgb_keys}"
+
+
+def test_peek_snapshot_cameras_missing_file_raises(tmp_path):
+    mod = _import_script()
+    with pytest.raises(FileNotFoundError):
+        mod.peek_snapshot_cameras(tmp_path / "nope.pt")
+
+
+def test_peek_snapshot_cameras_extracts_cfg_fields(tmp_path):
+    """Synthesize a tiny payload with just the cfg fields peek_snapshot_cameras reads."""
+    import torch
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({
+        "pixels": True,
+        "visual_observation_shape": [84, 84],
+        "env": {"cameras": ["head", "right_wrist"]},
+    })
+    payload = {"cfg": cfg}
+    snap_path = tmp_path / "synth.pt"
+    torch.save(payload, snap_path)
+
+    mod = _import_script()
+    cameras, resolution = mod.peek_snapshot_cameras(snap_path)
+    assert cameras == ("head", "right_wrist")
+    assert resolution == (84, 84)
+
+
+def test_peek_snapshot_cameras_returns_empty_for_no_pixel_snapshot(tmp_path):
+    import torch
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({"pixels": False, "env": {"cameras": []}})
+    payload = {"cfg": cfg}
+    snap_path = tmp_path / "no_pixel.pt"
+    torch.save(payload, snap_path)
+
+    mod = _import_script()
+    cameras, _ = mod.peek_snapshot_cameras(snap_path)
+    assert cameras == ()
+
+
 def test_demo_source_writes_safe_transitions(tmp_path):
     """Demo source must produce r_safe=1 transitions on every step (demos are
     safe by construction; live safety physics is not run)."""

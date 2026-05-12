@@ -153,7 +153,7 @@ n = 10 episodes per cell. Several rows show identical 4-decimal stats across SHA
 
 ### PFL columns are unreliable
 
-`ep_pfl_violation_rate`, `ep_max_pfl_force_ratio`, `ep_max_contact_force` are identically zero in every single cell — including cases where `ep_min_ssm_margin = −13 m` (saucepan CONTACT off), i.e., the human pelvis is geometrically *inside* the robot's safety envelope. This is a contact-detection bug in BiGym/mojo's runtime robot attachment, not a real result. Investigation summary in [`/Users/ayushpatel/.claude/plans/the-current-human-disruption-smooth-flame.md`](../../.claude/plans/the-current-human-disruption-smooth-flame.md). The 20% conclusion above is **based on SSM only and is unaffected by this bug.**
+`ep_pfl_violation_rate`, `ep_max_pfl_force_ratio`, `ep_max_contact_force` are identically zero in every single cell — including cases where `ep_min_ssm_margin = −13 m` (saucepan CONTACT off), i.e., the human pelvis is geometrically *inside* the robot's safety envelope. This is a contact-detection bug in BiGym/mojo's runtime robot attachment, not a real result. Investigation summary in [`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md). The 20% conclusion above is **based on SSM only and is unaffected by this bug.**
 
 ### Why DP wasn't run
 
@@ -183,7 +183,7 @@ If a reviewer pushes back, run DP on the strongest of the four ACT cells (drawer
 
 Open work tracked separately:
 
-- **PFL contact-detection bug.** Plan file at [`.claude/plans/the-current-human-disruption-smooth-flame.md`](../../.claude/plans/the-current-human-disruption-smooth-flame.md). Needs a fresh session with BiGym/mojo internals expertise. The 20% conclusion in this doc is **SSM-only** and unaffected by this bug. Phase 2 SVF can begin on SSM-only labels in the meantime; PFL gets retrofit once fixed.
+- **PFL contact-detection bug.** Plan file at [`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md). Needs a fresh session with BiGym/mojo internals expertise. The 20% conclusion in this doc is **SSM-only** and unaffected by this bug. Phase 2 SVF can begin on SSM-only labels in the meantime; PFL gets retrofit once fixed.
 
 ## Next phase
 

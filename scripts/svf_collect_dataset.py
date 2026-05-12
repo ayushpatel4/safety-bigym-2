@@ -120,9 +120,21 @@ def _import_task(task_key: str):
 
 
 def _build_live_env(
-    task_key: str, disruption: str, mode: str, motion_clips: Sequence[str]
+    task_key: str,
+    disruption: str,
+    mode: str,
+    motion_clips: Sequence[str],
+    *,
+    cameras: Sequence[str] = (),
+    camera_resolution: Tuple[int, int] = (84, 84),
 ):
-    """Construct ``BodySLAMWrapper(SafetyBiGymEnv(...))`` — used by random/snapshot."""
+    """Construct ``BodySLAMWrapper(SafetyBiGymEnv(...))`` — used by random/snapshot.
+
+    ``cameras`` defaults to empty (bare env, no rendering) so random/demo
+    callers don't pay the MuJoCo render cost. Pixel-trained snapshot policies
+    must pass the cameras list from their snapshot's ``cfg.env.cameras`` so
+    the obs dict carries the ``rgb_<name>`` keys the actor's encoder expects.
+    """
     if not AMASS_DATA_DIR:
         raise RuntimeError(
             "AMASS_DATA_DIR is not set. Export it before running:\n"
@@ -134,6 +146,7 @@ def _build_live_env(
     from safety_bigym.scenarios.disruption_types import DisruptionType
     from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
     from bigym.action_modes import JointPositionActionMode
+    from bigym.utils.observation_config import CameraConfig, ObservationConfig
 
     task_cls = _import_task(task_key)
     human_config = HumanConfig(
@@ -147,6 +160,19 @@ def _build_live_env(
         ),
         motion_dir=AMASS_DATA_DIR,
     )
+    make_env_kwargs: Dict[str, Any] = {}
+    if cameras:
+        make_env_kwargs["observation_config"] = ObservationConfig(
+            cameras=[
+                CameraConfig(
+                    name=name, rgb=True, depth=False,
+                    resolution=tuple(camera_resolution),
+                )
+                for name in cameras
+            ],
+            proprioception=True,
+            privileged_information=False,
+        )
     env = make_safety_env(
         task_cls=task_cls,
         action_mode=JointPositionActionMode(absolute=True, floating_base=True),
@@ -154,6 +180,7 @@ def _build_live_env(
         human_config=human_config,
         scenario_sampler=sampler,
         inject_human=True,
+        **make_env_kwargs,
     )
     env = BodySLAMWrapper(env, mode=mode)
     return env
@@ -383,17 +410,20 @@ def demo_episode_to_transitions(
 class _SnapshotPolicy:
     """Wraps a RoboBase-loaded agent into a policy callable.
 
-    The agent expects post-wrap observations (``low_dim_state``, ``rgb_*``);
-    the bare env emits unflattened proprio keys. ``adapt_obs`` pre-flattens
-    proprio into ``low_dim_state`` so the actor sees its training-time format.
-    Pixel inputs are zero-filled when the bare env has no cameras — the
-    actor's actions are useless under that regime, which is why this path is
-    only meaningful when the snapshot was trained pixel-free.
+    The agent expects post-wrap observations: ``low_dim_state`` (concat of
+    proprio keys) and one ``rgb_<camera>`` torch tensor per camera in
+    ``(B=1, T=1, C=3, H, W)`` shape. ``adapt_obs`` flattens proprio and
+    permutes HWC→CHW on each camera so the actor sees its training-time
+    format. The encoder applies ``/255`` + ImageNet normalize internally.
     """
 
     agent: Any
-    expects_pixels: bool
-    image_shape: Optional[Tuple[int, int, int]] = None
+    cameras: Tuple[str, ...] = ()  # empty ⇒ no-pixel policy
+    camera_resolution: Tuple[int, int] = (84, 84)
+
+    @property
+    def expects_pixels(self) -> bool:
+        return len(self.cameras) > 0
 
     def adapt_obs(self, obs: Dict[str, np.ndarray]) -> Dict[str, Any]:
         import torch
@@ -411,9 +441,26 @@ class _SnapshotPolicy:
         out: Dict[str, Any] = {
             "low_dim_state": torch.from_numpy(low_dim).unsqueeze(0).unsqueeze(0)
         }
-        if self.expects_pixels:
-            shape = self.image_shape or (3, 84, 84)
-            out["rgb_head"] = torch.zeros(1, 1, *shape)
+        for cam in self.cameras:
+            key = f"rgb_{cam}"
+            if key not in obs:
+                raise KeyError(
+                    f"Snapshot policy expects obs key {key!r} but it's missing. "
+                    f"Did you build the env with cameras={list(self.cameras)!r}?"
+                )
+            arr = np.asarray(obs[key])
+            # Bare bigym emits (H, W, 3) uint8. Permute HWC → CHW, add B + T.
+            if arr.ndim == 3 and arr.shape[-1] == 3:
+                arr = np.transpose(arr, (2, 0, 1))
+            elif arr.ndim == 3 and arr.shape[0] == 3:
+                pass  # already CHW
+            else:
+                raise ValueError(
+                    f"Unexpected pixel shape for {key!r}: got {arr.shape}, "
+                    "expected (H, W, 3) or (3, H, W)."
+                )
+            # ACT's encoder reads uint8 and applies /255 + ImageNet normalize.
+            out[key] = torch.from_numpy(np.ascontiguousarray(arr)).unsqueeze(0).unsqueeze(0)
         return out
 
     def __call__(self, obs: Dict[str, np.ndarray]) -> np.ndarray:
@@ -429,12 +476,52 @@ class _SnapshotPolicy:
         return action_np.astype(np.float32, copy=False)
 
 
+def peek_snapshot_cameras(
+    snapshot_path: Path,
+) -> Tuple[Tuple[str, ...], Tuple[int, int]]:
+    """Read just the camera config out of a snapshot's embedded cfg.
+
+    Returns ``(camera_names, (H, W))``. ``camera_names`` is empty for
+    non-pixel snapshots. Used by ``_collect_live_env_source`` to build a
+    camera-equipped env before fully loading the agent.
+    """
+    if not snapshot_path or not Path(snapshot_path).is_file():
+        raise FileNotFoundError(
+            f"snapshot_path={snapshot_path!r} not found."
+        )
+    import torch
+    from omegaconf import DictConfig, OmegaConf
+
+    payload = torch.load(snapshot_path, map_location="cpu", weights_only=False)
+    cfg = payload.get("cfg")
+    if cfg is None:
+        raise KeyError(
+            f"snapshot at {snapshot_path} has no 'cfg' field — was it produced "
+            "after the workspace.py drift fix? See CLAUDE.md."
+        )
+    if not isinstance(cfg, DictConfig):
+        cfg = OmegaConf.create(cfg)
+    if not bool(cfg.get("pixels", False)):
+        return (), (0, 0)
+    cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
+    shape = cfg.get("visual_observation_shape")
+    if shape is None:
+        resolution = (84, 84)
+    else:
+        resolution = (int(shape[0]), int(shape[1]))
+    return cameras, resolution
+
+
 def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     """Load a RoboBase snapshot and return a policy callable.
 
     Builds the agent via ``hydra.utils.instantiate`` from the cfg embedded in
     the payload. EMA shadow params are restored explicitly for ACT (see
     workspace.py drift bullet 4 in CLAUDE.md). Pure CPU; no W&B.
+
+    The caller should build ``env`` with cameras matching what
+    :func:`peek_snapshot_cameras` returned so the actor's encoder gets the
+    pixel keys it was trained with.
     """
     if not snapshot_path or not Path(snapshot_path).is_file():
         raise FileNotFoundError(
@@ -456,7 +543,13 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     if not isinstance(cfg, DictConfig):
         cfg = OmegaConf.create(cfg)
 
-    # Minimum cfg fields the agent constructor reads.
+    if int(cfg.get("frame_stack", 1)) != 1:
+        raise NotImplementedError(
+            "Snapshot policy adapter only supports frame_stack=1. "
+            f"Snapshot's cfg.frame_stack={cfg.get('frame_stack')!r}. "
+            "Extend _SnapshotPolicy.adapt_obs with a frame-stack deque first."
+        )
+
     method_cfg = cfg.method
     intrinsic_reward_module = None
     agent = hydra.utils.instantiate(
@@ -478,13 +571,14 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
                 p.data.copy_(sp)
     agent.train(False)
 
-    expects_pixels = bool(cfg.get("pixels", False))
-    image_shape: Optional[Tuple[int, int, int]] = None
-    if expects_pixels:
+    cameras: Tuple[str, ...] = ()
+    resolution: Tuple[int, int] = (84, 84)
+    if bool(cfg.get("pixels", False)):
+        cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
         shape = cfg.get("visual_observation_shape")
         if shape is not None:
-            image_shape = (3, int(shape[0]), int(shape[1]))
-    return _SnapshotPolicy(agent=agent, expects_pixels=expects_pixels, image_shape=image_shape)
+            resolution = (int(shape[0]), int(shape[1]))
+    return _SnapshotPolicy(agent=agent, cameras=cameras, camera_resolution=resolution)
 
 
 # ---------- main orchestration ------------------------------------------------
@@ -524,6 +618,8 @@ def _collect_live_env_source(
 
         # Snapshot path is per-task — resolve before doing any heavy env setup.
         snapshot_path: Optional[Path] = None
+        snapshot_cameras: Tuple[str, ...] = ()
+        snapshot_resolution: Tuple[int, int] = (84, 84)
         if source == "snapshot":
             snapshot_path = resolve_snapshot(
                 task_key, overrides=plan.snapshot_overrides
@@ -535,6 +631,14 @@ def _collect_live_env_source(
                     "Skipping snapshot source for this task."
                 )
                 continue
+            # Peek at the snapshot's cfg so the env we build emits the rgb_*
+            # keys the actor's encoder was trained to read.
+            snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
+            if snapshot_cameras:
+                logger.info(
+                    f"Snapshot at {snapshot_path} uses cameras={list(snapshot_cameras)} "
+                    f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+                )
 
         for disruption in plan.disruptions:
             logger.info(
@@ -542,7 +646,9 @@ def _collect_live_env_source(
                 f"({plan.episodes_per_cell} episodes, max {plan.max_steps} steps)"
             )
             env = _build_live_env(
-                task_key, disruption, plan.bodyslam_mode, plan.motion_clips
+                task_key, disruption, plan.bodyslam_mode, plan.motion_clips,
+                cameras=snapshot_cameras,
+                camera_resolution=snapshot_resolution,
             )
 
             if source == "random":

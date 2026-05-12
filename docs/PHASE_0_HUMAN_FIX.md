@@ -29,26 +29,62 @@ actuators drove SMPL body parts straight through the dishwasher.
 ### Fix (2 surgical edits)
 
 - **[`safety_bigym/assets/smplh_human_body.xml`](../safety_bigym/assets/smplh_human_body.xml)**
-  - `human_collision` default now uses `contype=2 conaffinity=2` — the human
-    sits on collision **bit 1 only**; default scene geoms (bit 0) no longer see it.
+  - `human_collision` default originally used `contype=2 conaffinity=2`. The
+    human sat on collision **bit 1 only**; default scene geoms (bit 0) no
+    longer saw it. **Superseded 2026-05-07** — see the *Cross-paired channel*
+    update below for the current bit scheme.
   - `position_actuator` gains reduced to `kp=200 kv=20` to match the
     `HumanConfig` contract.
 
 - **[`safety_bigym/envs/safety_env.py`](../safety_bigym/safety_bigym/envs/safety_env.py)**
-  — new `_configure_collision_bits()` called after `super().__init__` when a
-  human is injected. It OR's bit 1 into `model.geom_contype` / `geom_conaffinity`
-  for every robot collision geom (via `_is_robot_geom`) and the floor. Scene
-  geoms stay on bit 0 only.
-  - Collision matrix after the fix:
+  — `_configure_collision_bits()` is called after `super().__init__` when a
+  human is injected. Originally OR'd bit 1 into `model.geom_contype` /
+  `geom_conaffinity` for every robot collision geom and the floor. **Superseded
+  2026-05-07** — see below.
+  - Collision matrix at the time of Phase 0:
     - human ↔ scene: **disabled** (no bit overlap) → human passes through
-    - human ↔ robot: **enabled** (both carry bit 1) → PFL still sees contacts
-    - human ↔ floor: **enabled** (floor promoted to bit 1) → human still stands
+    - human ↔ robot: **enabled** (both carry bit 1) → PFL meant to see contacts
+    - human ↔ floor: **enabled** (floor promoted to bit 1)
     - robot ↔ scene: **enabled** (both carry bit 0) → unchanged
 
 Safety semantics preserved: SSM is geometric distance between body centers
 ([`compute_ssm`](../safety_bigym/safety/iso15066_wrapper.py#L379)) — independent
-of contact bits. PFL still sees human↔robot contact forces because that pair
-shares bit 1.
+of contact bits.
+
+### Cross-paired channel update (2026-05-07)
+
+The single-bit-1 scheme above turned out to allow **SMPL self-collision**:
+human-vs-human cross was `(2 & 2) | (2 & 2) = 2 ≠ 0`, so adjacent body parts
+(Torso/Chest, Hip/Hip, Spine/Thorax) collided with each other every step at
+~220 kN spurious forces. These dominated `data.contact` and crowded out
+human↔robot detection.
+
+Switched to a **cross-paired channel**:
+
+- Human `_col` geoms: `contype=2, conaffinity=4` (emit on bit 1, accept bit 2).
+- Robot/floor (via `_configure_collision_bits`): `contype |= bit 2`,
+  `conaffinity |= bit 1`.
+
+Result:
+
+- human ↔ human: `(2 & 4) | (2 & 4) = 0` → ineligible. Self-collision off.
+- human ↔ robot: `(2 & 3) ≠ 0` AND `(5 & 4) ≠ 0` → both clauses pass under
+  MuJoCo's eligibility rule. Eligible.
+- robot ↔ robot, robot ↔ scene: unchanged on bit 0.
+
+Constants live at [`safety_env.py`](../safety_bigym/envs/safety_env.py#L280) as
+`_HUMAN_EMIT_BIT = 0b010` and `_ROBOT_EMIT_BIT = 0b100`. Regression test:
+[`tests/test_collision_groups.py::test_human_bits_exact`](../tests/test_collision_groups.py).
+
+**Open caveat:** despite the eligibility rule passing in both directions for
+human↔robot, the BiGym/mojo runtime robot attachment suppresses `data.ncon`
+for those pairs in practice — even at 30 cm of bounding-radius overlap with
+`mjOPT_FILTERPARENT` disabled. PFL force capture is therefore identically
+zero across every cell. Open issue tracked at
+[`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md);
+diagnostic at [`scripts/diagnose_contact_forces.py`](../scripts/diagnose_contact_forces.py).
+The 220 kN self-collision bug is genuinely gone; the human↔robot PFL bug is
+not from this work and needs a separate session.
 
 ### Verification
 After the fix, re-running the Phase A scripts shows:
@@ -67,18 +103,19 @@ ISO 15066 stopping distances for a 1.6 m/s walking human are ~0.3–1.5 m.
 
 ### Cause
 `SafetyBiGymEnv._human_ssm_state` read human linear velocity from
-`data.cvel[bid, 3:6]`. But `HumanController.step` ([line 328](../safety_bigym/human/human_controller.py#L328))
-teleports `data.qpos` directly every sub-step to play back the AMASS clip. MuJoCo
-computes an implicit velocity `(qpos_new − qpos_old) / PHYSICS_DT` from those
-teleports — a 2 cm frame hop at `dt = 0.002 s` becomes 10 m/s; at the extremes,
-~120 m/s. Plugging that into `S_h = v_h · (T_r + T_s) = 120 · 0.15 ≈ 18 m`
-reproduced the bogus number exactly.
+`data.cvel[bid, 3:6]`. At Phase 0, `HumanController.step` teleported
+`data.qpos[0:7]` (the human freejoint) directly every sub-step to play back
+the AMASS clip. MuJoCo computed an implicit velocity `(qpos_new − qpos_old) /
+PHYSICS_DT` from those teleports — a 2 cm frame hop at `dt = 0.002 s` becomes
+10 m/s; at the extremes, ~120 m/s. Plugging that into
+`S_h = v_h · (T_r + T_s) = 120 · 0.15 ≈ 18 m` reproduced the bogus number
+exactly.
 
 The violation math was correct; the velocity it was given was not.
 
 ### Fix (1 line)
-[`safety_env.py` `_human_ssm_state`](../safety_bigym/envs/safety_env.py#L647-L651):
-cap `max_vel` at `SSMConfig.v_h_max` (1.6 m/s). This is the ISO 15066-prescribed
+[`safety_env.py` `_human_ssm_state`](../safety_bigym/envs/safety_env.py): cap
+`max_vel` at `SSMConfig.v_h_max` (1.6 m/s). This is the ISO 15066-prescribed
 conservative bound — the standard assumes a bounded walking human, not the
 instantaneous velocity of a motion-capture teleport.
 
@@ -91,6 +128,21 @@ max_vel = min(max_vel, float(self.safety_config.ssm.v_h_max))
 - Margin: −15.3 m → −0.17 m when the human is 0.17 m from the robot — a real,
   physically meaningful violation (the human is genuinely inside the safe
   stopping distance of the H1 arm).
+
+### Update (2026-05-07): root cause superseded
+
+The qpos-teleport anti-pattern that produced the phantom velocity in the
+first place is now **fixed at the source**. Pelvis was converted from a
+freejoint to a `mocap="true"` body in
+[`smplh_human_body.xml`](../safety_bigym/assets/smplh_human_body.xml); the
+controller writes `data.mocap_pos` / `data.mocap_quat` each step instead of
+`data.qpos[0:7]`. Body joints (L_Hip, R_Hip, ...) remain physics-simulated
+under the kinematic mocap parent, so PD on body joints is unchanged.
+
+The `min(max_vel, v_h_max)` cap is kept as a defence-in-depth measure — even
+with the teleport gone, capping at ISO 15066's prescribed bound is the right
+default. The new lookup field is `_human_pelvis_mocapid`; the
+freejoint-derived `_human_root_qpos_start` no longer exists.
 
 ## Diagnostic scripts (new)
 
