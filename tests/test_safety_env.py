@@ -98,6 +98,63 @@ def test_safety_env_with_human():
         return False
 
 
+def test_violation_penalty_applied_when_enabled():
+    """`_reward()` subtracts `violation_penalty` when `add_violation_penalty`
+    is True and `_step_safety_info` carries a violation flag. Regression
+    guard for Phase-1.4 reward shaping.
+    """
+    from bigym.action_modes import JointPositionActionMode
+    from safety_bigym import SafetyBiGymEnv, SafetyConfig, HumanConfig
+    from safety_bigym.safety.iso15066_wrapper import SafetyInfo
+
+    action_mode = JointPositionActionMode(floating_base=True, absolute=True)
+
+    penalty = 0.05
+    env_on = SafetyBiGymEnv(
+        action_mode=action_mode,
+        safety_config=SafetyConfig(
+            add_violation_penalty=True, violation_penalty=penalty,
+        ),
+        human_config=HumanConfig(),
+        inject_human=False,
+    )
+    env_off = SafetyBiGymEnv(
+        action_mode=action_mode,
+        safety_config=SafetyConfig(
+            add_violation_penalty=False, violation_penalty=penalty,
+        ),
+        human_config=HumanConfig(),
+        inject_human=False,
+    )
+
+    try:
+        env_on.reset()
+        env_off.reset()
+
+        # 1) No violation → both envs return identical reward.
+        env_on._step_safety_info = SafetyInfo(ssm_violation=False, pfl_violation=False)
+        env_off._step_safety_info = SafetyInfo(ssm_violation=False, pfl_violation=False)
+        assert env_on._reward() == env_off._reward()
+
+        # 2) SSM violation → on env penalized by -penalty vs off env.
+        env_on._step_safety_info = SafetyInfo(ssm_violation=True, pfl_violation=False)
+        env_off._step_safety_info = SafetyInfo(ssm_violation=True, pfl_violation=False)
+        assert abs((env_off._reward() - env_on._reward()) - penalty) < 1e-9
+
+        # 3) PFL violation also triggers the penalty (single deduction even
+        # when both flags fire — guard against future double-penalty bugs).
+        env_on._step_safety_info = SafetyInfo(ssm_violation=False, pfl_violation=True)
+        env_off._step_safety_info = SafetyInfo(ssm_violation=False, pfl_violation=True)
+        assert abs((env_off._reward() - env_on._reward()) - penalty) < 1e-9
+
+        env_on._step_safety_info = SafetyInfo(ssm_violation=True, pfl_violation=True)
+        env_off._step_safety_info = SafetyInfo(ssm_violation=True, pfl_violation=True)
+        assert abs((env_off._reward() - env_on._reward()) - penalty) < 1e-9
+    finally:
+        env_on.close()
+        env_off.close()
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("SafetyBiGymEnv Integration Test")

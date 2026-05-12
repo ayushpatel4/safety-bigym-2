@@ -1,14 +1,19 @@
-# Phase 1 — Observation Ablation Results
+# Phase 1 — Observation Ablation Results (E1.1, BC-only)
 
-**Status: closed.** Phase 1's central question — does feeding the policy a (clean / noisy) estimate of where the human is reduce its safety-violation rate? — is answered.
+**Status: E1.1 closed; E1.4 pending.** This doc reports the E1.1 (BC obs-ablation) result only. The master-plan contingency depends on E1.4 (RL reward-on pilot) — see [phase1_reward_pilot.md](phase1_reward_pilot.md) — which has not run yet.
 
-**Result: no.** The oracle observation does **not** clear the [≥20% SSM-rate-reduction success criterion](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) on any of the four ACT cells we tested. Per the master plan's contingency (lines 51 and 248):
+**E1.1 result: oracle does not help under pure BC.** The oracle observation does **not** clear the [≥20% SSM-rate-reduction success criterion](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) on any of the four ACT cells we tested.
 
-> "If [oracle shows <20% reduction], the current reward structure cannot use human state information regardless of its accuracy, and you must address the cost signal (Phase 2) before doing anything else."
+**Two readings of this are consistent with the same numbers:**
 
-> "Phase 1 shows no benefit from human state. Mitigation: this is actually informative — it means the fixed penalty is the bottleneck, and Phase 2/3 become higher priority than expected."
+1. The `human_pos_estimate` channel itself is not useful for safety (regardless of training algorithm).
+2. The channel is useful in principle, but pure BC has no gradient that would teach the policy to attend to it — the demos were collected without a human, so demo `action` and `human_pos_estimate` are statistically uncorrelated; BC marginalises the channel away.
 
-**Action this triggers:** Phase 2 (Offline SVF Safety Filter) and Phase 3 (Constrained RL) are now higher-priority than originally scheduled. Phase 1's downstream sweeps (E1.2 noise sweep, E1.3 temporal ablation) are parked — they were predicated on finding a strong cell, and there is no strong cell.
+E1.1 cannot distinguish (1) from (2). **E1.4 is the disambiguation:** train DrQ-V2+ with `add_violation_penalty=true` on `reach_target_single` × `{off, oracle, noisy}` and measure the same SSM-rate-reduction. E1.4's decision rule and rationale are in [phase1_reward_pilot.md §How this differs from E1.1](phase1_reward_pilot.md).
+
+**Until E1.4 runs, treat the master-plan contingency (HYBRID_SAFETY_CRITIC_PLAN.md lines 51, 248) as PENDING.** The contingency triggers only if E1.4 *also* fails to clear the bar.
+
+Phase 1 downstream sweeps (E1.2 noise sweep, E1.3 temporal ablation) remain parked — they were predicated on finding a strong cell, and E1.1 didn't produce one. They become unblocked only if E1.4 surfaces a strong cell, or if a different policy class is tested and clears the bar.
 
 Source data: [`phase1_obs_ablation_results.json`](../phase1_obs_ablation_results.json), produced by [`scripts/phase1_obs_ablation.py --run`](../scripts/phase1_obs_ablation.py).
 
@@ -170,23 +175,21 @@ If a reviewer pushes back, run DP on the strongest of the four ACT cells (drawer
 ## Phase 1 status
 
 - Phase 1 wrapper (`BodySLAMWrapper`, `bodyslam=off|oracle|noisy`): in main, working. See [`docs/phase1_bodyslam_wrapper.md`](phase1_bodyslam_wrapper.md).
-- E1.1 (observation ablation): **complete**. Result: contingency triggered.
-- E1.2 (noise sweep): **parked**. No strong cell to sweep against.
+- E1.1 (BC obs-ablation, ACT): **complete**. Negative under pure BC on all 4 tasks.
+- E1.4 (RL reward-on pilot, DrQ-V2+): **pending**. Plan: [phase1_reward_pilot.md](phase1_reward_pilot.md). This is the gating experiment for the master-plan contingency — until it runs, do not treat Phase 1 as conclusively closed.
+- E1.2 (noise sweep): **parked**. No strong cell to sweep against under BC; revisit after E1.4.
 - E1.3 (temporal ablation): **parked**. Same reason.
-- DP coverage: explicitly skipped per the rationale above.
+- DP coverage under E1.1: explicitly skipped per the rationale above.
 
-Phase 1 is **closed**. Open work tracked separately:
+Open work tracked separately:
 
-- **PFL contact-detection bug.** Plan file at [`.claude/plans/the-current-human-disruption-smooth-flame.md`](../../.claude/plans/the-current-human-disruption-smooth-flame.md). Needs a fresh session with BiGym/mojo internals expertise. Phase 2 SVF can begin on SSM-only labels in the meantime; PFL gets retrofit once fixed.
+- **PFL contact-detection bug.** Plan file at [`.claude/plans/the-current-human-disruption-smooth-flame.md`](../../.claude/plans/the-current-human-disruption-smooth-flame.md). Needs a fresh session with BiGym/mojo internals expertise. The 20% conclusion in this doc is **SSM-only** and unaffected by this bug. Phase 2 SVF can begin on SSM-only labels in the meantime; PFL gets retrofit once fixed.
 
 ## Next phase
 
-Phase 2 (Offline SVF Safety Filter) is **higher priority** than originally scheduled. Per [HYBRID_SAFETY_CRITIC_PLAN.md](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) lines 59–97, the first deliverables are:
+The branch decision (greenlight Phase 2, Phase 3, both, or neither) is **gated on E1.4**.
 
-1. Dataset collection: ~500k transitions from BiGym demos + a random policy + the Phase-1 ACT, with `r_safe = 0 if ssm_violation else 1` (PFL omitted from the label until the contact bug is fixed).
-2. Standalone safety critic MLP `[256, 256, 256]` outputting scaled-sigmoid Q ∈ `[0, 1/(1−γ)]`.
-3. CQL α sweep ∈ {1.0, 5.0, 10.0}.
-4. Threshold R calibration on a held-out set, sweep the conservatism-violation Pareto frontier.
-5. Runtime `gym.Wrapper` that vetoes actions where `Q_safe(s, a) < R`.
+- **If E1.4 clears the 20% bar on any (off → oracle) cell:** the channel is useful when the training algorithm uses rewards. Phase 3 (constrained RL) becomes the highest-impact next step; Phase 2 is still worthwhile but lower priority.
+- **If E1.4 also fails the bar:** the channel is not useful as a policy input under any training paradigm we've tested. Phase 2 (the channel feeds a separate runtime filter, not the policy) becomes the right place to invest, and the master-plan contingency on [HYBRID_SAFETY_CRITIC_PLAN.md lines 51, 248](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) is fully triggered.
 
-These should be planned in a fresh session.
+Either way, the dataset-collection step from Phase 2 (~500k transitions from BiGym demos + random policy + Phase-1 ACT, labels `r_safe = 0 if ssm_violation else 1`) is unblocked and can run in parallel with E1.4 — it's useful for both branches and the contact bug doesn't gate it (SSM-only labels).
