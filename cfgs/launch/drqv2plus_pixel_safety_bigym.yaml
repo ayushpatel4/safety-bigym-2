@@ -22,7 +22,7 @@ num_eval_episodes: 10
 batch_size: 256
 demo_batch_size: 256
 save_snapshot: true
-snapshot_every_n: 0
+snapshot_every_n: 10000  # save at every eval interval; pick peak-by-W&B-curve at the end
 replay_size_before_train: 25000  # robobase asserts >= env.episode_length for RL; covers reach (2000) and saucepan_to_hob (25000)
 use_self_imitation: true
 
