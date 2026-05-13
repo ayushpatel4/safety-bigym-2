@@ -45,6 +45,7 @@ from svf_collect_dataset import (  # noqa: E402
     TASK_REGISTRY,
     _build_live_env,
     load_snapshot_policy,
+    peek_snapshot_bodyslam_mode,
     peek_snapshot_cameras,
     random_policy,
 )
@@ -131,6 +132,7 @@ def run_eval(args: argparse.Namespace) -> list[ThresholdEvalResult]:
         snapshot_path: Optional[Path] = None
         snapshot_cameras: tuple = ()
         snapshot_resolution: tuple = (84, 84)
+        bodyslam_mode = args.bodyslam_mode
         if args.policy == "snapshot":
             snapshot_path = resolve_snapshot(task_key, overrides=overrides)
             if snapshot_path is None:
@@ -141,11 +143,12 @@ def run_eval(args: argparse.Namespace) -> list[ThresholdEvalResult]:
                 )
                 continue
             snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
-            if snapshot_cameras:
-                logger.info(
-                    f"Snapshot uses cameras={list(snapshot_cameras)} "
-                    f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
-                )
+            bodyslam_mode = peek_snapshot_bodyslam_mode(snapshot_path)
+            logger.info(
+                f"Snapshot bodyslam={bodyslam_mode}, "
+                f"cameras={list(snapshot_cameras) or 'none'} "
+                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+            )
 
         for disruption in args.disruptions:
             logger.info(
@@ -153,7 +156,7 @@ def run_eval(args: argparse.Namespace) -> list[ThresholdEvalResult]:
                 f"(R={args.threshold_R}, policy={args.policy})"
             )
             env = _build_live_env(
-                task_key, disruption, args.bodyslam_mode, DEFAULT_CLIPS,
+                task_key, disruption, bodyslam_mode, DEFAULT_CLIPS,
                 cameras=snapshot_cameras,
                 camera_resolution=snapshot_resolution,
             )

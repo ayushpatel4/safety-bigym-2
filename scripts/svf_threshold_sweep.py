@@ -30,6 +30,7 @@ from svf_collect_dataset import (  # noqa: E402
     TASK_REGISTRY,
     _build_live_env,
     load_snapshot_policy,
+    peek_snapshot_bodyslam_mode,
     peek_snapshot_cameras,
     random_policy,
 )
@@ -101,6 +102,7 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
     snapshot_cameras: tuple = ()
     snapshot_resolution: tuple = (84, 84)
     snapshot_path = None
+    bodyslam_mode = args.bodyslam_mode
     if args.policy == "snapshot":
         overrides = _parse_overrides(getattr(args, "snapshot_override", []) or [])
         snapshot_path = resolve_snapshot(args.task, overrides=overrides)
@@ -112,14 +114,15 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
                 f"--snapshot-override {args.task}=PATH."
             )
         snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
-        if snapshot_cameras:
-            logger.info(
-                f"Snapshot uses cameras={list(snapshot_cameras)} "
-                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
-            )
+        bodyslam_mode = peek_snapshot_bodyslam_mode(snapshot_path)
+        logger.info(
+            f"Snapshot bodyslam={bodyslam_mode}, "
+            f"cameras={list(snapshot_cameras) or 'none'} "
+            f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+        )
 
     env = _build_live_env(
-        args.task, args.disruption, args.bodyslam_mode, DEFAULT_CLIPS,
+        args.task, args.disruption, bodyslam_mode, DEFAULT_CLIPS,
         cameras=snapshot_cameras,
         camera_resolution=snapshot_resolution,
     )

@@ -256,6 +256,72 @@ def test_peek_snapshot_cameras_returns_empty_for_no_pixel_snapshot(tmp_path):
     assert cameras == ()
 
 
+def test_peek_snapshot_bodyslam_mode_phase0(tmp_path):
+    """Phase 0 ACT: cfg either lacks `env.bodyslam` or has mode=off."""
+    import torch
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({"pixels": True, "env": {"cameras": ["head"]}})
+    torch.save({"cfg": cfg}, tmp_path / "p0_a.pt")
+
+    cfg2 = OmegaConf.create({
+        "pixels": True,
+        "env": {"cameras": ["head"], "bodyslam": {"mode": "off"}},
+    })
+    torch.save({"cfg": cfg2}, tmp_path / "p0_b.pt")
+
+    mod = _import_script()
+    assert mod.peek_snapshot_bodyslam_mode(tmp_path / "p0_a.pt") == "off"
+    assert mod.peek_snapshot_bodyslam_mode(tmp_path / "p0_b.pt") == "off"
+
+
+def test_peek_snapshot_bodyslam_mode_phase1_variants(tmp_path):
+    import torch
+    from omegaconf import OmegaConf
+
+    for mode in ("oracle", "noisy"):
+        cfg = OmegaConf.create({
+            "pixels": True,
+            "env": {"cameras": ["head"], "bodyslam": {"mode": mode}},
+        })
+        snap_path = tmp_path / f"p1_{mode}.pt"
+        torch.save({"cfg": cfg}, snap_path)
+
+    mod = _import_script()
+    assert mod.peek_snapshot_bodyslam_mode(tmp_path / "p1_oracle.pt") == "oracle"
+    assert mod.peek_snapshot_bodyslam_mode(tmp_path / "p1_noisy.pt") == "noisy"
+
+
+def test_peek_snapshot_bodyslam_mode_rejects_unknown(tmp_path):
+    import torch
+    from omegaconf import OmegaConf
+
+    cfg = OmegaConf.create({
+        "pixels": True,
+        "env": {"cameras": ["head"], "bodyslam": {"mode": "garbage"}},
+    })
+    torch.save({"cfg": cfg}, tmp_path / "bad.pt")
+
+    mod = _import_script()
+    with pytest.raises(ValueError, match="bodyslam.mode"):
+        mod.peek_snapshot_bodyslam_mode(tmp_path / "bad.pt")
+
+
+def test_build_live_env_bodyslam_off_skips_wrapper(tmp_path):
+    """mode='off' must NOT wrap with BodySLAMWrapper — obs has no human_pos_estimate."""
+    mod = _import_script()
+    env = mod._build_live_env(
+        task_key="reach_target_single",
+        disruption="INCIDENTAL",
+        mode="off",
+        motion_clips=mod.DEFAULT_CLIPS,
+    )
+    obs, _info = env.reset()
+    assert "human_pos_estimate" not in obs, (
+        "bodyslam mode=off must not add human_pos_estimate to obs"
+    )
+
+
 def test_demo_source_writes_safe_transitions(tmp_path):
     """Demo source must produce r_safe=1 transitions on every step (demos are
     safe by construction; live safety physics is not run)."""

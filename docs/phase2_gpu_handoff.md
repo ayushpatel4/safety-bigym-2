@@ -104,6 +104,13 @@ whose `SNAPSHOTS` entry is `None` will skip the snapshot source with a
 warning; demos that aren't in DemoStore will skip with a warning too. Both
 are non-fatal — other sources continue.
 
+**Camera config is auto-detected.** When `--source snapshot` is requested,
+`peek_snapshot_cameras` reads `cfg.env.cameras` + `cfg.visual_observation_shape`
+from the snapshot's payload, and the env is rebuilt with those cameras
+enabled so the actor's encoder gets the rgb keys it was trained with. No
+extra flag needed; random/demo sources stay camera-free so they don't pay
+the render cost.
+
 Expected scale at these flags:
 - Random: 100 eps × 5 disruptions × 2 tasks × ~300 steps ≈ 300k transitions
 - Demo: 30 demos × 2 tasks × ~200 steps ≈ 12k transitions
@@ -172,7 +179,10 @@ Expected `training.bellman_last < training.bellman_first` — if not, training d
 
 ## 5. Full eval — intervention rate × residual violation rate
 
-Random policy first (snapshot policy needs Phase-0 ACT retrain):
+> Phase-0 ACT retrain is **complete** and the camera-correct snapshot
+> adapter landed in `728e0ef`. The load-bearing eval is `--policy
+> snapshot` against Phase-1 noisy ACT (see §7). Run the random-policy
+> eval below first only as a sanity check that the pipeline is wired.
 
 ```bash
 RESULTS=/home/ap2322/Documents/safety_bigym/results/svf_v1
@@ -201,7 +211,8 @@ This produces 10 rows (2 tasks × 5 disruptions). Each row has `intervention_rat
 
 ## 6. Threshold sweep — the Phase 2 deliverable
 
-Trace the Pareto curve for one task at a time:
+Trace the Pareto curve for one task at a time. After populating `SNAPSHOTS`
+(§7a) use `--policy snapshot` for the headline curve:
 
 ```bash
 for TASK in reach_target_single dishwasher_close; do
@@ -210,7 +221,7 @@ for TASK in reach_target_single dishwasher_close; do
       --task $TASK \
       --disruption INCIDENTAL \
       --thresholds 5 10 25 50 75 90 95 \
-      --policy random \
+      --policy snapshot \
       --episodes-per-R 10 \
       --max-steps 300 \
       --output-csv $RESULTS/sweep_${TASK}.csv \
@@ -218,6 +229,9 @@ for TASK in reach_target_single dishwasher_close; do
       2>&1 | tee $RESULTS/sweep_${TASK}.log
 done
 ```
+
+For an apples-to-apples baseline, also run with `--policy random` and
+compare the two curves side-by-side in the Phase 2 writeup.
 
 Each CSV is one Pareto curve (rows = R values; columns include `intervention_rate` and `residual_violation_rate`). The "knee" of the curve — where increasing R no longer reduces residual violations — is the operating point you'd take into Phase 4.
 
@@ -263,7 +277,31 @@ Paths can be relative to the repo root (portable) or absolute. Tasks left
 as `None` are deliberately skipped by both the snapshot collection path and
 the snapshot eval path (warning logged, run continues).
 
-### Step 7b — eval against snapshot policy
+### Step 7b — sanity-check the pixel pipeline (1 cell, ~30s)
+
+Before kicking off a multi-cell eval, confirm the camera adapter actually
+feeds non-degenerate pixels through ACT. After populating SNAPSHOTS, run
+a 1-episode snapshot collection and check action variance:
+
+```bash
+python scripts/svf_collect_dataset.py \
+    --source snapshot \
+    --tasks reach_target_single --disruptions INCIDENTAL \
+    --episodes-per-cell 1 --max-steps 50 \
+    --output-dir /tmp/svf_pixel_smoke
+
+python -c "
+import numpy as np
+shard = next(__import__('pathlib').Path('/tmp/svf_pixel_smoke').glob('snapshot__*.npz'))
+data = np.load(shard)
+print('action std:', data['action'].std(axis=0).round(2))
+print('action range:', (data['action'].max() - data['action'].min()).round(2))
+"
+```
+
+Expected: per-dim std well below the action-space half-range. If actions look uniform-distributed across the action box, the pixel adapter isn't feeding real images — re-check `cfg.env.cameras` in the snapshot payload and `peek_snapshot_cameras` output.
+
+### Step 7c — eval against snapshot policy
 
 ```bash
 python scripts/svf_eval_filter.py \
@@ -277,9 +315,10 @@ python scripts/svf_eval_filter.py \
 ```
 
 No more per-task invocations or `--snapshot-path` flags — the resolver
-looks up each task's snapshot automatically.
+looks up each task's snapshot automatically, and cameras are auto-detected
+from each snapshot's embedded cfg.
 
-### Step 7c — for one-off testing
+### Step 7d — for one-off testing
 
 If you want to test a specific snapshot without editing the dict:
 

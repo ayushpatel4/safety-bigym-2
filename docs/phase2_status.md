@@ -25,8 +25,11 @@ Phase branch: `phase2` (off main). Three sub-branches stacked, plus follow-up co
 | `phase-2-critic-training` | `866bc71` | bounded MLP critic, CQL trainer, train script |
 | `phase-2-runtime-wrapper` | `57a33da` | fallback, runtime wrapper, threshold sweep, eval/sweep scripts |
 | `phase-2-runtime-wrapper` | `f0d93b6` | per-task SNAPSHOTS dict refactor |
+| `phase-2-runtime-wrapper` | `cf65410` | docs: Phase 2 status report |
+| (merged via PR #7) | `494238f` | merge `phase-2-runtime-wrapper` |
+| (post-merge) | `728e0ef` | camera-correct snapshot policy adapter |
 
-All branches are local-only. **Not pushed yet** — see §Left to do.
+All Phase-2 work is merged to `main` via PR #7 (`494238f`). The camera adapter (`728e0ef`) landed afterwards on `main` directly.
 
 ### Modules
 
@@ -66,14 +69,14 @@ safety_bigym/filters/
 > Scripts are still argparse-driven; YAMLs document canonical defaults so the
 > Hydra promotion will be mechanical.
 
-### Tests — 80 green
+### Tests — 94 green
 
 | File | Cases | Coverage |
 |---|---|---|
 | `test_safety_labeling.py` | 7 | SSM-only label, PFL flag, error paths |
 | `test_critic_features.py` | 9 | Spec construction, no-pixels, batch dims, round-trip |
 | `test_svf_dataset.py` | 8 | Schema, oversampler, multi-shard concat |
-| `test_svf_collect_smoke.py` | 10 | E2E for random + demo + snapshot error paths |
+| `test_svf_collect_smoke.py` | 15 | E2E for random + demo + snapshot; rgb-key emission with/without cameras; peek_snapshot_cameras round-trip |
 | `test_safety_critic.py` | 10 | Bounds, gradients, target, Polyak |
 | `test_cql_trainer.py` | 7 | Bellman decrease, α scaling, aux gating |
 | `test_svf_train_critic_smoke.py` | 3 | Training script E2E |
@@ -82,6 +85,7 @@ safety_bigym/filters/
 | `test_threshold_sweep.py` | 4 | Pareto monotonicity invariant |
 | `test_svf_eval_and_sweep_smoke.py` | 2 | Eval + sweep scripts E2E |
 | `test_snapshots_resolver.py` | 9 | resolver: None, missing, override, relative paths |
+| `test_svf_snapshot_pixel_adapter.py` | 9 | Single/multi-camera shape, HWC↔CHW, missing-camera raises, no-pixels mode |
 
 Local CPU full sweep: ~38s.
 
@@ -114,14 +118,9 @@ End-to-end ~75s. Confirmed working on swirl.
 
 ### Blocking the Phase 2 deliverable
 
-#### 1. Push branches
+#### 1. ~~Push branches~~ — done
 
-```bash
-cd /home/ap2322/Documents/safety_bigym
-git push -u origin phase-2-dataset phase-2-critic-training phase-2-runtime-wrapper
-```
-
-PR strategy is your call — three small PRs into `phase2` for review checkpointing, or fast-forward `phase2` to `phase-2-runtime-wrapper` and one PR `phase2 → main` once GPU results land.
+All Phase 2 code merged via PR #7 (`494238f`) plus the post-merge camera adapter (`728e0ef`). See the commits table above.
 
 #### 2. Populate SNAPSHOTS dict
 
@@ -137,6 +136,8 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 ```
 
 Tasks with `None` are deliberately skipped by both `--source snapshot` and `--policy snapshot`.
+
+Camera config (`cfg.env.cameras` + `cfg.visual_observation_shape`) is **auto-detected** from each snapshot's embedded cfg by `peek_snapshot_cameras` — no extra flag needed. The env is rebuilt per-task with the rgb keys the actor's encoder expects.
 
 #### 3. Full dataset collection (~2-3 hours, GPU)
 
@@ -176,6 +177,20 @@ python scripts/svf_eval_filter.py \
 ```
 
 This is the load-bearing measurement — random-policy eval was a stand-in.
+
+**Pixel-pipeline sanity check** (run once before the full eval): the camera adapter passes actor outputs through real pixels, but it's worth confirming the action distribution differs from random before committing 1+ hour to the full grid. After a 1-cell smoke collection:
+
+```bash
+python -c "
+import numpy as np
+snap = np.load('<output_dir>/snapshot__<task>__<disruption>__0000.npz')
+print('action std:', snap['action'].std(axis=0).round(2))
+"
+# Expected: per-dim std well below the uniform-distribution std for the
+# corresponding action_space range. Uniform-like std means pixels aren't
+# reaching the encoder — see test_svf_snapshot_pixel_adapter.py for the
+# invariants the adapter enforces.
+```
 
 #### 6. Threshold sweep — the Pareto curve
 
@@ -219,6 +234,7 @@ These are deferred from the approved plan, all explicitly accepted as v1 scope c
 - **Zero-velocity fallback may behave badly mid-trajectory** on dishwasher tasks. Surface in the eval writeup; Phase 4 is when proportional damping lands.
 - **Random-policy "noise" during dataset collection** can produce huge SSM `Required:` distances in the warning logs (because `S_p = v·T_r + ...` blows up at high human velocities). Cosmetic noise, not a bug. Goes away with snapshot-policy collection.
 - **`dishwasher_close` has no recorded BiGym demos** (DemoStore lookup fails). The collector skips with a warning. That task contributes only `random` and (now) `snapshot` transitions to the dataset.
+- **`frame_stack > 1` is not supported** by the snapshot policy adapter. `load_snapshot_policy` raises `NotImplementedError` early. ACT's default launch uses `frame_stack=1` so this isn't a blocker; the adapter would need a per-key deque to support stacking.
 
 ---
 

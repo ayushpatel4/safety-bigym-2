@@ -32,13 +32,14 @@ def _hwc_uint8(seed: int, h: int = 84, w: int = 84) -> np.ndarray:
     return rng.integers(0, 256, size=(h, w, 3), dtype=np.uint8)
 
 
-def _make_policy(cameras=("head",), resolution=(84, 84)):
+def _make_policy(cameras=("head",), resolution=(84, 84), includes_human_pos=False):
     """Build a _SnapshotPolicy with a dummy agent (we only test adapt_obs)."""
     mod = _import_script()
     return mod._SnapshotPolicy(
         agent=None,
         cameras=tuple(cameras),
         camera_resolution=tuple(resolution),
+        includes_human_pos=includes_human_pos,
     )
 
 
@@ -148,3 +149,86 @@ def test_adapter_no_pixels_when_cameras_empty():
 def test_expects_pixels_property():
     assert _make_policy(cameras=("head",)).expects_pixels is True
     assert _make_policy(cameras=()).expects_pixels is False
+
+
+# ---- low_dim_state composition: ConcatDim parity --------------------------
+
+
+def test_low_dim_excludes_proprioception_floating_base_actions():
+    """ConcatDim training-time excludes `proprioception_floating_base_actions`
+    (robobase/envs/bigym.py:95). The adapter must do the same."""
+    pol = _make_policy(cameras=())
+    obs = {
+        "proprioception": np.arange(8, dtype=np.float32),
+        "proprioception_grippers": np.arange(2, dtype=np.float32) + 100,
+        "proprioception_floating_base": np.arange(3, dtype=np.float32) + 200,
+        "proprioception_floating_base_actions": np.arange(3, dtype=np.float32) + 999,
+    }
+    out = pol.adapt_obs(obs)
+    flat = out["low_dim_state"].numpy().reshape(-1)
+    # length = 8 + 2 + 3 = 13 (no actions)
+    assert flat.shape == (13,)
+    # The 999-valued floating_base_actions must NOT appear anywhere
+    assert (flat >= 990).sum() == 0, f"floating_base_actions leaked: {flat}"
+
+
+def test_low_dim_preserves_obs_insertion_order():
+    """ConcatDim iterates obs in insertion order. The adapter must do the same."""
+    pol = _make_policy(cameras=())
+    # Construct an obs dict where insertion order is non-alphabetical
+    obs = {}
+    obs["proprioception_grippers"] = np.array([10.0, 20.0], np.float32)
+    obs["proprioception"] = np.array([1.0, 2.0, 3.0], np.float32)
+    obs["proprioception_floating_base"] = np.array([100.0, 200.0, 300.0], np.float32)
+    out = pol.adapt_obs(obs)
+    flat = out["low_dim_state"].numpy().reshape(-1)
+    # Expect grippers (10, 20), then proprioception (1, 2, 3), then floating_base (100, 200, 300)
+    expected = np.array([10, 20, 1, 2, 3, 100, 200, 300], dtype=np.float32)
+    assert np.allclose(flat, expected), f"order broken: got {flat}, expected {expected}"
+
+
+def test_low_dim_includes_human_pos_for_phase1_snapshots():
+    """Phase 1 ACT trained with BodySLAMWrapper has human_pos_estimate in
+    low_dim_state. The adapter must include it when includes_human_pos=True."""
+    pol = _make_policy(cameras=(), includes_human_pos=True)
+    obs = {}
+    obs["proprioception"] = np.zeros(4, np.float32)
+    obs["proprioception_grippers"] = np.zeros(2, np.float32)
+    obs["human_pos_estimate"] = np.arange(6, dtype=np.float32) + 50
+    out = pol.adapt_obs(obs)
+    flat = out["low_dim_state"].numpy().reshape(-1)
+    assert flat.shape == (4 + 2 + 6,), f"expected dim 12, got {flat.shape}"
+    # human_pos_estimate values (50..55) appear at the end
+    assert np.allclose(flat[-6:], np.arange(6) + 50)
+
+
+def test_low_dim_omits_human_pos_for_phase0_snapshots():
+    """Phase 0 ACT trained without BodySLAMWrapper. If our env still emits
+    human_pos_estimate (bodyslam mode mismatch upstream), the adapter must
+    still skip it so the actor's first layer gets a Phase-0-shape vector."""
+    pol = _make_policy(cameras=(), includes_human_pos=False)
+    obs = {}
+    obs["proprioception"] = np.zeros(4, np.float32)
+    obs["proprioception_grippers"] = np.zeros(2, np.float32)
+    obs["human_pos_estimate"] = np.arange(6, dtype=np.float32) + 50
+    out = pol.adapt_obs(obs)
+    flat = out["low_dim_state"].numpy().reshape(-1)
+    assert flat.shape == (4 + 2,), f"expected dim 6, got {flat.shape}"
+
+
+def test_low_dim_pixel_keys_dropped_from_low_dim():
+    """Pixel keys (multi-D) must never leak into low_dim_state."""
+    pol = _make_policy(cameras=("head",))
+    obs = {
+        "proprioception": np.zeros(4, np.float32),
+        "rgb_head": _hwc_uint8(0),
+    }
+    out = pol.adapt_obs(obs)
+    assert out["low_dim_state"].numpy().reshape(-1).shape == (4,)
+
+
+def test_includes_human_pos_default_is_false():
+    """Backwards-compat: the default policy treats snapshots as Phase 0."""
+    mod = _import_script()
+    pol = mod._SnapshotPolicy(agent=None)
+    assert pol.includes_human_pos is False

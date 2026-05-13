@@ -70,6 +70,13 @@ DEFAULT_DISRUPTIONS = (
 
 DEFAULT_CLIPS = ("74/74_01_poses.npz",)
 
+# Keys ConcatDim excludes from low_dim_state at training time
+# ([robobase/envs/bigym.py:95]). The snapshot adapter must replicate this
+# exclusion exactly or the actor's first layer receives a wrong-dim vector.
+LOW_DIM_KEYS_TO_IGNORE: Tuple[str, ...] = ("proprioception_floating_base_actions",)
+
+HUMAN_POS_ESTIMATE_KEY = "human_pos_estimate"
+
 # Demos are recorded without a live human, so we synthesise per-demo human
 # pelvis positions from an AMASS clip. Constant safe placeholder margin since
 # the recorded trajectories never touch the human.
@@ -128,7 +135,13 @@ def _build_live_env(
     cameras: Sequence[str] = (),
     camera_resolution: Tuple[int, int] = (84, 84),
 ):
-    """Construct ``BodySLAMWrapper(SafetyBiGymEnv(...))`` — used by random/snapshot.
+    """Construct ``[BodySLAMWrapper(]SafetyBiGymEnv[)]`` — used by random/snapshot.
+
+    ``mode``: "oracle" | "noisy" wraps with BodySLAMWrapper; "off" skips the
+    wrapper entirely so the env emits no ``human_pos_estimate`` (required for
+    Phase 0 ACT snapshots, which were trained without BodySLAMWrapper —
+    instantiating the agent against a space that contains the extra key
+    sizes the input layer wrong and silent state_dict mismatches result).
 
     ``cameras`` defaults to empty (bare env, no rendering) so random/demo
     callers don't pay the MuJoCo render cost. Pixel-trained snapshot policies
@@ -182,8 +195,14 @@ def _build_live_env(
         inject_human=True,
         **make_env_kwargs,
     )
-    env = BodySLAMWrapper(env, mode=mode)
-    return env
+    if mode == "off":
+        return env
+    if mode not in ("oracle", "noisy"):
+        raise ValueError(
+            f"_build_live_env: bodyslam mode must be one of off/oracle/noisy; "
+            f"got {mode!r}"
+        )
+    return BodySLAMWrapper(env, mode=mode)
 
 
 # ---------- random policy -----------------------------------------------------
@@ -411,15 +430,26 @@ class _SnapshotPolicy:
     """Wraps a RoboBase-loaded agent into a policy callable.
 
     The agent expects post-wrap observations: ``low_dim_state`` (concat of
-    proprio keys) and one ``rgb_<camera>`` torch tensor per camera in
-    ``(B=1, T=1, C=3, H, W)`` shape. ``adapt_obs`` flattens proprio and
-    permutes HWC→CHW on each camera so the actor sees its training-time
-    format. The encoder applies ``/255`` + ImageNet normalize internally.
+    1-D proprio keys via ConcatDim, optionally including
+    ``human_pos_estimate`` when the policy was trained with BodySLAMWrapper)
+    plus one ``rgb_<camera>`` torch tensor per camera in
+    ``(B=1, T=1, C=3, H, W)`` shape. ``adapt_obs`` replicates ConcatDim's
+    concatenation rule exactly (iterate obs in insertion order, skip keys
+    in ``LOW_DIM_KEYS_TO_IGNORE``, gate ``human_pos_estimate`` on
+    ``includes_human_pos``). The encoder applies ``/255`` + ImageNet
+    normalize on pixels internally.
+
+    ``includes_human_pos`` is set by ``load_snapshot_policy`` from the
+    snapshot's ``cfg.env.bodyslam.mode``: oracle/noisy ⇒ True (Phase 1+),
+    off/missing ⇒ False (Phase 0). Phase 0 snapshots get a shorter
+    low_dim_state that omits the 6-D human pose estimate; Phase 1
+    snapshots include it.
     """
 
     agent: Any
     cameras: Tuple[str, ...] = ()  # empty ⇒ no-pixel policy
     camera_resolution: Tuple[int, int] = (84, 84)
+    includes_human_pos: bool = False
 
     @property
     def expects_pixels(self) -> bool:
@@ -428,15 +458,29 @@ class _SnapshotPolicy:
     def adapt_obs(self, obs: Dict[str, np.ndarray]) -> Dict[str, Any]:
         import torch
 
-        proprio_keys = sorted(
-            k for k in obs.keys() if k.startswith("proprioception")
-        )
-        if proprio_keys:
-            low_dim = np.concatenate(
-                [np.asarray(obs[k], dtype=np.float32).reshape(-1) for k in proprio_keys]
+        # Replicate ConcatDim: iterate obs in insertion order (matches the
+        # env's emit order, which is what ConcatDim sees at training), skip
+        # keys in LOW_DIM_KEYS_TO_IGNORE, gate human_pos_estimate on the
+        # policy's bodyslam-trained flag, and concat all remaining 1-D
+        # values in order.
+        low_dim_pieces: list[np.ndarray] = []
+        for key, value in obs.items():
+            if key in LOW_DIM_KEYS_TO_IGNORE:
+                continue
+            if key == HUMAN_POS_ESTIMATE_KEY and not self.includes_human_pos:
+                continue
+            arr = np.asarray(value)
+            if arr.ndim != 1:
+                continue  # pixels and other multi-D keys go through their own paths
+            low_dim_pieces.append(arr.astype(np.float32, copy=False).reshape(-1))
+
+        if not low_dim_pieces:
+            # Fall back to a pre-concat'd key if the env was already wrapped
+            # (e.g. shipped post-ConcatDim form). Rare; mostly defensive.
+            low_dim_pieces.append(
+                np.asarray(obs.get("low_dim_state", np.zeros(0)), dtype=np.float32).reshape(-1)
             )
-        else:
-            low_dim = np.asarray(obs.get("low_dim_state", np.zeros(0)), dtype=np.float32)
+        low_dim = np.concatenate(low_dim_pieces)
 
         out: Dict[str, Any] = {
             "low_dim_state": torch.from_numpy(low_dim).unsqueeze(0).unsqueeze(0)
@@ -476,19 +520,10 @@ class _SnapshotPolicy:
         return action_np.astype(np.float32, copy=False)
 
 
-def peek_snapshot_cameras(
-    snapshot_path: Path,
-) -> Tuple[Tuple[str, ...], Tuple[int, int]]:
-    """Read just the camera config out of a snapshot's embedded cfg.
-
-    Returns ``(camera_names, (H, W))``. ``camera_names`` is empty for
-    non-pixel snapshots. Used by ``_collect_live_env_source`` to build a
-    camera-equipped env before fully loading the agent.
-    """
+def _peek_snapshot_cfg(snapshot_path: Path):
+    """Load just the cfg field out of a snapshot payload."""
     if not snapshot_path or not Path(snapshot_path).is_file():
-        raise FileNotFoundError(
-            f"snapshot_path={snapshot_path!r} not found."
-        )
+        raise FileNotFoundError(f"snapshot_path={snapshot_path!r} not found.")
     import torch
     from omegaconf import DictConfig, OmegaConf
 
@@ -501,6 +536,41 @@ def peek_snapshot_cameras(
         )
     if not isinstance(cfg, DictConfig):
         cfg = OmegaConf.create(cfg)
+    return cfg
+
+
+def peek_snapshot_bodyslam_mode(snapshot_path: Path) -> str:
+    """Return the BodySLAM mode the snapshot was trained with.
+
+    ``"off"`` ⇒ Phase 0 ACT (no human-state observation). ``"oracle"`` or
+    ``"noisy"`` ⇒ Phase 1+ ACT (trained with BodySLAMWrapper). Determines
+    whether ``_SnapshotPolicy.adapt_obs`` should append ``human_pos_estimate``
+    to ``low_dim_state`` AND what BodySLAM mode the eval env should use so
+    the input noise distribution matches training.
+    """
+    cfg = _peek_snapshot_cfg(snapshot_path)
+    bs = cfg.env.get("bodyslam") if "env" in cfg else None
+    if bs is None:
+        return "off"
+    mode = str(bs.get("mode", "off"))
+    if mode not in ("off", "oracle", "noisy"):
+        raise ValueError(
+            f"Unexpected bodyslam.mode={mode!r} in snapshot {snapshot_path}; "
+            "expected one of off/oracle/noisy."
+        )
+    return mode
+
+
+def peek_snapshot_cameras(
+    snapshot_path: Path,
+) -> Tuple[Tuple[str, ...], Tuple[int, int]]:
+    """Read just the camera config out of a snapshot's embedded cfg.
+
+    Returns ``(camera_names, (H, W))``. ``camera_names`` is empty for
+    non-pixel snapshots. Used by ``_collect_live_env_source`` to build a
+    camera-equipped env before fully loading the agent.
+    """
+    cfg = _peek_snapshot_cfg(snapshot_path)
     if not bool(cfg.get("pixels", False)):
         return (), (0, 0)
     cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
@@ -578,7 +648,18 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
         shape = cfg.get("visual_observation_shape")
         if shape is not None:
             resolution = (int(shape[0]), int(shape[1]))
-    return _SnapshotPolicy(agent=agent, cameras=cameras, camera_resolution=resolution)
+
+    # Phase 0 vs Phase 1 detection: was BodySLAMWrapper applied at training?
+    bs = cfg.env.get("bodyslam") if "env" in cfg else None
+    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
+    includes_human_pos = bs_mode in ("oracle", "noisy")
+
+    return _SnapshotPolicy(
+        agent=agent,
+        cameras=cameras,
+        camera_resolution=resolution,
+        includes_human_pos=includes_human_pos,
+    )
 
 
 # ---------- main orchestration ------------------------------------------------
@@ -620,6 +701,7 @@ def _collect_live_env_source(
         snapshot_path: Optional[Path] = None
         snapshot_cameras: Tuple[str, ...] = ()
         snapshot_resolution: Tuple[int, int] = (84, 84)
+        bodyslam_mode = plan.bodyslam_mode
         if source == "snapshot":
             snapshot_path = resolve_snapshot(
                 task_key, overrides=plan.snapshot_overrides
@@ -631,14 +713,20 @@ def _collect_live_env_source(
                     "Skipping snapshot source for this task."
                 )
                 continue
-            # Peek at the snapshot's cfg so the env we build emits the rgb_*
-            # keys the actor's encoder was trained to read.
+            # Peek at the snapshot's cfg so the env we build matches the
+            # actor's training-time observation format: same cameras, same
+            # BodySLAM mode (oracle/noisy/off).
             snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
-            if snapshot_cameras:
-                logger.info(
-                    f"Snapshot at {snapshot_path} uses cameras={list(snapshot_cameras)} "
-                    f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
-                )
+            snap_bs = peek_snapshot_bodyslam_mode(snapshot_path)
+            # Always match training: Phase 0 (off) skips BodySLAMWrapper so the
+            # agent sees the same obs space it was instantiated against;
+            # Phase 1 oracle/noisy wraps with the matching mode.
+            bodyslam_mode = snap_bs
+            logger.info(
+                f"Snapshot at {snapshot_path}: bodyslam={snap_bs}, "
+                f"cameras={list(snapshot_cameras) or 'none'} "
+                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+            )
 
         for disruption in plan.disruptions:
             logger.info(
@@ -646,7 +734,7 @@ def _collect_live_env_source(
                 f"({plan.episodes_per_cell} episodes, max {plan.max_steps} steps)"
             )
             env = _build_live_env(
-                task_key, disruption, plan.bodyslam_mode, plan.motion_clips,
+                task_key, disruption, bodyslam_mode, plan.motion_clips,
                 cameras=snapshot_cameras,
                 camera_resolution=snapshot_resolution,
             )
