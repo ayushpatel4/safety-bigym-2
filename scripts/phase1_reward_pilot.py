@@ -7,12 +7,12 @@ SSM/PFL penalty for ACT/DP is mechanistically inert. This pilot uses
 DrQ-V2+ (demo-driven online pixel RL) so the safety penalty becomes a
 learning gradient.
 
-Scope: two tasks (reach_target_single, saucepan_to_hob) × three
+Scope: two tasks (reach_target_single, drawers_close_all) × three
 `bodyslam` modes = 6 cells. reach is the cleanest baseline (E1.1 task
-success 0.88); saucepan is where E1.1 showed the most interesting
-oracle behaviour (task success jumped 0.46 → 0.64 in oracle without
-reducing SSM — the policy was using human state for task progress, not
-safety).
+success 0.88); drawers_close_all is a structurally different task
+(multi-step manipulation, longer episodes ~132 control steps, 4 floating
+DOFs) that was not in the E1.1 sweep — gives an independent test of the
+channel-plus-reward hypothesis on a harder task.
 
 Decision rule (off → mode SSM-violation-rate reduction, averaged across
 the 5 disruption types):
@@ -40,7 +40,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HEADLESS_ENV = ("MUJOCO_GL=egl", "PYOPENGL_PLATFORM=egl")
 
-TASKS = ("reach_target_single", "saucepan_to_hob")
+TASKS = ("reach_target_single", "drawers_close_all")
 LAUNCH = "drqv2plus_pixel_safety_bigym"
 EXP_DIR = "drqv2plus_safety"
 
@@ -301,7 +301,7 @@ def _smoke(task: str, mode: str, seed: int) -> int:
         "num_pretrain_steps=0",
         "demos=2",
         "num_eval_episodes=0",
-        "replay_size_before_train=25000",
+        "replay_size_before_train=12000",
         "wandb.use=false",
     ]
     print(">>> smoke:", " ".join(shlex.quote(c) for c in cmd))
