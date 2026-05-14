@@ -51,7 +51,12 @@ DISRUPTIONS = (
 
 # Fill after training. Peak-by-W&B-curve snapshot per (task, mode).
 SNAPSHOTS: dict[tuple[str, str], str | None] = {
-    (t, m): None for t in TASKS for m in BODYSLAM_MODES
+    ("reach_target_single", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/reach_target_single_20260513124052/snapshots/30000_snapshot.pt",
+    ("reach_target_single", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/reach_target_single_20260513124323/snapshots/40000_snapshot.pt",
+    ("reach_target_single", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/reach_target_single_20260513124503/snapshots/50000_snapshot.pt",
+    ("saucepan_to_hob", "off"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/saucepan_to_hob_20260513123451/snapshots/20000_snapshot.pt",
+    ("saucepan_to_hob", "oracle"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/saucepan_to_hob_20260513123538/snapshots/30000_snapshot.pt",
+    ("saucepan_to_hob", "noisy"): "/home/ap2322/Documents/safety_bigym/exp_local/drqv2plus_safety/saucepan_to_hob_20260513123621/snapshots/30000_snapshot.pt",
 }
 
 
