@@ -1,0 +1,19 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: drawers_close_all
+  stddev_schedule: linear(1.0,0.1,500000)
+  # DrawersAllClose. demo_down_sample_rate=25 matches upstream robobase
+  # (20 Hz control). DemoStore has 60 demos for this task; control-step
+  # lengths min/median/p95/max = 115/132/162/172. At raw=control*25:
+  # p95 raw = 4050; 12000 raw = ~3× headroom for human-disruption slowdown.
+  episode_length: 12000
+  demo_down_sample_rate: 25
+  enable_all_floating_dof: true
+
+# Per-task override: use 50 of 60 available demos (matches drawers_open_all pattern).
+demos: 50
