@@ -16,17 +16,29 @@ Sources (CLI flag, repeatable):
                   GPU retrain; until then this path is exercised only in error
                   branches by the smoke test.
 
-Smoke mode runs 1 task × 1 disruption × 2 episodes × ≤50 steps from the random
-source and writes a single ``_smoke_shard.npz``.
+Disruption space (Phase 0.5 onward):
+  Default ``--disruption-space coworker_train`` collects a single cell using
+  ``make_coworker_train_space()`` — the strict-superset COWORKER ParameterSpace
+  with five continuous parameter axes (closest approach, reach period, target
+  mix, near loiter, walk speed) in moderate bands. ``coworker_eval`` is the
+  wider eval ParameterSpace; ``legacy_multi`` reinstates the pre-0.5 mixture
+  of {INCIDENTAL, SHARED_GOAL, DIRECT, OBSTRUCTION, RANDOM_PERTURBED} and
+  iterates over the --disruptions string list.
+
+Smoke mode runs 1 task × coworker_train × 2 episodes × ≤50 steps from the
+random source and writes a single ``_smoke_shard.npz``.
 
 Usage:
     python scripts/svf_collect_dataset.py --smoke
     python scripts/svf_collect_dataset.py --source random --source demo \\
         --tasks reach_target_single --episodes-per-cell 50
+    # legacy escape hatch:
+    python scripts/svf_collect_dataset.py --disruption-space legacy_multi \\
+        --disruptions INCIDENTAL DIRECT
     python scripts/svf_collect_dataset.py --source snapshot \\
         --snapshot-path exp_local/act_safety/.../snapshots/60000_snapshot.pt
 
-Hand-off to GPU for the full ~500k-transition collection.
+Hand-off to GPU for the full ~310k-transition collection.
 """
 
 from __future__ import annotations
@@ -68,6 +80,13 @@ DEFAULT_DISRUPTIONS = (
     "RANDOM_PERTURBED",
 )
 
+# Sentinel cell labels for the coworker ParameterSpace factories. When a
+# disruption string is one of these, _build_live_env dispatches to
+# make_coworker_{train,eval}_space() instead of looking up DisruptionType[name].
+COWORKER_CELL_LABELS = ("coworker_train", "coworker_eval")
+
+DISRUPTION_SPACE_CHOICES = ("coworker_train", "coworker_eval", "legacy_multi")
+
 DEFAULT_CLIPS = ("74/74_01_poses.npz",)
 
 # Keys ConcatDim excludes from low_dim_state at training time
@@ -108,7 +127,7 @@ class CollectionPlan:
         return cls(
             sources=("random",),
             tasks=("reach_target_single",),
-            disruptions=("INCIDENTAL",),
+            disruptions=("coworker_train",),
             episodes_per_cell=2,
             max_steps=50,
             bodyslam_mode="oracle",
@@ -157,7 +176,12 @@ def _build_live_env(
     from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
     from safety_bigym.perception.bodyslam_wrapper import BodySLAMWrapper
     from safety_bigym.scenarios.disruption_types import DisruptionType
-    from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
+    from safety_bigym.scenarios.scenario_sampler import (
+        ParameterSpace,
+        ScenarioSampler,
+        make_coworker_train_space,
+        make_coworker_eval_space,
+    )
     from bigym.action_modes import JointPositionActionMode
     from bigym.utils.observation_config import CameraConfig, ObservationConfig
 
@@ -166,11 +190,24 @@ def _build_live_env(
         motion_clip_dir=AMASS_DATA_DIR,
         motion_clip_paths=list(motion_clips),
     )
-    sampler = ScenarioSampler(
-        parameter_space=ParameterSpace(
+    # Cell label dispatch: "coworker_train" / "coworker_eval" use the strict-
+    # superset COWORKER factories; any other value is treated as a legacy
+    # DisruptionType name and pinned to a 1.0-weight single-type space.
+    if disruption == "coworker_train":
+        parameter_space = make_coworker_train_space(
+            clip_paths=human_config.motion_clip_paths,
+        )
+    elif disruption == "coworker_eval":
+        parameter_space = make_coworker_eval_space(
+            clip_paths=human_config.motion_clip_paths,
+        )
+    else:
+        parameter_space = ParameterSpace(
             clip_paths=human_config.motion_clip_paths,
             disruption_weights={DisruptionType[disruption]: 1.0},
-        ),
+        )
+    sampler = ScenarioSampler(
+        parameter_space=parameter_space,
         motion_dir=AMASS_DATA_DIR,
     )
     make_env_kwargs: Dict[str, Any] = {}
@@ -811,7 +848,7 @@ def _collect_demo_source(
         # build a probe env once.
         probe = _build_live_env(
             plan.tasks[0],
-            plan.disruptions[0] if plan.disruptions else "INCIDENTAL",
+            plan.disruptions[0] if plan.disruptions else "coworker_train",
             plan.bodyslam_mode,
             plan.motion_clips,
         )
@@ -923,7 +960,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=list(TASK_REGISTRY)[:1],
         choices=sorted(TASK_REGISTRY),
     )
-    p.add_argument("--disruptions", nargs="+", default=list(DEFAULT_DISRUPTIONS))
+    p.add_argument(
+        "--disruption-space",
+        choices=DISRUPTION_SPACE_CHOICES,
+        default="coworker_train",
+        help=(
+            "coworker_train (default): single cell using make_coworker_train_space() "
+            "— 5 continuous parameter axes in moderate bands. "
+            "coworker_eval: single cell using make_coworker_eval_space() — wider "
+            "bands that strictly contain the train ranges. "
+            "legacy_multi: iterate over --disruptions string list (pre-Phase-0.5 "
+            "5-disruption mixture). Retained as an escape hatch."
+        ),
+    )
+    p.add_argument(
+        "--disruptions",
+        nargs="+",
+        default=list(DEFAULT_DISRUPTIONS),
+        help="Only used when --disruption-space=legacy_multi.",
+    )
     p.add_argument("--episodes-per-cell", type=int, default=20)
     p.add_argument("--max-steps", type=int, default=300)
     p.add_argument("--demos-per-task", type=int, default=30)
@@ -962,10 +1017,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.smoke:
         plan = CollectionPlan.smoke(args.output_dir)
     else:
+        if args.disruption_space == "legacy_multi":
+            disruptions = tuple(args.disruptions)
+        else:
+            # coworker_train / coworker_eval: single cell labelled by the space
+            # name; _build_live_env dispatches to the factory on this label.
+            disruptions = (args.disruption_space,)
         plan = CollectionPlan(
             sources=tuple(args.source or ("random",)),
             tasks=tuple(args.tasks),
-            disruptions=tuple(args.disruptions),
+            disruptions=disruptions,
             episodes_per_cell=args.episodes_per_cell,
             max_steps=args.max_steps,
             bodyslam_mode=args.bodyslam_mode,
