@@ -146,11 +146,12 @@ keyword: `make_coworker_train_space(coworker_walk_speed_range=(0.5, 2.0))`.
 
 ### Hydra / YAML API
 
-Two presets ship under `cfgs/disruptions/`:
-[`coworker_train.yaml`](../cfgs/disruptions/coworker_train.yaml),
-[`coworker_eval.yaml`](../cfgs/disruptions/coworker_eval.yaml). Drop them
-into your env config's `disruptions` block, or override per-axis from
-the CLI:
+Two presets ship under `cfgs/disruption/` (registered as a Hydra group
+in `cfgs/safety_config.yaml`):
+[`coworker_train.yaml`](../cfgs/disruption/coworker_train.yaml),
+[`coworker_eval.yaml`](../cfgs/disruption/coworker_eval.yaml). Activate
+the group with `disruption=coworker_train` on the CLI, or override
+per-axis:
 
 ```
 python train_safety.py \\
