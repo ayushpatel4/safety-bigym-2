@@ -70,6 +70,7 @@ TASK_REGISTRY: Dict[str, Tuple[str, int]] = {
     "dishwasher_close": ("bigym.envs.dishwasher.DishwasherClose", 1),
     "dishwasher_load_plates": ("bigym.envs.dishwasher_plates.DishwasherLoadPlates", 2),
     "saucepan_to_hob": ("bigym.envs.saucepan.SaucepanToHob", 3),
+    "drawers_open_all": ("bigym.envs.cupboards.DrawersAllOpen", 4),
 }
 
 DEFAULT_DISRUPTIONS = (
@@ -126,7 +127,7 @@ class CollectionPlan:
     def smoke(cls, output_dir: Path) -> "CollectionPlan":
         return cls(
             sources=("random",),
-            tasks=("reach_target_single",),
+            tasks=("dishwasher_close",),
             disruptions=("coworker_train",),
             episodes_per_cell=2,
             max_steps=50,
