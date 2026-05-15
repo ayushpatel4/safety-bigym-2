@@ -1,0 +1,26 @@
+# COWORKER training distribution — moderate band on every continuous knob.
+#
+# Pair with the eval preset coworker_eval.yaml for narrow-train /
+# wider-eval generalisation experiments. The eval preset is a strict
+# superset on every axis, so eval rollouts probe both in-distribution
+# and out-of-distribution conditions.
+#
+# Apply this block under `env.disruptions` either by including these
+# fields directly in your env YAML, or with a CLI override like:
+#   env.disruptions.coworker_closest_approach_range='[0.9, 1.4]' ...
+#
+# Knobs:
+#   1. closest_approach   - body distance from robot at NEAR (m)
+#   2. reach_period       - seconds per reach cycle (1 / frequency)
+#   3. target_mix_p_ee    - P(reach robot EE); P(task object) = 1 - p
+#   4. near_loiter        - per-visit dwell at NEAR (s)
+#   5. walk_speed         - walking speed (m/s)
+
+weights:
+  COWORKER: 1.0
+
+coworker_closest_approach_range: [0.9, 1.4]
+coworker_reach_period_range: [4.5, 6.5]
+coworker_target_mix_p_ee_range: [0.4, 0.6]
+coworker_near_loiter_range: [7.0, 11.0]
+coworker_walk_speed_range: [1.0, 1.6]

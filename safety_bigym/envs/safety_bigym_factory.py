@@ -193,6 +193,13 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 "walk_speed_range",
                 "spawn_distance_range",
                 "arc_radius_range",
+                # COWORKER continuous knobs (5 axes). Override per-axis
+                # from env YAML to widen/narrow the train/eval band.
+                "coworker_closest_approach_range",
+                "coworker_reach_period_range",
+                "coworker_target_mix_p_ee_range",
+                "coworker_near_loiter_range",
+                "coworker_walk_speed_range",
             ):
                 value = disruptions_cfg.get(range_field, None)
                 if value is not None:
