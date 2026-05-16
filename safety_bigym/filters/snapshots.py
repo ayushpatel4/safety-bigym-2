@@ -37,10 +37,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # three tasks (returns None from resolve_snapshot → ignored by caller).
 SNAPSHOTS: Dict[str, Optional[str]] = {
     "reach_target_single": None,
-    "dishwasher_close": None,        # B1 path pending
+    "dishwasher_close": "~/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260515184635/snapshots/50000_snapshot.pt",
     "dishwasher_load_plates": None,
-    "saucepan_to_hob": None,         # B1 path pending
-    "drawers_open_all": None,        # B1 path pending
+    "saucepan_to_hob": "~/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260516123308/snapshots/70000_snapshot.pt",
+    "drawers_open_all": "~/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260515184721/snapshots/40000_snapshot.pt",
 }
 
 
