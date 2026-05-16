@@ -620,6 +620,58 @@ def peek_snapshot_cameras(
     return cameras, resolution
 
 
+def _synthesize_snapshot_obs_space(
+    env,
+    cameras: Sequence[str],
+    resolution: Tuple[int, int],
+    includes_human_pos: bool,
+):
+    """Build the post-wrap observation_space the snapshot agent was trained against.
+
+    The env we hand to ``hydra.utils.instantiate`` must look like what RoboBase's
+    BiGym factory produced at training: ``ConcatDim(shape_length=1)`` collapses
+    all 1-D obs keys into a single ``low_dim_state`` channel (skipping
+    ``LOW_DIM_KEYS_TO_IGNORE``), and ``FrameStack(frame_stack=1)`` prepends a
+    ``T=1`` axis to every remaining key (so rgb becomes ``(T, C, H, W)`` —
+    [robobase/method/bc.py:155] multiplies the first two dims, asserting 4-D).
+
+    For Phase-0 snapshots (``includes_human_pos=False``) we omit
+    ``human_pos_estimate`` from the low_dim_state sum so the synthesized dim
+    matches the actor's training-time input size, even though the wrapped env
+    *does* emit the key (the runtime adapter strips it via the same flag).
+    """
+    from gymnasium import spaces
+
+    low_dim_total = 0
+    for key, space in env.observation_space.spaces.items():
+        if not isinstance(space, spaces.Box):
+            continue
+        if len(space.shape) != 1:
+            continue
+        if key in LOW_DIM_KEYS_TO_IGNORE:
+            continue
+        if key == HUMAN_POS_ESTIMATE_KEY and not includes_human_pos:
+            continue
+        low_dim_total += int(space.shape[0])
+
+    out: Dict[str, Any] = {}
+    if low_dim_total > 0:
+        out["low_dim_state"] = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(1, low_dim_total),
+            dtype=np.float32,
+        )
+    for cam in cameras:
+        out[f"rgb_{cam}"] = spaces.Box(
+            low=0,
+            high=255,
+            shape=(1, 3, int(resolution[0]), int(resolution[1])),
+            dtype=np.uint8,
+        )
+    return spaces.Dict(out)
+
+
 def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     """Load a RoboBase snapshot and return a policy callable.
 
@@ -658,12 +710,32 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
             "Extend _SnapshotPolicy.adapt_obs with a frame-stack deque first."
         )
 
+    cameras: Tuple[str, ...] = ()
+    resolution: Tuple[int, int] = (84, 84)
+    if bool(cfg.get("pixels", False)):
+        cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
+        shape = cfg.get("visual_observation_shape")
+        if shape is not None:
+            resolution = (int(shape[0]), int(shape[1]))
+
+    # Phase 0 vs Phase 1 detection: was BodySLAMWrapper applied at training?
+    bs = cfg.env.get("bodyslam") if "env" in cfg else None
+    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
+    includes_human_pos = bs_mode in ("oracle", "noisy")
+
+    # Synthesize the observation_space the agent was instantiated against at
+    # training. The raw env (post-BodySLAMWrapper) has per-key 1-D obs and
+    # rgb as (3, H, W); the agent expects ConcatDim+FrameStack output.
+    synthesized_obs_space = _synthesize_snapshot_obs_space(
+        env, cameras, resolution, includes_human_pos
+    )
+
     method_cfg = cfg.method
     intrinsic_reward_module = None
     agent = hydra.utils.instantiate(
         method_cfg,
         device="cpu",
-        observation_space=env.observation_space,
+        observation_space=synthesized_obs_space,
         action_space=env.action_space,
         num_train_envs=0,
         replay_alpha=cfg.replay.alpha,
@@ -678,19 +750,6 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
             for p, sp in zip(agent.actor.ema.shadow_params, actor_ema):
                 p.data.copy_(sp)
     agent.train(False)
-
-    cameras: Tuple[str, ...] = ()
-    resolution: Tuple[int, int] = (84, 84)
-    if bool(cfg.get("pixels", False)):
-        cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
-        shape = cfg.get("visual_observation_shape")
-        if shape is not None:
-            resolution = (int(shape[0]), int(shape[1]))
-
-    # Phase 0 vs Phase 1 detection: was BodySLAMWrapper applied at training?
-    bs = cfg.env.get("bodyslam") if "env" in cfg else None
-    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
-    includes_human_pos = bs_mode in ("oracle", "noisy")
 
     return _SnapshotPolicy(
         agent=agent,
@@ -752,18 +811,23 @@ def _collect_live_env_source(
                 )
                 continue
             # Peek at the snapshot's cfg so the env we build matches the
-            # actor's training-time observation format: same cameras, same
-            # BodySLAM mode (oracle/noisy/off).
+            # actor's *pixel* training format (same cameras + resolution).
+            # The actor's low_dim_state schema (Phase 0 off vs Phase 1
+            # oracle/noisy) is handled separately by _SnapshotPolicy.adapt_obs
+            # and the synthesized observation_space inside load_snapshot_policy.
             snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
             snap_bs = peek_snapshot_bodyslam_mode(snapshot_path)
-            # Always match training: Phase 0 (off) skips BodySLAMWrapper so the
-            # agent sees the same obs space it was instantiated against;
-            # Phase 1 oracle/noisy wraps with the matching mode.
-            bodyslam_mode = snap_bs
+            # Env wrapping is governed by plan.bodyslam_mode regardless of
+            # what the snapshot was trained with — the SVF dataset must
+            # always carry human_pos_estimate so the critic can learn the
+            # SSM signal. Phase 0 snapshots (bodyslam=off) still work as
+            # action samplers because adapt_obs strips the human channel
+            # before feeding the actor.
             logger.info(
-                f"Snapshot at {snapshot_path}: bodyslam={snap_bs}, "
+                f"Snapshot at {snapshot_path}: trained bodyslam={snap_bs}, "
                 f"cameras={list(snapshot_cameras) or 'none'} "
-                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}; "
+                f"env wrapping uses plan.bodyslam_mode={bodyslam_mode!r}."
             )
 
         for disruption in plan.disruptions:
