@@ -183,7 +183,7 @@ def _build_live_env(
         make_coworker_train_space,
         make_coworker_eval_space,
     )
-    from bigym.action_modes import JointPositionActionMode
+    from bigym.action_modes import JointPositionActionMode, PelvisDof
     from bigym.utils.observation_config import CameraConfig, ObservationConfig
 
     task_cls = _import_task(task_key)
@@ -224,9 +224,18 @@ def _build_live_env(
             proprioception=True,
             privileged_information=False,
         )
+    # 4-dof floating base (X, Y, Z, RZ) mirrors RoboBase's BiGym factory under
+    # `cfg.env.enable_all_floating_dof=True` — the regime the Phase-0 ACT
+    # snapshots were trained under (action_dim=16, qpos=66). The bare-BiGym
+    # default of 3 dofs (X, Y, RZ) gives action_dim=15 and silent
+    # state_dict shape mismatches at snapshot load. See B1.4 / B2.3 debug.
     env = make_safety_env(
         task_cls=task_cls,
-        action_mode=JointPositionActionMode(absolute=True, floating_base=True),
+        action_mode=JointPositionActionMode(
+            absolute=True,
+            floating_base=True,
+            floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ],
+        ),
         safety_config=SafetyConfig(terminate_on_violation=False),
         human_config=human_config,
         scenario_sampler=sampler,
