@@ -122,6 +122,11 @@ class CollectionPlan:
     # flags. Empty by default; the resolver falls through to
     # safety_bigym.filters.snapshots.SNAPSHOTS.
     snapshot_overrides: Mapping[str, str] = field(default_factory=dict)
+    # Geometric near-contact threshold (metres) used by label_transition. The
+    # SVF's binary r_safe = (min_separation >= proximity_threshold). Default
+    # matches labeling.label_transition's own default; surface as a CLI knob
+    # because it's the most likely thing to sweep.
+    proximity_threshold: float = 0.10
 
     @classmethod
     def smoke(cls, output_dir: Path) -> "CollectionPlan":
@@ -280,6 +285,7 @@ def rollout_episode(
     max_steps: int,
     obs_keys: Sequence[str],
     use_pfl: bool,
+    proximity_threshold: float,
 ) -> Optional[Dict[str, Any]]:
     from safety_bigym.filters.labeling import label_transition
 
@@ -301,7 +307,9 @@ def rollout_episode(
         if "safety" not in info:
             continue
 
-        r_safe, viol_terminal = label_transition(info, use_pfl=use_pfl)
+        r_safe, viol_terminal = label_transition(
+            info, use_pfl=use_pfl, proximity_threshold=proximity_threshold,
+        )
         for k in obs_keys:
             obs_buf[k].append(prev[k])
             next_obs_buf[k].append(nxt[k])
@@ -876,6 +884,7 @@ def _collect_live_env_source(
                     max_steps=plan.max_steps,
                     obs_keys=spec[0].obs_keys,
                     use_pfl=use_pfl,
+                    proximity_threshold=plan.proximity_threshold,
                 )
                 if payload is None:
                     continue
@@ -1073,6 +1082,17 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         ),
     )
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--proximity-threshold",
+        type=float,
+        default=0.10,
+        help=(
+            "Geometric near-contact bar (metres) used by label_transition. "
+            "Any human-joint / robot-link pair closer than this counts as a "
+            "safety violation. Default 0.10 m. Surfaced for sweep; see "
+            "safety_bigym/filters/labeling.py for the rationale."
+        ),
+    )
     p.add_argument("--use-pfl", action="store_true",
                    help="Set once the PFL contact-detection bug is fixed.")
     p.add_argument("--log-level", default="INFO")
@@ -1108,6 +1128,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             snapshot_overrides=snapshot_overrides,
             seed=args.seed,
             demos_per_task=args.demos_per_task,
+            proximity_threshold=args.proximity_threshold,
         )
 
     run_collection(plan, use_pfl=args.use_pfl)
