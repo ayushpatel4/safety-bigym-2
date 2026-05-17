@@ -69,7 +69,7 @@ TASK_REGISTRY: Dict[str, Tuple[str, int]] = {
     "reach_target_single": ("bigym.envs.reach_target.ReachTargetSingle", 0),
     "dishwasher_close": ("bigym.envs.dishwasher.DishwasherClose", 1),
     "dishwasher_load_plates": ("bigym.envs.dishwasher_plates.DishwasherLoadPlates", 2),
-    "saucepan_to_hob": ("bigym.envs.saucepan.SaucepanToHob", 3),
+    "saucepan_to_hob": ("bigym.envs.pick_and_place.SaucepanToHob", 3),
     "drawers_open_all": ("bigym.envs.cupboards.DrawersAllOpen", 4),
 }
 
