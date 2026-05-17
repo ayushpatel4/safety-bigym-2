@@ -174,8 +174,11 @@ class Workspace:
     # Logging
     # ------------------------------------------------------------------
 
-    def _log(self, metrics: dict, step: int, ty: str = "train") -> None:
-        if not metrics:
+    def _log(self, metrics, step: int, ty: str = "train") -> None:
+        # `metrics` may be a TensorDict (returned by agent.update()) or a
+        # plain dict. TensorDict refuses bool conversion, so check length
+        # explicitly instead of relying on `if not metrics`.
+        if metrics is None or len(metrics) == 0:
             return
         prefixed = {f"{ty}/{k}": v for k, v in metrics.items()}
         if self._wandb_run is not None:
@@ -347,8 +350,9 @@ class Workspace:
                     metrics = self.agent.update(batch)
                     self._update_step += 1
                     self.agent.update_target_critic(self._update_step)
-                if metrics:
-                    self._log(metrics, self.global_step, ty="train")
+                # `metrics` is a TensorDict; truthiness raises. Defer the
+                # filled-vs-empty check to _log (which handles both shapes).
+                self._log(metrics, self.global_step, ty="train")
 
             if self.cfg.temporal_ensemble:
                 sub_action = self.train_temporal_ensemble.get_action()
