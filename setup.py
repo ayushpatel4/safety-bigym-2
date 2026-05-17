@@ -23,6 +23,11 @@ setuptools.setup(
         "numpy>=1.26,<2.0",
         "mujoco>=3.1.5",
         "scipy",  # For rotation conversions
+        # CQN-AS vendored agent (safety_bigym/agents/cqn_as) — used by
+        # train_cqn_as.py. Pin matches CQN-AS/conda_env.yml upstream.
+        "tensordict==0.6.0",
+        # CQN-AS env_adapter TimeStep contract.
+        "dm_env",
     ],
     package_data={
         "": [str(p.resolve()) for p in Path("safety_bigym/assets").glob("**/*")]
