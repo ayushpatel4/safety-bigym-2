@@ -42,6 +42,12 @@ def _write_shard(
     done = np.zeros(n, dtype=np.bool_)
     done[:n_violations] = True
     ssm_margin = rng.standard_normal(n).astype(np.float32)
+    # Synthetic raw safety signals: violating rows get small separation,
+    # safe rows get plenty of room. PFL force ratio left at zero (mirrors
+    # the current PFL contact-detection bug — all zeros in real data too).
+    min_separation = np.full(n, 0.5, dtype=np.float32)
+    min_separation[:n_violations] = 0.02
+    pfl_force_ratio = np.zeros(n, dtype=np.float32)
 
     writer = TransitionShardWriter(spec, tmp_path)
     writer.write_shard(
@@ -52,6 +58,8 @@ def _write_shard(
         r_safe=r_safe,
         done=done,
         ssm_margin=ssm_margin,
+        min_separation=min_separation,
+        pfl_force_ratio=pfl_force_ratio,
         source=np.full(n, source, dtype=np.uint8),
         task_id=np.full(n, task_id, dtype=np.uint8),
     )
@@ -68,7 +76,7 @@ def test_write_then_load_round_trip(tmp_path):
     sample = ds[0]
     assert set(sample) >= {
         "obs", "action", "next_obs", "r_safe", "done", "ssm_margin",
-        "source", "task_id",
+        "min_separation", "pfl_force_ratio", "source", "task_id",
     }
     assert sample["obs"]["low_dim_state"].shape == (6,)
     assert sample["action"].shape == (4,)

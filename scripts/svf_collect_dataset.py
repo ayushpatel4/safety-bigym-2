@@ -296,6 +296,8 @@ def rollout_episode(
     r_safe_list: List[float] = []
     done_list: List[bool] = []
     margins: List[float] = []
+    min_seps: List[float] = []
+    pfl_ratios: List[float] = []
 
     for _ in range(max_steps):
         action = policy(obs).astype(np.float32, copy=False)
@@ -316,7 +318,13 @@ def rollout_episode(
         actions.append(action)
         r_safe_list.append(r_safe)
         done_list.append(bool(viol_terminal or terminated or truncated))
-        margins.append(float(info["safety"].get("ssm_margin", 0.0)))
+        safety_info = info["safety"]
+        margins.append(float(safety_info.get("ssm_margin", 0.0)))
+        # Store the raw signals so r_safe can be recomputed later (proximity
+        # threshold sweep, PFL retrofit) without re-collecting transitions.
+        # ``pfl_force_ratio`` is currently identically zero; see CLAUDE.md.
+        min_seps.append(float(safety_info.get("min_separation", float("inf"))))
+        pfl_ratios.append(float(safety_info.get("pfl_force_ratio", 0.0)))
 
         if terminated or truncated:
             break
@@ -331,6 +339,8 @@ def rollout_episode(
         "r_safe": np.asarray(r_safe_list, dtype=np.float32),
         "done": np.asarray(done_list, dtype=np.bool_),
         "ssm_margin": np.asarray(margins, dtype=np.float32),
+        "min_separation": np.asarray(min_seps, dtype=np.float32),
+        "pfl_force_ratio": np.asarray(pfl_ratios, dtype=np.float32),
     }
 
 
@@ -474,6 +484,12 @@ def demo_episode_to_transitions(
         if n > 0
         else np.zeros(0, dtype=np.bool_),
         "ssm_margin": np.full(n, DEMO_PLACEHOLDER_MARGIN, dtype=np.float32),
+        # Demos have no live human-robot physics; use a safe-side placeholder
+        # large enough to never trip any plausible proximity threshold and a
+        # zero PFL ratio (no contact recorded). Demo source is currently
+        # disabled in B3 (see CLAUDE.md), but keep the schema consistent.
+        "min_separation": np.full(n, 10.0, dtype=np.float32),
+        "pfl_force_ratio": np.zeros(n, dtype=np.float32),
     }
 
 
@@ -900,6 +916,8 @@ def _collect_live_env_source(
                     r_safe=payload["r_safe"],
                     done=payload["done"],
                     ssm_margin=payload["ssm_margin"],
+                    min_separation=payload["min_separation"],
+                    pfl_force_ratio=payload["pfl_force_ratio"],
                     source=np.full(n, source_code, dtype=np.uint8),
                     task_id=np.full(n, task_id, dtype=np.uint8),
                 )
@@ -985,6 +1003,8 @@ def _collect_demo_source(
                 r_safe=payload["r_safe"],
                 done=payload["done"],
                 ssm_margin=payload["ssm_margin"],
+                min_separation=payload["min_separation"],
+                pfl_force_ratio=payload["pfl_force_ratio"],
                 source=np.full(n, source_code, dtype=np.uint8),
                 task_id=np.full(n, task_id, dtype=np.uint8),
             )
