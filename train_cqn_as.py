@@ -339,10 +339,19 @@ class Workspace:
                 if self.cfg.temporal_ensemble:
                     self.train_temporal_ensemble.register_action_sequence(action)
 
+            # Worker-aware update gate. The CQN-AS replay loader stripes
+            # episode files by ``eps_idx % num_workers`` (replay_buffer.py
+            # _try_fetch). The DataLoader rotates across workers, so a
+            # worker that hasn't seen its first eligible episode yet raises
+            # IndexError on sample. Upstream CQN-AS never hits this because
+            # demos pre-fill every worker; in the A6 smoke gate we run with
+            # num_demos=0 and have to wait until each worker is guaranteed
+            # at least one episode (i.e. global_episode >= num_workers).
+            num_replay_workers = max(1, int(self.cfg.replay_buffer_num_workers))
             if (
                 not seed_until_step(self.global_step)
                 and self.global_step % self.cfg.agent.update_every_steps == 0
-                and len(self.replay_storage) > 0
+                and self._global_episode >= num_replay_workers
             ):
                 for _ in range(self.cfg.num_update_steps):
                     batch = next(self.replay_iter)
