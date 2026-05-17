@@ -176,17 +176,28 @@ class Workspace:
 
     def _log(self, metrics, step: int, ty: str = "train") -> None:
         # `metrics` may be a TensorDict (returned by agent.update()) or a
-        # plain dict. TensorDict refuses bool conversion, so check length
-        # explicitly instead of relying on `if not metrics`.
+        # plain dict. Two things need handling:
+        #  1. TensorDict refuses bool conversion — check length explicitly.
+        #  2. TensorDict.items() can be a single-use generator (the dict
+        #     comprehension below would exhaust it, leaving the format-
+        #     string join silent). Materialise items into a list once.
         if metrics is None or len(metrics) == 0:
             return
-        prefixed = {f"{ty}/{k}": v for k, v in metrics.items()}
+        items = []
+        for k, v in metrics.items():
+            if hasattr(v, "item"):  # 0-d tensor → python scalar
+                try:
+                    v = v.item()
+                except (ValueError, RuntimeError):
+                    pass  # non-scalar tensor; format() will str() it
+            items.append((k, v))
+        prefixed = {f"{ty}/{k}": v for k, v in items}
         if self._wandb_run is not None:
             self._wandb_run.log(prefixed, step=step)
         logger.info(
             f"[{ty}] step={step} "
             + " ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
-                       for k, v in metrics.items())
+                       for k, v in items)
         )
 
     def _safety_payload(self, info: dict) -> dict:
