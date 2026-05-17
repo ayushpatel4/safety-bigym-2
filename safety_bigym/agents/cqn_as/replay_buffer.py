@@ -256,7 +256,11 @@ class ReplayBuffer(IterableDataset):
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
-    random.seed(seed)
+    # Python 3.12's random.seed() no longer accepts numpy integer scalars
+    # (rejects via TypeError instead of falling back to __index__). Cast
+    # explicitly to keep CQN-AS upstream's intent (python 3.10 conda env)
+    # working on safety_bigym's 3.12 venv.
+    random.seed(int(seed))
 
 
 def make_replay_loader(
