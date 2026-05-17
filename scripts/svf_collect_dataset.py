@@ -241,7 +241,16 @@ def _build_live_env(
             floating_base=True,
             floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ],
         ),
-        safety_config=SafetyConfig(terminate_on_violation=False),
+        # Suppress the per-step "SSM Violation!" WARNING spam: Phase 2 labels
+        # transitions by geometric proximity (B2.7), so the ISO 15066-based
+        # SSM-violation flag is now informational and fires on essentially
+        # every step at kitchen scale. The warnings drown out useful output
+        # during multi-task collection. ssm_margin / min_separation remain
+        # populated on info["safety"] for traceability and shard storage.
+        safety_config=SafetyConfig(
+            terminate_on_violation=False,
+            log_violations=False,
+        ),
         human_config=human_config,
         scenario_sampler=sampler,
         inject_human=True,
