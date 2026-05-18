@@ -24,6 +24,8 @@ class TrajectoryType(Enum):
     PASS_BY = auto()
     APPROACH_LOITER_DEPART = auto()
     ARC = auto()
+    STATIONARY = auto()
+    COWORKER_PATROL = auto()
 
 
 @dataclass
@@ -53,7 +55,28 @@ class TrajectoryConfig:
     # --- ARC parameters ---
     arc_radius: float = 1.5             # Radius of arc past robot (meters)
     arc_extent: float = 120.0           # Angular extent of arc (degrees)
-    
+
+    # --- COWORKER_PATROL parameters ---
+    # Time spent near the robot per visit (reaches are active here).
+    patrol_near_loiter: float = 8.0     # seconds
+    # Time spent away from the robot before returning (arm stays at rest).
+    patrol_away_loiter: float = 3.5     # seconds
+    # How far from the robot the AWAY position sits.
+    patrol_away_distance: float = 2.5   # meters
+    # Number of away excursions to chain into the trajectory.
+    patrol_excursions: int = 2
+    # Per-visit distance jitter for the NEAR position. Each NEAR
+    # (initial walk-in and every return) samples its distance as
+    # ``closest_approach + N(0, near_distance_std)``, clipped to keep
+    # the human in a reasonable co-worker band. Lets the human stand
+    # slightly closer or further across visits within a single episode.
+    patrol_near_distance_std: float = 0.12   # meters
+    patrol_near_distance_clip: float = 0.25  # meters (max abs jitter)
+    # Random seed driving per-excursion angle / distance variation.
+    # None falls back to the planner's own internal stream so different
+    # planners produce different layouts.
+    patrol_seed: Optional[int] = None
+
     # --- Speed ---
     walk_speed: float = 1.2             # Walking speed (m/s)
     
@@ -98,6 +121,10 @@ class TrajectoryPlanner:
             self._build_approach_loiter_depart()
         elif config.trajectory_type == TrajectoryType.ARC:
             self._build_arc()
+        elif config.trajectory_type == TrajectoryType.STATIONARY:
+            self._build_stationary()
+        elif config.trajectory_type == TrajectoryType.COWORKER_PATROL:
+            self._build_coworker_patrol()
         else:
             raise ValueError(f"Unknown trajectory type: {config.trajectory_type}")
     
@@ -421,6 +448,256 @@ class TrajectoryPlanner:
         
         self._total_duration = lead_in_time + total_time
     
+    def _build_stationary(self):
+        """
+        Build STATIONARY trajectory.
+
+        The human is parked at ``closest_approach`` distance from the
+        robot, along the spawn->robot ray, facing the robot for the
+        whole episode. Phase is reported as "loiter" at all times. Used
+        by the COWORKER disruption "spawn in place" variant so the
+        HumanController immediately blends to IK targets without an
+        approach/depart phase.
+
+        We project to ``closest_approach`` rather than parking at
+        ``spawn_pos`` because the default spawn distance (~1.4 m) puts
+        the human out of arm range. This matches APPROACH_LOITER_DEPART's
+        loiter geometry so the coworker is actually reachable.
+        """
+        cfg = self.config
+
+        to_robot = cfg.robot_pos - cfg.spawn_pos
+        dist_to_robot = float(np.linalg.norm(to_robot))
+        if dist_to_robot < 1e-6:
+            forward = np.array([np.cos(cfg.approach_yaw), np.sin(cfg.approach_yaw)])
+            face_yaw = cfg.approach_yaw
+        else:
+            forward = to_robot / dist_to_robot
+            face_yaw = float(np.arctan2(forward[1], forward[0]))
+
+        approach_dist = max(dist_to_robot - cfg.closest_approach, 0.0)
+        loiter_pos = cfg.spawn_pos + forward * approach_dist
+
+        # Loiter duration is honoured so downstream "is this episode still
+        # in loiter?" queries work; default to a long horizon.
+        loiter_end = max(cfg.loiter_duration, 1.0)
+
+        self._waypoints = [
+            TrajectoryWaypoint(
+                position=loiter_pos.copy(),
+                yaw=face_yaw,
+                time=0.0,
+                phase="loiter",
+            ),
+            TrajectoryWaypoint(
+                position=loiter_pos.copy(),
+                yaw=face_yaw,
+                time=loiter_end,
+                phase="loiter",
+            ),
+        ]
+        self._total_duration = loiter_end
+
+    def _build_coworker_patrol(self):
+        """
+        Build COWORKER_PATROL trajectory.
+
+        Like APPROACH_LOITER_DEPART, the human first walks from spawn
+        in to a NEAR position at ``closest_approach`` distance. Then,
+        instead of staying there for the whole episode, it cycles:
+
+            loiter at NEAR -> walk to AWAY -> loiter at AWAY ->
+            walk back to NEAR (resampled angle) -> loiter at NEAR -> ...
+
+        AWAY is at a different angle around the robot from the previous
+        NEAR (90°-270° offset), so the human visibly walks off and
+        comes back from a different direction. The arm controller
+        suppresses reach during AWAY loiter (the shoulder-to-target
+        distance check), so the arm hangs at the side rather than
+        flailing toward an out-of-range target.
+
+        Phases emitted: "approach" / "loiter" / "depart" — same labels
+        the HumanController already handles. Reach is gated on
+        geometric reach distance, not phase, so we don't need a custom
+        "AWAY loiter" phase string.
+        """
+        cfg = self.config
+        rng = np.random.default_rng(cfg.patrol_seed)
+
+        to_robot = cfg.robot_pos - cfg.spawn_pos
+        dist_to_robot = float(np.linalg.norm(to_robot))
+        if dist_to_robot < 1e-6:
+            forward = np.array([np.cos(cfg.approach_yaw), np.sin(cfg.approach_yaw)])
+        else:
+            forward = to_robot / dist_to_robot
+
+        def face_from(pos: np.ndarray) -> float:
+            v = cfg.robot_pos - pos
+            n = np.linalg.norm(v)
+            if n < 1e-6:
+                return cfg.approach_yaw
+            return float(np.arctan2(v[1], v[0]))
+
+        std = max(cfg.patrol_near_distance_std, 0.0)
+        clip = max(cfg.patrol_near_distance_clip, 0.0)
+
+        def sample_near_distance() -> float:
+            """Per-visit NEAR distance: mean=closest_approach,
+            stdev=patrol_near_distance_std, clipped to ±clip metres."""
+            if std <= 0.0:
+                return float(cfg.closest_approach)
+            jitter = float(rng.normal(0.0, std))
+            jitter = float(np.clip(jitter, -clip, clip))
+            return float(cfg.closest_approach + jitter)
+
+        def near_at_angle(angle_rad: float, distance: float) -> np.ndarray:
+            return cfg.robot_pos + distance * np.array(
+                [np.cos(angle_rad), np.sin(angle_rad)]
+            )
+
+        def away_at_angle(angle_rad: float) -> np.ndarray:
+            return cfg.robot_pos + cfg.patrol_away_distance * np.array(
+                [np.cos(angle_rad), np.sin(angle_rad)]
+            )
+
+        # Initial NEAR: along spawn->robot ray, distance sampled around
+        # closest_approach. Tracks the latest NEAR distance so the walk
+        # length (used for timing the initial approach) stays correct.
+        near_distance = sample_near_distance()
+        approach_dist = max(dist_to_robot - near_distance, 0.0)
+        near_angle = float(
+            np.arctan2(cfg.spawn_pos[1] - cfg.robot_pos[1],
+                       cfg.spawn_pos[0] - cfg.robot_pos[0])
+        )
+        near_pos = near_at_angle(near_angle, near_distance)
+
+        # Walk speed must be sane.
+        walk_v = max(cfg.walk_speed, 0.1)
+
+        waypoints: List[TrajectoryWaypoint] = []
+        t = 0.0
+
+        # --- Initial approach from spawn to first NEAR ---
+        waypoints.append(TrajectoryWaypoint(
+            position=cfg.spawn_pos.copy(),
+            yaw=face_from(cfg.spawn_pos),
+            time=t, phase="approach",
+        ))
+        t += approach_dist / walk_v
+        waypoints.append(TrajectoryWaypoint(
+            position=near_pos.copy(),
+            yaw=face_from(near_pos),
+            time=t, phase="approach",
+        ))
+
+        # --- N patrol cycles (loiter NEAR -> away -> back to a new NEAR) ---
+        L_near = max(cfg.patrol_near_loiter, 0.5)
+        L_away = max(cfg.patrol_away_loiter, 0.5)
+        n_excursions = max(int(cfg.patrol_excursions), 1)
+
+        current_pos = near_pos
+        current_angle = near_angle
+
+        for _ in range(n_excursions):
+            # Loiter at NEAR (reach cycle runs).
+            waypoints.append(TrajectoryWaypoint(
+                position=current_pos.copy(),
+                yaw=face_from(current_pos),
+                time=t + 0.01, phase="loiter",
+            ))
+            t += L_near
+            waypoints.append(TrajectoryWaypoint(
+                position=current_pos.copy(),
+                yaw=face_from(current_pos),
+                time=t, phase="loiter",
+            ))
+
+            # Sample AWAY angle 90°-270° offset from current NEAR angle.
+            offset = float(rng.uniform(np.pi / 2, 3 * np.pi / 2))
+            sign = float(rng.choice([-1.0, 1.0]))
+            away_angle = current_angle + sign * offset
+            away_pos = away_at_angle(away_angle)
+
+            # Depart to AWAY (use "depart" so the HumanController's
+            # outer blend tapers IK back toward AMASS as we leave the
+            # loiter point — same flow as APPROACH_LOITER_DEPART exit).
+            waypoints.append(TrajectoryWaypoint(
+                position=current_pos.copy(),
+                yaw=float(np.arctan2(
+                    away_pos[1] - current_pos[1],
+                    away_pos[0] - current_pos[0],
+                )),
+                time=t + 0.01, phase="depart",
+            ))
+            walk_d = float(np.linalg.norm(away_pos - current_pos))
+            t += walk_d / walk_v
+            waypoints.append(TrajectoryWaypoint(
+                position=away_pos.copy(),
+                yaw=face_from(away_pos),
+                time=t, phase="depart",
+            ))
+
+            # Loiter at AWAY. Phase is "loiter" so the controller will
+            # blend toward IK targets, but the arm controller's reach
+            # gate will detect that the target is too far and emit a
+            # rest-pose qpos — net result: human stands at AWAY with
+            # arms at the side until it's time to return.
+            waypoints.append(TrajectoryWaypoint(
+                position=away_pos.copy(),
+                yaw=face_from(away_pos),
+                time=t + 0.01, phase="loiter",
+            ))
+            t += L_away
+            waypoints.append(TrajectoryWaypoint(
+                position=away_pos.copy(),
+                yaw=face_from(away_pos),
+                time=t, phase="loiter",
+            ))
+
+            # Pick a new NEAR angle for the return so the human comes
+            # back from a different direction than where it left, and a
+            # new NEAR distance sampled around closest_approach (so the
+            # human stands slightly closer or further than last visit).
+            angle_jitter = float(rng.uniform(-np.pi / 3, np.pi / 3))
+            new_near_angle = current_angle + angle_jitter
+            new_near = near_at_angle(new_near_angle, sample_near_distance())
+
+            # Approach back to the new NEAR.
+            waypoints.append(TrajectoryWaypoint(
+                position=away_pos.copy(),
+                yaw=float(np.arctan2(
+                    new_near[1] - away_pos[1],
+                    new_near[0] - away_pos[0],
+                )),
+                time=t + 0.01, phase="approach",
+            ))
+            walk_d = float(np.linalg.norm(new_near - away_pos))
+            t += walk_d / walk_v
+            waypoints.append(TrajectoryWaypoint(
+                position=new_near.copy(),
+                yaw=face_from(new_near),
+                time=t, phase="approach",
+            ))
+
+            current_pos = new_near
+            current_angle = new_near_angle
+
+        # Final long loiter at the last NEAR position.
+        waypoints.append(TrajectoryWaypoint(
+            position=current_pos.copy(),
+            yaw=face_from(current_pos),
+            time=t + 0.01, phase="loiter",
+        ))
+        final_t = t + max(cfg.loiter_duration, 5.0)
+        waypoints.append(TrajectoryWaypoint(
+            position=current_pos.copy(),
+            yaw=face_from(current_pos),
+            time=final_t, phase="loiter",
+        ))
+
+        self._waypoints = waypoints
+        self._total_duration = final_t
+
     def get_clip_time_mapping(self, clip_duration: float, clip_fps: float) -> float:
         """
         Map trajectory time to AMASS clip frame, speed-matching

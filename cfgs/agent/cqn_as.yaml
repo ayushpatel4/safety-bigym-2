@@ -1,0 +1,32 @@
+# @package _global_
+# Vendored CQN-AS agent hyperparams. Mirrors
+# CQN-AS/cfgs/config_cqn_as_bigym.yaml. Action shape and obs shapes are
+# filled in at runtime from the env's specs (see train_cqn_as.py
+# :make_agent), so they're not set here.
+
+agent:
+  _target_: safety_bigym.agents.cqn_as.agent.CQNASAgent
+  rgb_obs_shape: ???        # filled by make_agent
+  low_dim_obs_shape: ???    # filled by make_agent
+  action_shape: ???         # filled by make_agent
+  device: ${device}
+  lr: ${lr}
+  weight_decay: ${weight_decay}
+  critic_target_tau: 0.02
+  critic_target_interval: 1
+  update_every_steps: 1
+  num_expl_steps: 0
+  feature_dim: ${feature_dim}
+  hidden_dim: 512
+  levels: 3
+  bins: 5
+  atoms: 51
+  gru_layers: 1
+  rgb_encoder_layers: 2
+  use_parallel_impl: false
+  v_min: -2.0
+  v_max: 2.0
+  critic_lambda: 0.1
+  stddev_schedule: 0.01
+  bc_lambda: 1.0
+  bc_margin: 0.1

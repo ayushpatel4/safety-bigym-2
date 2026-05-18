@@ -318,7 +318,13 @@ class HumanController:
         likewise return a qpos-sized array.
         """
         if self._ik_target_callback is not None:
-            return self._ik_target_callback(robot_state)
+            # Inject the controller's reference time so callbacks can
+            # drive their own state machines without re-reading data.time
+            # (which is per-substep and not always synced after kinematic
+            # mocap writes).
+            state = dict(robot_state) if robot_state else {}
+            state.setdefault("t", float(self.t))
+            return self._ik_target_callback(state)
         # Default: hold current AMASS pose
         targets, _ = self._get_amass_targets(self.t)
         return targets

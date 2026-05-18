@@ -1,0 +1,89 @@
+# Root Hydra config for CQN-AS training on SafetyBiGym.
+#
+# Mirrors CQN-AS/cfgs/config_cqn_as_bigym.yaml but pulls env/bodyslam/
+# disruption from safety_bigym's standard config groups so existing yamls
+# (cfgs/env/safety_bigym/*.yaml, cfgs/bodyslam/*.yaml, cfgs/disruption/*.yaml)
+# are reusable verbatim.
+#
+# Usage:
+#   python train_cqn_as.py \
+#     env=safety_bigym/dishwasher_close \
+#     disruption=coworker_train \
+#     bodyslam=oracle \
+#     num_train_frames=20000
+
+defaults:
+  - _self_
+  - env: null            # required: env=safety_bigym/<task>
+  - agent: cqn_as
+  - bodyslam: "off"
+  - disruption: null     # e.g. disruption=coworker_train
+  - override hydra/launcher: joblib
+
+# CQN-AS hyperparams (mirroring upstream defaults)
+frame_stack: 4
+action_repeat: 1
+discount: 0.99
+temporal_ensemble: true
+action_sequence: 16
+
+# Train settings
+num_train_frames: 200000
+num_seed_frames: 0
+num_update_steps: 1
+use_compile: false
+
+# Eval
+eval_every_frames: 2500
+num_eval_episodes: 10
+
+# Snapshot
+save_snapshot: true
+snapshot_every_frames: 10000
+
+# Replay buffer
+replay_buffer_size: 1000000
+replay_buffer_num_workers: 2
+nstep: 1
+batch_size: 256
+demo_batch_size: 256
+use_relabeling: true
+
+# Demos (CQN-AS is demo-driven). Set to 0 for the A6 smoke gate; full
+# training requires the demo pipeline through SafetyBiGymEnvFactory,
+# which is follow-up work to A6.
+num_demos: 0
+
+# Pixels — required True for CQN-AS (CNN encoder).
+pixels: true
+visual_observation_shape: [84, 84]
+
+# Misc
+seed: 1
+device: cuda
+save_video: false
+save_train_video: false
+use_tb: true
+
+# Agent hyperparams (referenced from agent/cqn_as.yaml)
+lr: 5e-5
+weight_decay: 0.1
+feature_dim: 64
+
+# W&B (project name matches safety_config.yaml convention)
+wandb:
+  use: false
+  project: safety-critic
+  entity: null
+  name: cqn_as_${env.task_name}_${now:%Y%m%d%H%M%S}
+
+hydra:
+  run:
+    dir: ./exp_local/cqn_as_safety/${env.task_name}_${now:%Y%m%d%H%M%S}
+  # In Hydra 1.1+ the job working directory defaults to the launch dir,
+  # NOT the run dir. Without this flag, every run shares `./buffer/` at
+  # the repo root and cross-contaminates the CQN-AS replay loader (which
+  # `_preload`s every .npz in that dir at __init__). Forcing chdir keeps
+  # `buffer/` inside the per-run hydra dir.
+  job:
+    chdir: true

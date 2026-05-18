@@ -42,6 +42,13 @@ class DisruptionType(Enum):
     the loiter phase, then departs. IK target: a specific robot link,
     offset slightly inside the surface (embed_distance)."""
 
+    COWORKER = auto()
+    """Human stays in the robot's workspace for the whole episode and
+    intermittently reaches toward the robot EE or the task object,
+    then retracts to a rest pose. Procedural, no AMASS dependency
+    during the reach cycle. Models a sustained co-working scenario
+    rather than a one-shot intrusion."""
+
 
 @dataclass
 class DisruptionConfig:
@@ -64,6 +71,15 @@ class DisruptionConfig:
     contact_target_part: str = "ee"  # "ee" | "left_forearm" | "right_forearm" | "torso"
     embed_distance: float = 0.0  # meters past the link surface (toward human)
 
+    # For COWORKER (sustained co-working with periodic reaches)
+    coworker_reach_period: float = 4.0      # seconds per reach cycle
+    coworker_reach_fraction: float = 0.30   # fraction of cycle extending toward target
+    coworker_hold_fraction: float = 0.15    # fraction held at target
+    coworker_retract_fraction: float = 0.30 # fraction retracting back to rest
+    # remainder of cycle = idle at rest pose
+    coworker_target_mix: tuple = (0.5, 0.5) # (P(reach EE), P(reach task object))
+    coworker_active_arm: str = "right_arm"  # "right_arm" | "left_arm"
+
     def requires_ik(self) -> bool:
         """Check if this disruption type uses IK targeting."""
         return self.disruption_type in {
@@ -71,6 +87,7 @@ class DisruptionConfig:
             DisruptionType.DIRECT,
             DisruptionType.OBSTRUCTION,
             DisruptionType.CONTACT,
+            DisruptionType.COWORKER,
         }
     
     def get_ik_target(
@@ -128,6 +145,16 @@ class DisruptionConfig:
                         return base + (direction / norm) * self.embed_distance
             return base
 
+        elif self.disruption_type == DisruptionType.COWORKER:
+            # The coworker behaviour module resolves which target to use
+            # per reach cycle. This method just returns the EE position
+            # as a safe default; CoworkerArmController consults the cycle
+            # state and re-reads robot_state directly when extending.
+            base = robot_state.get('ee_pos')
+            if base is None:
+                return None
+            return np.asarray(base, dtype=float)
+
         return None
 
 
@@ -158,5 +185,15 @@ DEFAULT_CONFIGS = {
         target_noise_std=0.0,
         contact_target_part="ee",
         embed_distance=0.05,
+    ),
+    DisruptionType.COWORKER: DisruptionConfig(
+        disruption_type=DisruptionType.COWORKER,
+        target_noise_std=0.04,
+        coworker_reach_period=5.0,
+        coworker_reach_fraction=0.15,
+        coworker_hold_fraction=0.20,
+        coworker_retract_fraction=0.15,
+        coworker_target_mix=(0.5, 0.5),
+        coworker_active_arm="right_arm",
     ),
 }

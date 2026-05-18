@@ -46,6 +46,8 @@ from safety_bigym.scenarios import (
     ScenarioParams,
     ParameterSpace,
 )
+from safety_bigym.scenarios.disruption_types import DisruptionType
+from safety_bigym.scenarios.coworker_behavior import CoworkerArmController
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +137,8 @@ class SafetyBiGymEnv(BiGymEnv):
         
         # Current scenario (set on reset)
         self._current_scenario: Optional[ScenarioParams] = None
-        
+        self._coworker_controller: Optional[CoworkerArmController] = None
+
         # Human components (initialized after human injection)
         self.human_controller: Optional[HumanController] = None
         self.safety_wrapper: Optional[ISO15066Wrapper] = None
@@ -493,6 +496,8 @@ class SafetyBiGymEnv(BiGymEnv):
             "PASS_BY": TrajectoryType.PASS_BY,
             "APPROACH_LOITER_DEPART": TrajectoryType.APPROACH_LOITER_DEPART,
             "ARC": TrajectoryType.ARC,
+            "STATIONARY": TrajectoryType.STATIONARY,
+            "COWORKER_PATROL": TrajectoryType.COWORKER_PATROL,
         }
         traj_type_str = getattr(self._current_scenario, 'trajectory_type', 'PASS_BY')
         traj_type = trajectory_type_map.get(traj_type_str, TrajectoryType.PASS_BY)
@@ -510,16 +515,55 @@ class SafetyBiGymEnv(BiGymEnv):
             arc_radius=getattr(self._current_scenario, 'arc_radius', 1.5),
             arc_extent=getattr(self._current_scenario, 'arc_extent', 120.0),
             walk_speed=getattr(self._current_scenario, 'walk_speed', 1.2),
+            patrol_near_loiter=getattr(
+                self._current_scenario, 'patrol_near_loiter', 8.0
+            ),
+            patrol_away_loiter=getattr(
+                self._current_scenario, 'patrol_away_loiter', 3.5
+            ),
+            patrol_away_distance=getattr(
+                self._current_scenario, 'patrol_away_distance', 2.5
+            ),
+            patrol_excursions=getattr(
+                self._current_scenario, 'patrol_excursions', 2
+            ),
+            patrol_near_distance_std=getattr(
+                self._current_scenario, 'patrol_near_distance_std', 0.12
+            ),
+            patrol_near_distance_clip=getattr(
+                self._current_scenario, 'patrol_near_distance_clip', 0.25
+            ),
+            # Drive patrol angle / distance sampling off the scenario
+            # seed so the excursion layout is reproducible per-episode.
+            patrol_seed=getattr(self._current_scenario, 'seed', None),
         )
         
         trajectory_planner = TrajectoryPlanner(traj_config)
         
         if self.human_controller is not None:
             self.human_controller.set_trajectory_planner(trajectory_planner)
-        
+
         # Orient AMASS motion direction toward robot
         if self.human_controller is not None:
             self.human_controller.set_root_yaw(face_robot_yaw)
+
+        # COWORKER drives the arm via a procedural state-machine callback
+        # instead of AMASS playback during loiter. Other disruption types
+        # have no IK callback wired today (their behaviour is unaffected).
+        if (
+            self.human_controller is not None
+            and self._current_scenario.disruption_type == DisruptionType.COWORKER
+        ):
+            coworker = CoworkerArmController(
+                self._mojo.model,
+                self._mojo.data,
+                self._current_scenario,
+                np.random.default_rng(scenario_seed),
+            )
+            self.human_controller.set_ik_callback(coworker.make_callback())
+            self._coworker_controller = coworker
+        else:
+            self._coworker_controller = None
         
         # Reset safety wrapper
         if self.safety_wrapper is not None:
@@ -657,7 +701,92 @@ class SafetyBiGymEnv(BiGymEnv):
         if self._human_pelvis_id is not None:
             state["human_pelvis_pos"] = data.xpos[self._human_pelvis_id].copy()
 
+        # Task-object position (best-effort): BiGym tasks expose the
+        # manipulable through task-specific attribute names. Scan the
+        # common ones in priority order — bona-fide manipulables first
+        # (box / saucepan / cup / cube / plate / mug), then "list of N"
+        # variants (cups[0], plates[0], ...), then the larger fixed
+        # scene props the robot interacts with (dishwasher / cabinets).
+        # If nothing matches, leave the key absent — the COWORKER
+        # callback uses the EE as its target in that case.
+        task_pos = self._lookup_task_object_pos()
+        if task_pos is not None:
+            state["task_object_pos"] = task_pos
+
         return state
+
+    # Per-task manipulables, scanned in priority order: singletons first
+    # (more specific), then list attributes (sampling [0]), then larger
+    # fixed scene props. Keep these in priority order; the first hit wins.
+    _TASK_OBJECT_ATTRS_SINGLE = (
+        "box", "saucepan", "cup", "cube", "plate", "mug", "kettle", "pan",
+    )
+    _TASK_OBJECT_ATTRS_LIST = (
+        "cups", "plates", "cubes", "boxes", "mugs", "cutlery", "items",
+    )
+    _TASK_OBJECT_ATTRS_SCENE = (
+        "dishwasher", "cabinet_drawers", "cabinet_wall", "cabinet_base",
+        "cabinet_door_left", "cabinet_door_right", "shelf", "tray",
+    )
+
+    def _lookup_task_object_pos(self) -> Optional[np.ndarray]:
+        # ReachTarget-style tasks: a list of TargetSphere objects.
+        try:
+            targets = getattr(self, "targets", None)
+            if targets:
+                return np.asarray(targets[0].body.get_position(), dtype=float)
+        except Exception:
+            pass
+
+        for attr in self._TASK_OBJECT_ATTRS_SINGLE:
+            obj = getattr(self, attr, None)
+            if obj is None:
+                continue
+            pos = self._try_get_position(obj)
+            if pos is not None:
+                return pos
+
+        for attr in self._TASK_OBJECT_ATTRS_LIST:
+            seq = getattr(self, attr, None)
+            if not seq:
+                continue
+            try:
+                first = seq[0]
+            except Exception:
+                continue
+            pos = self._try_get_position(first)
+            if pos is not None:
+                return pos
+
+        for attr in self._TASK_OBJECT_ATTRS_SCENE:
+            obj = getattr(self, attr, None)
+            if obj is None:
+                continue
+            pos = self._try_get_position(obj)
+            if pos is not None:
+                return pos
+
+        return None
+
+    @staticmethod
+    def _try_get_position(obj) -> Optional[np.ndarray]:
+        """Best-effort wrapper around BiGym prop position accessors;
+        different prop classes expose this on the prop itself, on a
+        nested ``.body``, or as a ``.position`` attribute."""
+        for accessor in (
+            lambda o: o.get_position(),
+            lambda o: o.body.get_position(),
+            lambda o: o.position,
+        ):
+            try:
+                pos = accessor(obj)
+            except Exception:
+                continue
+            try:
+                return np.asarray(pos, dtype=float).reshape(3)
+            except Exception:
+                continue
+        return None
     
     def _aggregate_safety_info(self):
         """Aggregate sub-step contacts into step-level safety info.

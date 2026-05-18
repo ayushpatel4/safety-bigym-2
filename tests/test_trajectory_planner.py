@@ -176,12 +176,30 @@ def test_scenario_sampler_trajectory_params():
         
         # Validate ranges (must match ParameterSpace defaults)
         assert 0.05 <= scenario.pass_by_offset <= 1.2, f"pass_by_offset out of range: {scenario.pass_by_offset}"
-        # closest_approach is overridden per-type for OBSTRUCTION/CONTACT,
-        # so just check it's within the ParameterSpace bounds for those types
-        # too (both override down, never up).
-        assert 0.0 <= scenario.closest_approach <= 0.8, f"closest_approach out of range: {scenario.closest_approach}"
-        # Loiter is bounded so the human always eventually departs.
-        assert 4.0 <= scenario.loiter_duration <= 10.0, f"loiter_duration out of range: {scenario.loiter_duration}"
+        # closest_approach is overridden per-type for OBSTRUCTION/CONTACT
+        # (both override down, never up) and for COWORKER (pushed out
+        # to polite co-worker distance, ~0.9-1.4 m).
+        from safety_bigym.scenarios.disruption_types import DisruptionType
+        if scenario.disruption_type == DisruptionType.COWORKER:
+            assert 0.8 <= scenario.closest_approach <= 1.5, (
+                f"COWORKER closest_approach out of range: {scenario.closest_approach}"
+            )
+        else:
+            assert 0.0 <= scenario.closest_approach <= 0.8, (
+                f"closest_approach out of range: {scenario.closest_approach}"
+            )
+        # Loiter is bounded so the human always eventually departs. COWORKER
+        # intentionally pins loiter to ~episode length, so check that band
+        # separately.
+        from safety_bigym.scenarios.disruption_types import DisruptionType
+        if scenario.disruption_type == DisruptionType.COWORKER:
+            assert scenario.loiter_duration >= 10.0, (
+                f"COWORKER loiter_duration too short: {scenario.loiter_duration}"
+            )
+        else:
+            assert 4.0 <= scenario.loiter_duration <= 10.0, (
+                f"loiter_duration out of range: {scenario.loiter_duration}"
+            )
         assert 1.0 <= scenario.walk_speed <= 2.0, f"walk_speed out of range: {scenario.walk_speed}"
     
     print(f"  Trajectory types seen: {trajectory_types_seen}")

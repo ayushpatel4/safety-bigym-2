@@ -108,9 +108,15 @@ def _build_action_space(dataset: SafetyTransitionDataset):
 
 
 def run_training(plan: TrainPlan) -> Path:
+    # ``force=True`` rebinds the root handler/level even if some earlier
+    # import already configured one (in which case bare basicConfig is a
+    # no-op and every logger.info silently dropped at root level=WARNING).
+    # Without this, B5.1 smoke could complete successfully but produce
+    # zero stdout/stderr, making it look like the script never ran.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        force=True,
     )
     logger.info(f"Loading dataset from {plan.dataset_dir}")
     dataset = SafetyTransitionDataset(plan.dataset_dir)

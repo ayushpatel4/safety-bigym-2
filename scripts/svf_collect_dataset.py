@@ -16,17 +16,29 @@ Sources (CLI flag, repeatable):
                   GPU retrain; until then this path is exercised only in error
                   branches by the smoke test.
 
-Smoke mode runs 1 task × 1 disruption × 2 episodes × ≤50 steps from the random
-source and writes a single ``_smoke_shard.npz``.
+Disruption space (Phase 0.5 onward):
+  Default ``--disruption-space coworker_train`` collects a single cell using
+  ``make_coworker_train_space()`` — the strict-superset COWORKER ParameterSpace
+  with five continuous parameter axes (closest approach, reach period, target
+  mix, near loiter, walk speed) in moderate bands. ``coworker_eval`` is the
+  wider eval ParameterSpace; ``legacy_multi`` reinstates the pre-0.5 mixture
+  of {INCIDENTAL, SHARED_GOAL, DIRECT, OBSTRUCTION, RANDOM_PERTURBED} and
+  iterates over the --disruptions string list.
+
+Smoke mode runs 1 task × coworker_train × 2 episodes × ≤50 steps from the
+random source and writes a single ``_smoke_shard.npz``.
 
 Usage:
     python scripts/svf_collect_dataset.py --smoke
     python scripts/svf_collect_dataset.py --source random --source demo \\
         --tasks reach_target_single --episodes-per-cell 50
+    # legacy escape hatch:
+    python scripts/svf_collect_dataset.py --disruption-space legacy_multi \\
+        --disruptions INCIDENTAL DIRECT
     python scripts/svf_collect_dataset.py --source snapshot \\
         --snapshot-path exp_local/act_safety/.../snapshots/60000_snapshot.pt
 
-Hand-off to GPU for the full ~500k-transition collection.
+Hand-off to GPU for the full ~310k-transition collection.
 """
 
 from __future__ import annotations
@@ -57,7 +69,8 @@ TASK_REGISTRY: Dict[str, Tuple[str, int]] = {
     "reach_target_single": ("bigym.envs.reach_target.ReachTargetSingle", 0),
     "dishwasher_close": ("bigym.envs.dishwasher.DishwasherClose", 1),
     "dishwasher_load_plates": ("bigym.envs.dishwasher_plates.DishwasherLoadPlates", 2),
-    "saucepan_to_hob": ("bigym.envs.saucepan.SaucepanToHob", 3),
+    "saucepan_to_hob": ("bigym.envs.pick_and_place.SaucepanToHob", 3),
+    "drawers_open_all": ("bigym.envs.cupboards.DrawersAllOpen", 4),
 }
 
 DEFAULT_DISRUPTIONS = (
@@ -67,6 +80,13 @@ DEFAULT_DISRUPTIONS = (
     "OBSTRUCTION",
     "RANDOM_PERTURBED",
 )
+
+# Sentinel cell labels for the coworker ParameterSpace factories. When a
+# disruption string is one of these, _build_live_env dispatches to
+# make_coworker_{train,eval}_space() instead of looking up DisruptionType[name].
+COWORKER_CELL_LABELS = ("coworker_train", "coworker_eval")
+
+DISRUPTION_SPACE_CHOICES = ("coworker_train", "coworker_eval", "legacy_multi")
 
 DEFAULT_CLIPS = ("74/74_01_poses.npz",)
 
@@ -102,13 +122,18 @@ class CollectionPlan:
     # flags. Empty by default; the resolver falls through to
     # safety_bigym.filters.snapshots.SNAPSHOTS.
     snapshot_overrides: Mapping[str, str] = field(default_factory=dict)
+    # Geometric near-contact threshold (metres) used by label_transition. The
+    # SVF's binary r_safe = (min_separation >= proximity_threshold). Default
+    # matches labeling.label_transition's own default; surface as a CLI knob
+    # because it's the most likely thing to sweep.
+    proximity_threshold: float = 0.10
 
     @classmethod
     def smoke(cls, output_dir: Path) -> "CollectionPlan":
         return cls(
             sources=("random",),
-            tasks=("reach_target_single",),
-            disruptions=("INCIDENTAL",),
+            tasks=("dishwasher_close",),
+            disruptions=("coworker_train",),
             episodes_per_cell=2,
             max_steps=50,
             bodyslam_mode="oracle",
@@ -157,8 +182,13 @@ def _build_live_env(
     from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
     from safety_bigym.perception.bodyslam_wrapper import BodySLAMWrapper
     from safety_bigym.scenarios.disruption_types import DisruptionType
-    from safety_bigym.scenarios.scenario_sampler import ParameterSpace, ScenarioSampler
-    from bigym.action_modes import JointPositionActionMode
+    from safety_bigym.scenarios.scenario_sampler import (
+        ParameterSpace,
+        ScenarioSampler,
+        make_coworker_train_space,
+        make_coworker_eval_space,
+    )
+    from bigym.action_modes import JointPositionActionMode, PelvisDof
     from bigym.utils.observation_config import CameraConfig, ObservationConfig
 
     task_cls = _import_task(task_key)
@@ -166,11 +196,24 @@ def _build_live_env(
         motion_clip_dir=AMASS_DATA_DIR,
         motion_clip_paths=list(motion_clips),
     )
-    sampler = ScenarioSampler(
-        parameter_space=ParameterSpace(
+    # Cell label dispatch: "coworker_train" / "coworker_eval" use the strict-
+    # superset COWORKER factories; any other value is treated as a legacy
+    # DisruptionType name and pinned to a 1.0-weight single-type space.
+    if disruption == "coworker_train":
+        parameter_space = make_coworker_train_space(
+            clip_paths=human_config.motion_clip_paths,
+        )
+    elif disruption == "coworker_eval":
+        parameter_space = make_coworker_eval_space(
+            clip_paths=human_config.motion_clip_paths,
+        )
+    else:
+        parameter_space = ParameterSpace(
             clip_paths=human_config.motion_clip_paths,
             disruption_weights={DisruptionType[disruption]: 1.0},
-        ),
+        )
+    sampler = ScenarioSampler(
+        parameter_space=parameter_space,
         motion_dir=AMASS_DATA_DIR,
     )
     make_env_kwargs: Dict[str, Any] = {}
@@ -186,10 +229,28 @@ def _build_live_env(
             proprioception=True,
             privileged_information=False,
         )
+    # 4-dof floating base (X, Y, Z, RZ) mirrors RoboBase's BiGym factory under
+    # `cfg.env.enable_all_floating_dof=True` — the regime the Phase-0 ACT
+    # snapshots were trained under (action_dim=16, qpos=66). The bare-BiGym
+    # default of 3 dofs (X, Y, RZ) gives action_dim=15 and silent
+    # state_dict shape mismatches at snapshot load. See B1.4 / B2.3 debug.
     env = make_safety_env(
         task_cls=task_cls,
-        action_mode=JointPositionActionMode(absolute=True, floating_base=True),
-        safety_config=SafetyConfig(terminate_on_violation=False),
+        action_mode=JointPositionActionMode(
+            absolute=True,
+            floating_base=True,
+            floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ],
+        ),
+        # Suppress the per-step "SSM Violation!" WARNING spam: Phase 2 labels
+        # transitions by geometric proximity (B2.7), so the ISO 15066-based
+        # SSM-violation flag is now informational and fires on essentially
+        # every step at kitchen scale. The warnings drown out useful output
+        # during multi-task collection. ssm_margin / min_separation remain
+        # populated on info["safety"] for traceability and shard storage.
+        safety_config=SafetyConfig(
+            terminate_on_violation=False,
+            log_violations=False,
+        ),
         human_config=human_config,
         scenario_sampler=sampler,
         inject_human=True,
@@ -233,6 +294,7 @@ def rollout_episode(
     max_steps: int,
     obs_keys: Sequence[str],
     use_pfl: bool,
+    proximity_threshold: float,
 ) -> Optional[Dict[str, Any]]:
     from safety_bigym.filters.labeling import label_transition
 
@@ -243,6 +305,8 @@ def rollout_episode(
     r_safe_list: List[float] = []
     done_list: List[bool] = []
     margins: List[float] = []
+    min_seps: List[float] = []
+    pfl_ratios: List[float] = []
 
     for _ in range(max_steps):
         action = policy(obs).astype(np.float32, copy=False)
@@ -254,14 +318,22 @@ def rollout_episode(
         if "safety" not in info:
             continue
 
-        r_safe, viol_terminal = label_transition(info, use_pfl=use_pfl)
+        r_safe, viol_terminal = label_transition(
+            info, use_pfl=use_pfl, proximity_threshold=proximity_threshold,
+        )
         for k in obs_keys:
             obs_buf[k].append(prev[k])
             next_obs_buf[k].append(nxt[k])
         actions.append(action)
         r_safe_list.append(r_safe)
         done_list.append(bool(viol_terminal or terminated or truncated))
-        margins.append(float(info["safety"].get("ssm_margin", 0.0)))
+        safety_info = info["safety"]
+        margins.append(float(safety_info.get("ssm_margin", 0.0)))
+        # Store the raw signals so r_safe can be recomputed later (proximity
+        # threshold sweep, PFL retrofit) without re-collecting transitions.
+        # ``pfl_force_ratio`` is currently identically zero; see CLAUDE.md.
+        min_seps.append(float(safety_info.get("min_separation", float("inf"))))
+        pfl_ratios.append(float(safety_info.get("pfl_force_ratio", 0.0)))
 
         if terminated or truncated:
             break
@@ -276,6 +348,8 @@ def rollout_episode(
         "r_safe": np.asarray(r_safe_list, dtype=np.float32),
         "done": np.asarray(done_list, dtype=np.bool_),
         "ssm_margin": np.asarray(margins, dtype=np.float32),
+        "min_separation": np.asarray(min_seps, dtype=np.float32),
+        "pfl_force_ratio": np.asarray(pfl_ratios, dtype=np.float32),
     }
 
 
@@ -419,6 +493,12 @@ def demo_episode_to_transitions(
         if n > 0
         else np.zeros(0, dtype=np.bool_),
         "ssm_margin": np.full(n, DEMO_PLACEHOLDER_MARGIN, dtype=np.float32),
+        # Demos have no live human-robot physics; use a safe-side placeholder
+        # large enough to never trip any plausible proximity threshold and a
+        # zero PFL ratio (no contact recorded). Demo source is currently
+        # disabled in B3 (see CLAUDE.md), but keep the schema consistent.
+        "min_separation": np.full(n, 10.0, dtype=np.float32),
+        "pfl_force_ratio": np.zeros(n, dtype=np.float32),
     }
 
 
@@ -582,6 +662,58 @@ def peek_snapshot_cameras(
     return cameras, resolution
 
 
+def _synthesize_snapshot_obs_space(
+    env,
+    cameras: Sequence[str],
+    resolution: Tuple[int, int],
+    includes_human_pos: bool,
+):
+    """Build the post-wrap observation_space the snapshot agent was trained against.
+
+    The env we hand to ``hydra.utils.instantiate`` must look like what RoboBase's
+    BiGym factory produced at training: ``ConcatDim(shape_length=1)`` collapses
+    all 1-D obs keys into a single ``low_dim_state`` channel (skipping
+    ``LOW_DIM_KEYS_TO_IGNORE``), and ``FrameStack(frame_stack=1)`` prepends a
+    ``T=1`` axis to every remaining key (so rgb becomes ``(T, C, H, W)`` —
+    [robobase/method/bc.py:155] multiplies the first two dims, asserting 4-D).
+
+    For Phase-0 snapshots (``includes_human_pos=False``) we omit
+    ``human_pos_estimate`` from the low_dim_state sum so the synthesized dim
+    matches the actor's training-time input size, even though the wrapped env
+    *does* emit the key (the runtime adapter strips it via the same flag).
+    """
+    from gymnasium import spaces
+
+    low_dim_total = 0
+    for key, space in env.observation_space.spaces.items():
+        if not isinstance(space, spaces.Box):
+            continue
+        if len(space.shape) != 1:
+            continue
+        if key in LOW_DIM_KEYS_TO_IGNORE:
+            continue
+        if key == HUMAN_POS_ESTIMATE_KEY and not includes_human_pos:
+            continue
+        low_dim_total += int(space.shape[0])
+
+    out: Dict[str, Any] = {}
+    if low_dim_total > 0:
+        out["low_dim_state"] = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(1, low_dim_total),
+            dtype=np.float32,
+        )
+    for cam in cameras:
+        out[f"rgb_{cam}"] = spaces.Box(
+            low=0,
+            high=255,
+            shape=(1, 3, int(resolution[0]), int(resolution[1])),
+            dtype=np.uint8,
+        )
+    return spaces.Dict(out)
+
+
 def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     """Load a RoboBase snapshot and return a policy callable.
 
@@ -620,12 +752,32 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
             "Extend _SnapshotPolicy.adapt_obs with a frame-stack deque first."
         )
 
+    cameras: Tuple[str, ...] = ()
+    resolution: Tuple[int, int] = (84, 84)
+    if bool(cfg.get("pixels", False)):
+        cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
+        shape = cfg.get("visual_observation_shape")
+        if shape is not None:
+            resolution = (int(shape[0]), int(shape[1]))
+
+    # Phase 0 vs Phase 1 detection: was BodySLAMWrapper applied at training?
+    bs = cfg.env.get("bodyslam") if "env" in cfg else None
+    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
+    includes_human_pos = bs_mode in ("oracle", "noisy")
+
+    # Synthesize the observation_space the agent was instantiated against at
+    # training. The raw env (post-BodySLAMWrapper) has per-key 1-D obs and
+    # rgb as (3, H, W); the agent expects ConcatDim+FrameStack output.
+    synthesized_obs_space = _synthesize_snapshot_obs_space(
+        env, cameras, resolution, includes_human_pos
+    )
+
     method_cfg = cfg.method
     intrinsic_reward_module = None
     agent = hydra.utils.instantiate(
         method_cfg,
         device="cpu",
-        observation_space=env.observation_space,
+        observation_space=synthesized_obs_space,
         action_space=env.action_space,
         num_train_envs=0,
         replay_alpha=cfg.replay.alpha,
@@ -640,19 +792,6 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
             for p, sp in zip(agent.actor.ema.shadow_params, actor_ema):
                 p.data.copy_(sp)
     agent.train(False)
-
-    cameras: Tuple[str, ...] = ()
-    resolution: Tuple[int, int] = (84, 84)
-    if bool(cfg.get("pixels", False)):
-        cameras = tuple(str(c) for c in cfg.env.get("cameras", []))
-        shape = cfg.get("visual_observation_shape")
-        if shape is not None:
-            resolution = (int(shape[0]), int(shape[1]))
-
-    # Phase 0 vs Phase 1 detection: was BodySLAMWrapper applied at training?
-    bs = cfg.env.get("bodyslam") if "env" in cfg else None
-    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
-    includes_human_pos = bs_mode in ("oracle", "noisy")
 
     return _SnapshotPolicy(
         agent=agent,
@@ -714,18 +853,23 @@ def _collect_live_env_source(
                 )
                 continue
             # Peek at the snapshot's cfg so the env we build matches the
-            # actor's training-time observation format: same cameras, same
-            # BodySLAM mode (oracle/noisy/off).
+            # actor's *pixel* training format (same cameras + resolution).
+            # The actor's low_dim_state schema (Phase 0 off vs Phase 1
+            # oracle/noisy) is handled separately by _SnapshotPolicy.adapt_obs
+            # and the synthesized observation_space inside load_snapshot_policy.
             snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
             snap_bs = peek_snapshot_bodyslam_mode(snapshot_path)
-            # Always match training: Phase 0 (off) skips BodySLAMWrapper so the
-            # agent sees the same obs space it was instantiated against;
-            # Phase 1 oracle/noisy wraps with the matching mode.
-            bodyslam_mode = snap_bs
+            # Env wrapping is governed by plan.bodyslam_mode regardless of
+            # what the snapshot was trained with — the SVF dataset must
+            # always carry human_pos_estimate so the critic can learn the
+            # SSM signal. Phase 0 snapshots (bodyslam=off) still work as
+            # action samplers because adapt_obs strips the human channel
+            # before feeding the actor.
             logger.info(
-                f"Snapshot at {snapshot_path}: bodyslam={snap_bs}, "
+                f"Snapshot at {snapshot_path}: trained bodyslam={snap_bs}, "
                 f"cameras={list(snapshot_cameras) or 'none'} "
-                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
+                f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}; "
+                f"env wrapping uses plan.bodyslam_mode={bodyslam_mode!r}."
             )
 
         for disruption in plan.disruptions:
@@ -765,6 +909,7 @@ def _collect_live_env_source(
                     max_steps=plan.max_steps,
                     obs_keys=spec[0].obs_keys,
                     use_pfl=use_pfl,
+                    proximity_threshold=plan.proximity_threshold,
                 )
                 if payload is None:
                     continue
@@ -780,6 +925,8 @@ def _collect_live_env_source(
                     r_safe=payload["r_safe"],
                     done=payload["done"],
                     ssm_margin=payload["ssm_margin"],
+                    min_separation=payload["min_separation"],
+                    pfl_force_ratio=payload["pfl_force_ratio"],
                     source=np.full(n, source_code, dtype=np.uint8),
                     task_id=np.full(n, task_id, dtype=np.uint8),
                 )
@@ -811,7 +958,7 @@ def _collect_demo_source(
         # build a probe env once.
         probe = _build_live_env(
             plan.tasks[0],
-            plan.disruptions[0] if plan.disruptions else "INCIDENTAL",
+            plan.disruptions[0] if plan.disruptions else "coworker_train",
             plan.bodyslam_mode,
             plan.motion_clips,
         )
@@ -865,6 +1012,8 @@ def _collect_demo_source(
                 r_safe=payload["r_safe"],
                 done=payload["done"],
                 ssm_margin=payload["ssm_margin"],
+                min_separation=payload["min_separation"],
+                pfl_force_ratio=payload["pfl_force_ratio"],
                 source=np.full(n, source_code, dtype=np.uint8),
                 task_id=np.full(n, task_id, dtype=np.uint8),
             )
@@ -923,7 +1072,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         default=list(TASK_REGISTRY)[:1],
         choices=sorted(TASK_REGISTRY),
     )
-    p.add_argument("--disruptions", nargs="+", default=list(DEFAULT_DISRUPTIONS))
+    p.add_argument(
+        "--disruption-space",
+        choices=DISRUPTION_SPACE_CHOICES,
+        default="coworker_train",
+        help=(
+            "coworker_train (default): single cell using make_coworker_train_space() "
+            "— 5 continuous parameter axes in moderate bands. "
+            "coworker_eval: single cell using make_coworker_eval_space() — wider "
+            "bands that strictly contain the train ranges. "
+            "legacy_multi: iterate over --disruptions string list (pre-Phase-0.5 "
+            "5-disruption mixture). Retained as an escape hatch."
+        ),
+    )
+    p.add_argument(
+        "--disruptions",
+        nargs="+",
+        default=list(DEFAULT_DISRUPTIONS),
+        help="Only used when --disruption-space=legacy_multi.",
+    )
     p.add_argument("--episodes-per-cell", type=int, default=20)
     p.add_argument("--max-steps", type=int, default=300)
     p.add_argument("--demos-per-task", type=int, default=30)
@@ -944,6 +1111,17 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         ),
     )
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument(
+        "--proximity-threshold",
+        type=float,
+        default=0.10,
+        help=(
+            "Geometric near-contact bar (metres) used by label_transition. "
+            "Any human-joint / robot-link pair closer than this counts as a "
+            "safety violation. Default 0.10 m. Surfaced for sweep; see "
+            "safety_bigym/filters/labeling.py for the rationale."
+        ),
+    )
     p.add_argument("--use-pfl", action="store_true",
                    help="Set once the PFL contact-detection bug is fixed.")
     p.add_argument("--log-level", default="INFO")
@@ -962,10 +1140,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.smoke:
         plan = CollectionPlan.smoke(args.output_dir)
     else:
+        if args.disruption_space == "legacy_multi":
+            disruptions = tuple(args.disruptions)
+        else:
+            # coworker_train / coworker_eval: single cell labelled by the space
+            # name; _build_live_env dispatches to the factory on this label.
+            disruptions = (args.disruption_space,)
         plan = CollectionPlan(
             sources=tuple(args.source or ("random",)),
             tasks=tuple(args.tasks),
-            disruptions=tuple(args.disruptions),
+            disruptions=disruptions,
             episodes_per_cell=args.episodes_per_cell,
             max_steps=args.max_steps,
             bodyslam_mode=args.bodyslam_mode,
@@ -973,6 +1157,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             snapshot_overrides=snapshot_overrides,
             seed=args.seed,
             demos_per_task=args.demos_per_task,
+            proximity_threshold=args.proximity_threshold,
         )
 
     run_collection(plan, use_pfl=args.use_pfl)

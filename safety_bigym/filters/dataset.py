@@ -28,6 +28,8 @@ _SHARD_REQUIRED_ARRAYS = {
     "r_safe",
     "done",
     "ssm_margin",
+    "min_separation",
+    "pfl_force_ratio",
     "source",
     "task_id",
 }
@@ -81,10 +83,21 @@ class TransitionShardWriter:
         r_safe: np.ndarray,
         done: np.ndarray,
         ssm_margin: np.ndarray,
+        min_separation: np.ndarray,
+        pfl_force_ratio: np.ndarray,
         source: np.ndarray,
         task_id: np.ndarray,
     ) -> Path:
-        """Persist one shard. ``name`` is the filename stem (no extension)."""
+        """Persist one shard. ``name`` is the filename stem (no extension).
+
+        ``min_separation`` and ``pfl_force_ratio`` are stored per-step so the
+        binary ``r_safe`` label can be recomputed later (e.g., proximity
+        threshold sweep, PFL retrofit once the contact-detection bug lands)
+        without re-collecting transitions. ``pfl_force_ratio`` is identically
+        zero under the current PFL bug — stored anyway for forward
+        compatibility; relabelling needs a future re-collection through a
+        PFL-fixed env, but the schema is already in place.
+        """
         n = len(action)
         if n == 0:
             raise ValueError("Refusing to write empty shard")
@@ -111,6 +124,8 @@ class TransitionShardWriter:
             "r_safe": r_safe.astype(np.float32, copy=False),
             "done": done.astype(np.bool_, copy=False),
             "ssm_margin": ssm_margin.astype(np.float32, copy=False),
+            "min_separation": min_separation.astype(np.float32, copy=False),
+            "pfl_force_ratio": pfl_force_ratio.astype(np.float32, copy=False),
             "source": source.astype(np.uint8, copy=False),
             "task_id": task_id.astype(np.uint8, copy=False),
         }
@@ -258,6 +273,8 @@ class SafetyTransitionDataset(Dataset):
             "r_safe": float(data["r_safe"][local_idx]),
             "done": bool(data["done"][local_idx]),
             "ssm_margin": float(data["ssm_margin"][local_idx]),
+            "min_separation": float(data["min_separation"][local_idx]),
+            "pfl_force_ratio": float(data["pfl_force_ratio"][local_idx]),
             "source": int(data["source"][local_idx]),
             "task_id": int(data["task_id"][local_idx]),
         }

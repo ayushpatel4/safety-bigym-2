@@ -8,6 +8,7 @@ defaults:
   - intrinsic_reward_module: null
   - launch: null
   - bodyslam: "off"
+  - disruption: null  # Optional override; e.g. `disruption=coworker_train`. Group at cfgs/disruption/.
   - override hydra/launcher: joblib
 
 # Universal settings

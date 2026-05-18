@@ -27,11 +27,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # absolute paths, or ``None`` for "no snapshot yet — skip this task".
 #
 # Set after each retrain; pick the W&B `pretrain_eval/episode_success` peak.
+#
+# Phase 0.5 task pool (per .claude/IMPLEMENTATION_STATUS.md, 2026-05-15):
+# the three working long-horizon tasks are dishwasher_close, drawers_open_all,
+# saucepan_to_hob. reach_target_single excluded by user (horizon too short).
+# B1 ACT re-rolls on COWORKER train space have been run on the GPU box;
+# paths pending — fill in once W&B `pretrain_eval/episode_success` peaks
+# are identified. Until then `--source snapshot` collection skips these
+# three tasks (returns None from resolve_snapshot → ignored by caller).
 SNAPSHOTS: Dict[str, Optional[str]] = {
     "reach_target_single": None,
-    "dishwasher_close": None,
+    "dishwasher_close": "~/Documents/safety_bigym/exp_local/act_safety/dishwasher_close_20260515184635/snapshots/50000_snapshot.pt",
     "dishwasher_load_plates": None,
-    "saucepan_to_hob": None,
+    "saucepan_to_hob": "~/Documents/safety_bigym/exp_local/act_safety/saucepan_to_hob_20260516123308/snapshots/70000_snapshot.pt",
+    "drawers_open_all": "~/Documents/safety_bigym/exp_local/act_safety/drawers_open_all_20260515184721/snapshots/40000_snapshot.pt",
 }
 
 
