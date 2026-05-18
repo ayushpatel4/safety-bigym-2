@@ -263,6 +263,43 @@ def _worker_init_fn(worker_id):
     random.seed(int(seed))
 
 
+def _copying_collate(batch):
+    """Stack samples into batched tensors via an explicit numpy→torch copy.
+
+    The default ``torch.utils.data._utils.collate`` path uses
+    ``torch.as_tensor(numpy_array)`` (zero-copy, shared storage), then in
+    DataLoader worker processes goes through ``collate_tensor_fn``'s
+    shared-memory allocation path:
+
+        out = elem.new(storage).resize_(len(batch), *list(elem.size()))
+
+    With numpy-backed elements, ``elem.new(storage)`` inherits the
+    non-resizable attribute of the underlying numpy buffer and ``resize_``
+    raises ``RuntimeError: Trying to resize storage that is not resizable``.
+    This is deterministic on torch ≥2.5 + num_workers>0 and bites every
+    train_cqn_as.py run on the second batch (cf. A6 v5, C2 cell 1).
+
+    Forcing a per-element ``torch.from_numpy(np.ascontiguousarray(...))``
+    + ``clone()`` materialises the data in torch-native memory before
+    ``torch.stack``, sidestepping both the shared-memory allocation path
+    and any non-contiguous strides from the npz mmap.
+
+    ``batch`` here is a list of tuples
+    ``(rgb_obs, low_dim_obs, action, reward, discount, next_rgb_obs,
+       next_low_dim_obs, demo)`` — the shape returned by ``ReplayBuffer._sample``.
+    """
+    n_fields = len(batch[0])
+    return tuple(
+        torch.stack(
+            [
+                torch.from_numpy(np.ascontiguousarray(sample[i])).clone()
+                for sample in batch
+            ]
+        )
+        for i in range(n_fields)
+    )
+
+
 def make_replay_loader(
     replay_dir,
     max_size,
@@ -296,5 +333,6 @@ def make_replay_loader(
         num_workers=num_workers,
         pin_memory=False,
         worker_init_fn=_worker_init_fn,
+        collate_fn=_copying_collate,
     )
     return loader
