@@ -591,3 +591,124 @@ def test_timestep_indexable_by_str(patched_factory):
     ts = adapter.reset()
     assert ts["reward"] == ts.reward
     assert ts["step_type"] == ts.step_type
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 P3.0c: per-step cost attachment
+# ---------------------------------------------------------------------------
+
+
+def test_reset_emits_zero_cost(patched_factory):
+    """Reset has no prior dynamics — cost must be 0.0 by convention."""
+    patched_factory(include_human_pos=False)
+    adapter = SafetyBiGymCQNAdapter(_make_cfg())
+    ts = adapter.reset()
+    assert ts.cost == 0.0
+
+
+def test_step_attaches_cost_from_safety_info(patched_factory):
+    """Adapter step() must compute c_t from info['safety'] per env-step.
+
+    Stub env's ssm_margin decreases by 0.05 each step from 0.5. With d_buffer=0.3
+    (default), cost stays 0 while margin >= d_buffer, then rises linearly:
+    - margin=0.30 (step 4) → c_ssm = max(0, 1 - 1) = 0
+    - margin=0.25 (step 5) → c_ssm = 1 - 5/6 = 1/6
+    - margin=0.20 (step 6) → c_ssm = 1 - 2/3 = 1/3
+    """
+    patched_factory(include_human_pos=False, steps_to_terminal=20)
+    adapter = SafetyBiGymCQNAdapter(_make_cfg())
+    adapter.reset()
+    action = np.zeros(adapter.action_spec().shape, dtype=np.float32)
+
+    costs = []
+    for _ in range(8):
+        ts = adapter.step(action)
+        costs.append(ts.cost)
+        if ts.last():
+            break
+
+    # First three steps: margin > d_buffer → zero cost
+    assert costs[0] == 0.0
+    assert costs[1] == 0.0
+    assert costs[2] == 0.0
+    # Step 4 lands at boundary margin=0.30 → still zero
+    assert costs[3] == 0.0
+    # Steps 5+ produce strictly positive monotonically-rising cost
+    assert costs[4] > 0.0
+    assert costs[5] > costs[4]
+    assert costs[6] > costs[5]
+    # Sanity bound — clipped to [0, 1]
+    for c in costs:
+        assert 0.0 <= c <= 1.0
+
+
+def test_cost_per_env_step_not_aggregated_across_chunk(patched_factory):
+    """Each env-step emits its own cost — the value changes between consecutive steps.
+
+    This is the load-bearing P3.0c gate: a K-step action chunk that contains a
+    cost spike must not have that spike averaged away. Confirmed by verifying
+    the per-step cost field changes between consecutive step() calls when the
+    underlying ssm_margin changes.
+    """
+    patched_factory(include_human_pos=False, steps_to_terminal=20)
+    adapter = SafetyBiGymCQNAdapter(_make_cfg())
+    adapter.reset()
+    action = np.zeros(adapter.action_spec().shape, dtype=np.float32)
+
+    seen_changes = 0
+    prev = 0.0
+    for _ in range(10):
+        ts = adapter.step(action)
+        if ts.cost != prev:
+            seen_changes += 1
+        prev = ts.cost
+        if ts.last():
+            break
+    # At least 2 distinct cost transitions over the 10-step horizon (0 -> nonzero,
+    # nonzero -> larger nonzero).
+    assert seen_changes >= 2, f"cost barely varied across steps: only {seen_changes} change(s)"
+
+
+def test_cost_timestep_field_is_indexable_by_string(patched_factory):
+    """ReplayBufferStorage.add() reads time_step['cost'] — confirm the shim works."""
+    patched_factory(include_human_pos=False, steps_to_terminal=20)
+    adapter = SafetyBiGymCQNAdapter(_make_cfg())
+    adapter.reset()
+    action = np.zeros(adapter.action_spec().shape, dtype=np.float32)
+    ts = adapter.step(action)
+    assert ts["cost"] == ts.cost
+
+
+def test_extended_timestep_carries_cost(patched_factory):
+    """ExtendedTimeStepWrapper must forward the cost field unchanged."""
+    patched_factory(include_human_pos=False, steps_to_terminal=20)
+    cfg = _make_cfg()
+    env = env_adapter.make(cfg)
+    env.reset()
+    action = np.full(env.action_spec().shape, 0.0, dtype=np.float32)
+    # Step a few times to build up nonzero cost
+    last_ts = None
+    for _ in range(6):
+        last_ts = env.step(action)
+    assert isinstance(last_ts, ExtendedTimeStep)
+    assert hasattr(last_ts, "cost")
+    assert last_ts["cost"] == last_ts.cost
+
+
+def test_cost_zero_when_safety_info_absent(patched_factory):
+    """If info lacks 'safety' (e.g. some wrapper drops it), cost gracefully defaults to 0."""
+    patched_factory(include_human_pos=False, steps_to_terminal=20)
+    adapter = SafetyBiGymCQNAdapter(_make_cfg())
+    adapter.reset()
+    action = np.zeros(adapter.action_spec().shape, dtype=np.float32)
+    # Monkeypatch the underlying stub env to emit info without 'safety'.
+    real_step = adapter._env.step
+
+    def _stripped_step(act):
+        obs, reward, terminated, truncated, info = real_step(act)
+        info.pop("safety", None)
+        return obs, reward, terminated, truncated, info
+
+    adapter._env.step = _stripped_step
+    ts = adapter.step(action)
+    assert ts.cost == 0.0

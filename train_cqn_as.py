@@ -110,6 +110,11 @@ class Workspace:
             specs.Array((1,), np.float32, "reward"),
             specs.Array((1,), np.float32, "discount"),
             specs.Array((1,), np.float32, "demo"),
+            # Phase 3 P3.0c: per-step cost c_t carried into the episode shards.
+            # ReplayBufferStorage.add() reads `time_step["cost"]` via the
+            # NamedTuple __getitem__ shim; env_adapter populates it from
+            # info["safety"] each env-step.
+            specs.Array((1,), np.float32, "cost"),
         )
         self.replay_storage = ReplayBufferStorage(
             data_specs, self.work_dir / "buffer", self.cfg.use_relabeling
