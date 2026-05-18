@@ -888,14 +888,37 @@ class SafetyBiGymEnv(BiGymEnv):
                 )
     
     def _reward(self) -> float:
-        """Get reward with optional violation penalty."""
+        """Get reward with optional violation penalty and workspace shaping."""
         base_reward = super()._reward()
-        
+
         if self.safety_config.add_violation_penalty and self._step_safety_info:
             if self._step_safety_info.ssm_violation or self._step_safety_info.pfl_violation:
                 base_reward -= self.safety_config.violation_penalty
-                
+
+        if self.safety_config.add_workspace_penalty:
+            base_reward += self._compute_workspace_penalty()
+
         return base_reward
+
+    def _compute_workspace_penalty(self) -> float:
+        """Phase 3 workspace shaping: r_workspace = -beta * max(0, ||p_ee - p_task|| - r_ws).
+
+        Returns 0 silently when the EE or task object position is unavailable.
+        Both lookups are best-effort and reuse helpers already used by
+        ``_get_robot_state()``.
+        """
+        try:
+            ee_pos = np.asarray(self._robot.get_ee_position(), dtype=float)
+        except Exception:
+            return 0.0
+
+        task_pos = self._lookup_task_object_pos()
+        if task_pos is None:
+            return 0.0
+
+        dist = float(np.linalg.norm(ee_pos - task_pos))
+        excess = max(0.0, dist - self.safety_config.workspace_radius)
+        return -self.safety_config.workspace_beta * excess
 
     def step(self, action):
         """Step environment and add privileged info."""
