@@ -903,20 +903,28 @@ class SafetyBiGymEnv(BiGymEnv):
     def _compute_workspace_penalty(self) -> float:
         """Phase 3 workspace shaping: r_workspace = -beta * max(0, ||p_ee - p_task|| - r_ws).
 
-        Returns 0 silently when the EE or task object position is unavailable.
-        Both lookups are best-effort and reuse helpers already used by
-        ``_get_robot_state()``.
+        Reuses :meth:`_get_robot_state` so the EE-position lookup goes through
+        the same fallback chain used for IK: prefer ``self._robot.get_ee_position()``
+        when the robot exposes it, otherwise pick up ``state["link_pos"]["ee"]``
+        which the helper populates via :data:`_ROBOT_LINK_NAMES` mj_name2id
+        lookups. H1 (the default robot) has no ``get_ee_position`` method, so
+        the ``link_pos`` fallback is the load-bearing path. Returns 0 silently
+        when either position is unavailable (e.g. a task with no manipulable
+        and a robot mid-rebind).
         """
-        try:
-            ee_pos = np.asarray(self._robot.get_ee_position(), dtype=float)
-        except Exception:
+        state = self._get_robot_state()
+        ee_pos = state.get("ee_pos")
+        if ee_pos is None:
+            link_pos = state.get("link_pos") or {}
+            ee_pos = link_pos.get("ee")
+        if ee_pos is None:
             return 0.0
 
-        task_pos = self._lookup_task_object_pos()
+        task_pos = state.get("task_object_pos")
         if task_pos is None:
             return 0.0
 
-        dist = float(np.linalg.norm(ee_pos - task_pos))
+        dist = float(np.linalg.norm(np.asarray(ee_pos, dtype=float) - task_pos))
         excess = max(0.0, dist - self.safety_config.workspace_radius)
         return -self.safety_config.workspace_beta * excess
 

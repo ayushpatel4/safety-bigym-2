@@ -15,19 +15,28 @@ from safety_bigym.config import SafetyConfig
 from safety_bigym.envs.safety_env import SafetyBiGymEnv
 
 
-def _stub(ee_pos, task_pos, *, cfg, ee_raises: bool = False):
-    """Build a SimpleNamespace with the attributes _compute_workspace_penalty reads."""
-    if ee_raises:
-        def get_ee_position():
-            raise RuntimeError("EE unavailable")
-    else:
-        def get_ee_position():
-            return ee_pos
-    stub = SimpleNamespace(
-        _robot=SimpleNamespace(get_ee_position=get_ee_position),
-        safety_config=cfg,
-    )
-    stub._lookup_task_object_pos = lambda: task_pos
+def _stub(ee_pos, task_pos, *, cfg, ee_missing: bool = False, via_link_pos: bool = False):
+    """Build a SimpleNamespace whose _get_robot_state returns the controlled state dict.
+
+    ``_compute_workspace_penalty`` now reads through ``_get_robot_state`` (see
+    H1's missing ``get_ee_position`` and the ``link_pos['ee']`` fallback in
+    the env). This stub mirrors that surface.
+
+    - ``ee_missing=True``: simulate a state dict with no ee_pos AND no link_pos['ee']
+      (e.g. mid-rebind robot)
+    - ``via_link_pos=True``: simulate H1's case — top-level ``ee_pos`` absent
+      but ``link_pos['ee']`` populated by the _ROBOT_LINK_NAMES fallback
+    """
+    state: dict = {}
+    if not ee_missing:
+        if via_link_pos:
+            state["link_pos"] = {"ee": ee_pos}
+        else:
+            state["ee_pos"] = ee_pos
+    if task_pos is not None:
+        state["task_object_pos"] = task_pos
+    stub = SimpleNamespace(safety_config=cfg)
+    stub._get_robot_state = lambda: state
     return stub
 
 
@@ -94,9 +103,24 @@ def test_ee_lookup_exception_returns_zero():
         np.array([1.0, 0.0, 0.0]),
         np.array([0.0, 0.0, 0.0]),
         cfg=cfg,
-        ee_raises=True,
+        ee_missing=True,
     )
     assert SafetyBiGymEnv._compute_workspace_penalty(stub) == 0.0
+
+
+def test_ee_via_link_pos_fallback_used():
+    """H1 path: top-level ee_pos absent but link_pos['ee'] populated. Penalty must fire."""
+    cfg = SafetyConfig(
+        add_workspace_penalty=True, workspace_radius=0.4, workspace_beta=0.2
+    )
+    stub = _stub(
+        np.array([1.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.0]),
+        cfg=cfg,
+        via_link_pos=True,
+    )
+    # dist=1.0, excess=0.6, expected penalty = -0.12 (same math as outside-radius case)
+    assert SafetyBiGymEnv._compute_workspace_penalty(stub) == pytest.approx(-0.12)
 
 
 def test_3d_distance_metric_is_euclidean():
