@@ -460,10 +460,61 @@ class Workspace:
             torch.save(payload, f)
         logger.info(f"saved snapshot: {snapshot}")
 
+    def load_snapshot(self, path) -> None:
+        """Eager-load a saved agent state into ``self.agent``.
+
+        Called from ``main`` before ``train()`` when the user passes
+        ``+snapshot_path=...`` on the Hydra CLI. The snapshot must have
+        been produced by a run with a compatible model architecture
+        (same bodyslam mode, same task, same agent config). Mismatches
+        surface as a strict-load KeyError or shape RuntimeError, which
+        is the right failure mode — we'd rather fail loudly than
+        silently run with mostly-random weights.
+
+        ``weights_only=False`` is required because snapshot payloads
+        also carry the run config (an OmegaConf DictConfig); torch
+        ≥2.6's default safe-globals list doesn't include it.
+        """
+        path = Path(path)
+        if not path.is_file():
+            raise FileNotFoundError(f"snapshot_path {path} not found")
+        logger.info(f"loading snapshot: {path}")
+        payload = torch.load(path, map_location=self.device, weights_only=False)
+        agent_state = payload.get("agent_state")
+        if agent_state is None:
+            raise ValueError(
+                f"snapshot {path} has no 'agent_state' field "
+                f"(keys: {sorted(payload.keys())})"
+            )
+        # The vendored CQNASAgent isn't an nn.Module — it owns sub-modules
+        # (encoder, critic, target_critic, optimizers). Its state_dict()
+        # returns a dict-of-dicts; load_state_dict needs the same shape.
+        self.agent.load_state_dict(agent_state)
+        loaded_step = int(payload.get("step", 0))
+        loaded_ep = int(payload.get("episode", 0))
+        logger.info(
+            f"snapshot loaded: trained for {loaded_step} steps / "
+            f"{loaded_ep} episodes"
+        )
+
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="cqn_as_config")
 def main(cfg: DictConfig) -> None:
     workspace = Workspace(cfg)
+    # Eval-only mode: load a saved policy, run eval() once, exit.
+    # phase1_reward_pilot_cqn_as.py --eval uses this path with
+    # num_train_frames=0 and +snapshot_path=<peak snapshot>.
+    snapshot_path = cfg.get("snapshot_path") if hasattr(cfg, "get") else None
+    if snapshot_path is not None:
+        workspace.load_snapshot(snapshot_path)
+    if int(cfg.num_train_frames) <= 0:
+        if snapshot_path is None:
+            logger.warning(
+                "num_train_frames<=0 with no snapshot_path — agent is "
+                "freshly initialised; eval results will be ~random."
+            )
+        workspace.eval()
+        return
     workspace.load_demos()
     workspace.train()
 

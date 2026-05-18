@@ -708,6 +708,39 @@ class CQNASAgent:
         self.encoder.train(training)
         self.critic.train(training)
 
+    # NOTE (FYP3 safety_bigym): CQNASAgent is not an nn.Module, so it has
+    # no built-in state_dict / load_state_dict. The vendored upstream
+    # doesn't define them either. We add them here so train_cqn_as.py's
+    # snapshot save/load path actually persists weights (the previous
+    # snapshot payload was carrying `agent_state=None`). Eval-only mode
+    # via `+snapshot_path=...` in train_cqn_as.py reads this back.
+    def state_dict(self):
+        return {
+            "encoder": self.encoder.state_dict(),
+            "critic": self.critic.state_dict(),
+            "critic_target": self.critic_target.state_dict(),
+            "encoder_opt": self.encoder_opt.state_dict(),
+            "critic_opt": self.critic_opt.state_dict(),
+        }
+
+    def load_state_dict(self, state_dict):
+        self.encoder.load_state_dict(state_dict["encoder"])
+        self.critic.load_state_dict(state_dict["critic"])
+        self.critic_target.load_state_dict(state_dict["critic_target"])
+        # Optimizers are optional — eval-only runs don't need them, and
+        # restoring with a different lr/weight_decay would silently
+        # discard the old running stats. Keep them load-best-effort.
+        if "encoder_opt" in state_dict:
+            try:
+                self.encoder_opt.load_state_dict(state_dict["encoder_opt"])
+            except (ValueError, KeyError):
+                pass
+        if "critic_opt" in state_dict:
+            try:
+                self.critic_opt.load_state_dict(state_dict["critic_opt"])
+            except (ValueError, KeyError):
+                pass
+
     def act(self, rgb_obs, low_dim_obs, step, eval_mode):
         rgb_obs = torch.as_tensor(rgb_obs, device=self.device).unsqueeze(0)
         low_dim_obs = torch.as_tensor(low_dim_obs, device=self.device).unsqueeze(0)
