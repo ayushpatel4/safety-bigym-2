@@ -45,6 +45,11 @@ except ImportError as e:  # pragma: no cover - dm_env is a CQN-AS dependency
     ) from e
 
 from safety_bigym.envs.safety_bigym_factory import SafetyBiGymEnvFactory
+from safety_bigym.filters.cost_signal import (
+    D_BUFFER_DEFAULT,
+    PFL_RATIO_THRESHOLD_DEFAULT,
+    compute_cost,
+)
 from safety_bigym.perception.bodyslam_wrapper import OBS_KEY as BODYSLAM_OBS_KEY
 
 logger = logging.getLogger(__name__)
@@ -58,7 +63,15 @@ _DEFAULT_STATE_KEYS: Tuple[str, ...] = (
 
 
 class TimeStep(NamedTuple):
-    """Mirror of CQN-AS/bigym_src/bigym_env.py:TimeStep."""
+    """Mirror of CQN-AS/bigym_src/bigym_env.py:TimeStep.
+
+    ``cost`` is a Phase 3 addition (P3.0c): the per-env-step continuous cost
+    ``c_t = max(c_ssm, c_pfl)`` computed by :func:`compute_cost` from
+    ``info["safety"]``. Stored on the TimeStep so the replay buffer can pick
+    it up per-env-step (not per K-action-chunk), preserving the per-step
+    granularity required by ``UPDATED_PROJECT_PLAN.md:348``. Default 0.0 keeps
+    construction-site compatibility for tests that don't simulate a human.
+    """
 
     step_type: Any
     reward: Any
@@ -67,6 +80,7 @@ class TimeStep(NamedTuple):
     low_dim_obs: Any
     demo: Any
     info: Dict[str, Any] = {}  # extra field; ignored by agent, used by logger
+    cost: float = 0.0  # Phase 3 per-step cost; see filters/cost_signal.py
 
     def first(self) -> bool:
         return self.step_type == StepType.FIRST
@@ -84,7 +98,11 @@ class TimeStep(NamedTuple):
 
 
 class ExtendedTimeStep(NamedTuple):
-    """Mirror of CQN-AS/bigym_src/bigym_env.py:ExtendedTimeStep."""
+    """Mirror of CQN-AS/bigym_src/bigym_env.py:ExtendedTimeStep.
+
+    Carries the Phase 3 ``cost`` field through to the replay buffer. See
+    :class:`TimeStep` for semantics.
+    """
 
     step_type: Any
     reward: Any
@@ -94,6 +112,7 @@ class ExtendedTimeStep(NamedTuple):
     action: Any
     demo: Any
     info: Dict[str, Any] = {}
+    cost: float = 0.0  # Phase 3 per-step cost; see filters/cost_signal.py
 
     def first(self) -> bool:
         return self.step_type == StepType.FIRST
@@ -137,6 +156,7 @@ class ExtendedTimeStepWrapper:
             discount=ts.discount,
             demo=ts.demo,
             info=ts.info,
+            cost=ts.cost,
         )
 
     def low_dim_observation_spec(self):
@@ -195,6 +215,19 @@ class SafetyBiGymCQNAdapter:
         bs = cfg.env.get("bodyslam") if hasattr(cfg, "env") else None
         self._bodyslam_mode = str(bs.get("mode", "off")) if bs is not None else "off"
         self._inject_human_pos = self._bodyslam_mode != "off"
+
+        # Phase 3 per-step cost configuration. Surface d_buffer / pfl_threshold
+        # so an experiment can sweep them without code edits; defaults match
+        # UPDATED_PROJECT_PLAN.md:343-346 and filters/cost_signal.py constants.
+        safety_cfg = cfg.env.get("safety") if hasattr(cfg, "env") else None
+        if safety_cfg is not None:
+            self._cost_d_buffer = float(safety_cfg.get("d_buffer", D_BUFFER_DEFAULT))
+            self._cost_pfl_threshold = float(
+                safety_cfg.get("pfl_ratio_threshold", PFL_RATIO_THRESHOLD_DEFAULT)
+            )
+        else:
+            self._cost_d_buffer = D_BUFFER_DEFAULT
+            self._cost_pfl_threshold = PFL_RATIO_THRESHOLD_DEFAULT
 
         # Gate cameras on the top-level pixels flag — when pixels=False, the
         # factory builds the env with cameras=[] and the obs dict has no
@@ -257,6 +290,14 @@ class SafetyBiGymCQNAdapter:
         step_type = StepType.LAST if (terminated or truncated) else StepType.MID
         discount = float(1 - bool(terminated))
 
+        # Phase 3 per-step cost. info["safety"] is populated by ISO15066Wrapper
+        # on every env-step; compute_cost handles missing/None fields gracefully.
+        cost = compute_cost(
+            self._last_info.get("safety", {}),
+            d_buffer=self._cost_d_buffer,
+            pfl_threshold=self._cost_pfl_threshold,
+        )
+
         return TimeStep(
             rgb_obs=obs["rgb_obs"],
             low_dim_obs=obs["low_dim_obs"],
@@ -265,6 +306,7 @@ class SafetyBiGymCQNAdapter:
             discount=discount,
             demo=0.0,
             info=self._last_info,
+            cost=cost,
         )
 
     def reset(self, **kwargs) -> TimeStep:
@@ -285,6 +327,7 @@ class SafetyBiGymCQNAdapter:
             discount=1.0,
             demo=0.0,
             info=self._last_info,
+            cost=0.0,
         )
 
     def render(self) -> Union[None, np.ndarray]:

@@ -69,7 +69,16 @@ class SafetyConfig:
     terminate_on_violation: bool = False
     add_violation_penalty: bool = False
     violation_penalty: float = -1.0
-    
+
+    # Phase 3 workspace reward shaping
+    # r_workspace = -beta * max(0, ||p_ee - p_task|| - r_ws); subtracted from task reward.
+    # Prevents the Lagrangian policy from satisfying its cost constraint by
+    # evacuating the workspace. beta swept in E3.X.workspace; defaults chosen per
+    # UPDATED_PROJECT_PLAN.md:337.
+    add_workspace_penalty: bool = False
+    workspace_radius: float = 0.4
+    workspace_beta: float = 0.2
+
     # Logging
     log_violations: bool = True
     log_all_contacts: bool = False

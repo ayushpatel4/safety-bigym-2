@@ -888,14 +888,45 @@ class SafetyBiGymEnv(BiGymEnv):
                 )
     
     def _reward(self) -> float:
-        """Get reward with optional violation penalty."""
+        """Get reward with optional violation penalty and workspace shaping."""
         base_reward = super()._reward()
-        
+
         if self.safety_config.add_violation_penalty and self._step_safety_info:
             if self._step_safety_info.ssm_violation or self._step_safety_info.pfl_violation:
                 base_reward -= self.safety_config.violation_penalty
-                
+
+        if self.safety_config.add_workspace_penalty:
+            base_reward += self._compute_workspace_penalty()
+
         return base_reward
+
+    def _compute_workspace_penalty(self) -> float:
+        """Phase 3 workspace shaping: r_workspace = -beta * max(0, ||p_ee - p_task|| - r_ws).
+
+        Reuses :meth:`_get_robot_state` so the EE-position lookup goes through
+        the same fallback chain used for IK: prefer ``self._robot.get_ee_position()``
+        when the robot exposes it, otherwise pick up ``state["link_pos"]["ee"]``
+        which the helper populates via :data:`_ROBOT_LINK_NAMES` mj_name2id
+        lookups. H1 (the default robot) has no ``get_ee_position`` method, so
+        the ``link_pos`` fallback is the load-bearing path. Returns 0 silently
+        when either position is unavailable (e.g. a task with no manipulable
+        and a robot mid-rebind).
+        """
+        state = self._get_robot_state()
+        ee_pos = state.get("ee_pos")
+        if ee_pos is None:
+            link_pos = state.get("link_pos") or {}
+            ee_pos = link_pos.get("ee")
+        if ee_pos is None:
+            return 0.0
+
+        task_pos = state.get("task_object_pos")
+        if task_pos is None:
+            return 0.0
+
+        dist = float(np.linalg.norm(np.asarray(ee_pos, dtype=float) - task_pos))
+        excess = max(0.0, dist - self.safety_config.workspace_radius)
+        return -self.safety_config.workspace_beta * excess
 
     def step(self, action):
         """Step environment and add privileged info."""
