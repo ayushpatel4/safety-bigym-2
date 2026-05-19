@@ -69,17 +69,44 @@ def to_torch_tensor_dict(xs, device):
 
 
 def to_torch_pixel_tensor_dict(xs, device):
-    # Assumes certain structure
-    (
-        rgb_obs,
-        low_dim_obs,
-        action,
-        reward,
-        discount,
-        next_rgb_obs,
-        next_low_dim_obs,
-        demos,
-    ) = tuple(torch.as_tensor(x, device=device, dtype=torch.float) for x in xs)
+    # Assumes a fixed shape from ReplayBuffer._sample. The Phase 3 P3.0c
+    # extension appended (cost, max_cost) after demos so the buffer carries
+    # the per-env-step cost into the batch dict. agent.update() ignores the
+    # new keys for now; Phase 3.1 wires Q_c to consume them.
+    tensors = tuple(torch.as_tensor(x, device=device, dtype=torch.float) for x in xs)
+    if len(tensors) == 10:
+        (
+            rgb_obs,
+            low_dim_obs,
+            action,
+            reward,
+            discount,
+            next_rgb_obs,
+            next_low_dim_obs,
+            demos,
+            cost,
+            max_cost,
+        ) = tensors
+    elif len(tensors) == 8:
+        # Legacy pre-P3.0c shape; treat as cost=0 to keep the batch dict
+        # schema constant for downstream consumers.
+        (
+            rgb_obs,
+            low_dim_obs,
+            action,
+            reward,
+            discount,
+            next_rgb_obs,
+            next_low_dim_obs,
+            demos,
+        ) = tensors
+        cost = torch.zeros_like(reward)
+        max_cost = torch.zeros_like(reward)
+    else:
+        raise ValueError(
+            f"Unexpected batch tuple length {len(tensors)}; expected 8 (pre-P3.0c) "
+            f"or 10 (P3.0c+). xs[0] shape={getattr(xs[0], 'shape', None)}"
+        )
     batch = TensorDict(
         rgb_obs=rgb_obs,
         low_dim_obs=low_dim_obs,
@@ -89,6 +116,8 @@ def to_torch_pixel_tensor_dict(xs, device):
         next_rgb_obs=next_rgb_obs,
         next_low_dim_obs=next_low_dim_obs,
         demos=demos,
+        cost=cost,
+        max_cost=max_cost,
     )
     return batch
 

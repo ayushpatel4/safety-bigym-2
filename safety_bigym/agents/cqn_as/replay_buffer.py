@@ -231,12 +231,32 @@ class ReplayBuffer(IterableDataset):
 
         reward = np.zeros_like(episode["reward"][idx])
         discount = np.ones_like(episode["discount"][idx])
+        # FYP3 Phase 3 drift (P3.0c): mirror the reward accumulation for the
+        # per-step cost ``c_t`` so the Phase 3 Bellman target for Q_c sees
+        # n-step discounted-cost returns at per-env-step granularity. Also
+        # emit max_cost over the n-step window for B-value-CVaR / max-over-
+        # chunk diagnostics (cheap; one extra max per sample).
+        has_cost = "cost" in episode
+        if has_cost:
+            cost = np.zeros_like(episode["cost"][idx])
+            max_cost = np.zeros_like(episode["cost"][idx])
+            cost_discount = np.ones_like(episode["discount"][idx])
         for i in range(self._nstep):
             step_reward = episode["reward"][idx + i]
             reward += discount * step_reward
+            if has_cost:
+                step_cost = episode["cost"][idx + i]
+                cost += cost_discount * step_cost
+                max_cost = np.maximum(max_cost, step_cost)
+                cost_discount *= self._discount
             _discount = episode["discount"][idx + i]
             discount *= _discount * self._discount
         demo = episode["demo"][idx]
+        if not has_cost:
+            # Pre-P3.0c shards (no cost field on disk) — emit zeros so the
+            # tuple shape stays stable and downstream collate doesn't branch.
+            cost = np.zeros_like(reward)
+            max_cost = np.zeros_like(reward)
         return (
             rgb_obs,
             low_dim_obs,
@@ -246,6 +266,8 @@ class ReplayBuffer(IterableDataset):
             next_rgb_obs,
             next_low_dim_obs,
             demo,
+            cost,
+            max_cost,
         )
 
     def __iter__(self):

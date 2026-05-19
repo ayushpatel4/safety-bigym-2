@@ -153,7 +153,8 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
         )
 
         # Read reward-shaping fields from cfg.env.safety; defaults preserve
-        # the pre-Phase-1.4 behaviour (penalty off).
+        # the pre-Phase-1.4 behaviour (penalty off). Phase 3 P3.0a adds the
+        # workspace shaping triple (add_workspace_penalty / radius / beta).
         safety_cfg_block = cfg.env.get("safety", {}) or {}
         safety_config = SafetyConfig(
             log_violations=False,
@@ -163,6 +164,15 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             ),
             violation_penalty=float(
                 safety_cfg_block.get("violation_penalty", 0.05)
+            ),
+            add_workspace_penalty=bool(
+                safety_cfg_block.get("add_workspace_penalty", False)
+            ),
+            workspace_radius=float(
+                safety_cfg_block.get("workspace_radius", 0.4)
+            ),
+            workspace_beta=float(
+                safety_cfg_block.get("workspace_beta", 0.2)
             ),
         )
 
