@@ -324,8 +324,6 @@ class Workspace:
                 self.replay_storage.add(time_step)
                 if self._demos_enabled:
                     self.demo_replay_storage.add(time_step)
-                if self.cfg.save_snapshot and snapshot_every_step(self.global_step):
-                    self.save_snapshot()
                 episode_step = 0
                 episode_reward = 0.0
 
@@ -393,6 +391,25 @@ class Workspace:
 
             episode_step += 1
             self._global_step += 1
+
+            # Snapshot cadence: fire every snapshot_every_frames steps,
+            # independent of episode boundaries. Previously this check lived
+            # inside `if time_step.last():` which only triggered when an
+            # episode end coincidentally aligned with a multiple of
+            # snapshot_every_frames — for COWORKER train rollouts on
+            # saucepan_to_hob (episodes ~150 steps, terminated stochastically
+            # by violations), that alignment essentially never happens and
+            # 200k-step runs landed zero snapshots on disk.
+            if self.cfg.save_snapshot and snapshot_every_step(self.global_step):
+                self.save_snapshot()
+
+        # Final-state snapshot when the loop exits at num_train_frames.
+        # Without this, the trailing partial period (last snapshot landed at
+        # 190000, train_until_step exits at 200000) is unrecoverable —
+        # the eval-curve peak is usually near the end, so this is the most
+        # load-bearing single checkpoint of the run.
+        if self.cfg.save_snapshot:
+            self.save_snapshot()
 
     # ------------------------------------------------------------------
     # Eval
