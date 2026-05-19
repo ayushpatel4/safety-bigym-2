@@ -105,6 +105,7 @@ def _train_cmd(mode: str, seed: int) -> list[str]:
         f"num_train_frames={NUM_TRAIN_FRAMES}",
         "num_demos=0",
         "save_snapshot=true",
+        "save_video=true",
         "env.safety.add_violation_penalty=true",
         "env.safety.violation_penalty=0.05",
         "wandb.use=true",

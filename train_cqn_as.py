@@ -38,6 +38,7 @@ from dm_env import specs
 from omegaconf import DictConfig, OmegaConf
 
 from safety_bigym.agents.cqn_as import env_adapter, utils
+from safety_bigym.agents.cqn_as.eval_video import render_frame, write_eval_video
 from safety_bigym.agents.cqn_as.replay_buffer import (
     ReplayBufferStorage,
     make_replay_loader,
@@ -424,12 +425,25 @@ class Workspace:
         step, episode, total_reward = 0, 0, 0.0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
 
+        # cfg.save_video gates per-eval-cycle video recording. Only the first
+        # eval episode is captured per cycle (disk is cheap but not infinite,
+        # and the second/third episode look very similar early in training).
+        # Rendering goes through self.train_env.render() which delegates down
+        # through the wrapper stack to SafetyBiGymEnv's MuJoCo renderer.
+        record_video = bool(self.cfg.get("save_video", False))
+        frames: list = []
+        video_dir = self.work_dir / "eval_videos"
+
         while eval_until_episode(episode):
             episode_step = 0
             time_step = self.train_env.reset()
             if self.cfg.temporal_ensemble:
                 self.eval_temporal_ensemble.reset()
             action = None
+            if record_video and episode == 0:
+                frame = render_frame(self.train_env, global_step=self.global_step)
+                if frame is not None:
+                    frames.append(frame)
             while not time_step.last():
                 if (
                     self.cfg.temporal_ensemble
@@ -453,7 +467,19 @@ class Workspace:
                 total_reward += time_step.reward
                 step += 1
                 episode_step += 1
+                if record_video and episode == 0:
+                    frame = render_frame(self.train_env, global_step=self.global_step)
+                    if frame is not None:
+                        frames.append(frame)
             episode += 1
+
+        if record_video and frames:
+            write_eval_video(
+                video_dir,
+                frames,
+                global_step=self.global_step,
+                wandb_run=self._wandb_run,
+            )
 
         self._log(
             {
@@ -464,6 +490,7 @@ class Workspace:
             self.global_step,
             ty="eval",
         )
+
 
     # ------------------------------------------------------------------
     # Snapshot
