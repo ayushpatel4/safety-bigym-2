@@ -10,24 +10,19 @@ Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
 
 ## Next session — start here
 
-**Phase 0/0.5/1/2 are done; P3.0 (Phase 3 scaffolding) is done and merged. The immediate blocker is a C2 (E1.4) re-run.** The C2 cells launched 2026-05-18 trained fine but saved **zero snapshots** — a snapshot-cadence bug in `train_cqn_as.py` (now fixed, `6e7fdc1`). They must be killed and restarted with current `main`. Everything needed for the restart is on `origin/main`.
+**Phase 0/0.5/1/2 done; P3.0 (Phase 3 scaffolding) done and merged. The immediate task is the CQN-AS demo pipeline (Workstream D).**
 
-### 🔴 Do this first — restart C2 on the GPU box
+**Why:** the C2 (E1.4) re-run completed (snapshots + videos now save correctly — the cadence bug is fixed) but came back **degenerate**: 31-step episodes, robot fleeing the human, off/oracle/noisy reward curves identical. Diagnosed (2026-05-19/20) as two stacked confounds — `num_demos=0` (CQN-AS is demo-driven; it never discovers the sparse task reward) and no workspace shaping. **User decision (2026-05-20): build the demo pipeline.** That is the next coding session's whole job.
 
-The old C2 cells are unusable (no snapshots on disk). On the GPU box:
+### 🔴 Do this first — Workstream D (CQN-AS demo pipeline)
 
-```bash
-pgrep -af train_cqn_as            # see what's running
-pkill -f "train_cqn_as.py.*saucepan_to_hob"   # kill the snapshot-less cells
-cd ~/Documents/safety_bigym && git pull --ff-only origin main
-venv/bin/python -m pytest tests/test_cqn_as_snapshot_cadence.py tests/test_cqn_as_eval_video.py -q   # sanity
-export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
-export AMASS_DATA_DIR=<CMU path on the box>
-python scripts/phase1_reward_pilot_cqn_as.py --train > /tmp/c2_cmds.sh   # 3 cells, now emit save_snapshot=true + save_video=true
-# fire each printed command under nohup; logs to /tmp/c2_{off,oracle,noisy}.log
-```
+Full handoff (context, the building blocks that already exist, the upstream reference to port, acceptance criteria, gotchas): **[PHASE3_DEMO_PIPELINE_HANDOFF.md](PHASE3_DEMO_PIPELINE_HANDOFF.md)** — read it top-to-bottom first.
 
-**Verify within ~12k steps** that `exp_local/cqn_as_safety/saucepan_to_hob_*/snapshot_10000.pt` exists and `eval_videos/step_*.mp4` are appearing. If not, stop — the pulled code didn't take.
+One-line summary: `SafetyBiGymCQNAdapter.get_demos()` is a `NotImplementedError` stub; implement it by reusing the factory's raw-env + DemoStore path and porting `convert_demo_to_timesteps`/`extract_action_stats` from `CQN-AS/bigym_src/bigym_env.py`, injecting `human_pos_estimate` via the existing BodySLAMWrapper demo_replay mechanism. **Resolve the dof question first** (D0 in the handoff — the "demos are 3-dof / dead" claim is likely a red herring; demos exist and ACT loaded 36 at 4-dof).
+
+### After Workstream D
+
+Re-run E1.4 (C2) with demos + `env.safety.add_workspace_penalty=true` for a clean channel answer (or fold the channel question into Phase 3 E3.6), then proceed to P3.1 (the Lagrangian glue). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
 
 ### What to do when the re-run C2 cells finish
 
@@ -159,6 +154,19 @@ The minimum scaffolding for the Phase 3 Lagrangian (Option B-value-mean) to laun
 - [x] P3.0c — **Per-step cost pipeline.** [`filters/cost_signal.py`](../safety_bigym/filters/cost_signal.py) `compute_cost()` → `c_t = min(1, max(c_ssm, c_pfl))`. env_adapter attaches `c_t` per env-step to TimeStep; replay_buffer accumulates n-step discounted `cost` + per-step `max_cost`; `to_torch_pixel_tensor_dict` exposes both in the batch dict (8/10-tuple back-compat); `train_cqn_as` data_specs carries `cost`. **`agent.update()` ignores `batch["cost"]`/`["max_cost"]` today — P3.1 wires Q_c to consume them.** Tests: `test_cost_signal.py` (16), `test_replay_cost_field.py` (4), `test_cqn_as_adapter.py` (+6), `test_cqn_as_utils_cost.py` (3).
 - [x] P3.0d — **Smoke verification** [`scripts/phase3_p30_smoke.py`](../scripts/phase3_p30_smoke.py). 500 env-steps on dishwasher_close confirm workspace penalty fires (500/500 steps) + per-step `c_t > 0` (≈450/500) + warm-start guard fires. `--dry-run` skips MuJoCo (~1s). Surfaced two real bugs (see notes 2026-05-19): H1 EE lookup, factory not propagating workspace cfg.
 
+## Workstream D — CQN-AS demo pipeline (NEW, 2026-05-20)
+
+**Trigger:** C2 (E1.4) ran `num_demos=0` and degenerated — robot fled the human, 31-step episodes, off/oracle/noisy curves identical. CQN-AS is demo-driven; demo-less on long-horizon manipulation never discovers the task. Demos are the bigger of the two confounds (the other was no workspace shaping). **Decision (user, 2026-05-20): build the demo pipeline.**
+
+Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPELINE_HANDOFF.md](PHASE3_DEMO_PIPELINE_HANDOFF.md). One-session task.
+
+- [ ] D0. **Resolve the dof question first (cheap).** The "demos are 3-dof / dead" claim (decision log 2026-05-16) is likely a red herring: `saucepan_to_hob.yaml` is 4-dof, ACT trained on 36 demos at 4-dof, cache exists at `~/.bigym/demonstrations/0.9.0/SaucepanToHob`. Verify `SafetyBiGymEnvFactory._get_demo_fn(cfg, num_demos=5)` returns demos at 4-dof before assuming any re-recording.
+- [ ] D1. Implement `SafetyBiGymCQNAdapter.get_demos()` (currently a `NotImplementedError` stub) — reuse the factory raw-env + DemoStore path, port `convert_demo_to_timesteps`/`extract_action_stats`/`rescale_demo_actions` from `CQN-AS/bigym_src/bigym_env.py`, inject `human_pos_estimate` via the existing BodySLAMWrapper demo_replay mechanism, carry the P3.0c `cost` field on demo timesteps.
+- [ ] D2. Demo-derived `action_stats` shared with the live path (also fixes the B4.2 snapshot-denormalization caveat).
+- [ ] D3. pytest (stubbed DemoStore, no MuJoCo) + a ~30–50k-frame trained smoke with demos + workspace shaping showing task attempts (not evacuation).
+
+**Once D is done:** re-run E1.4 (C2) with demos + workspace shaping for a *clean* channel answer, OR fold the channel question into Phase 3 E3.6. Either way Workstream D unblocks a non-degenerate CQN-AS actor for Phase 3.
+
 ---
 
 ## Carried-forward bugs (not in scope for this plan)
@@ -185,6 +193,7 @@ The minimum scaffolding for the Phase 3 Lagrangian (Option B-value-mean) to laun
 | 2026-05-18 | P3.0b: ship CostCritic with fresh init, not SVF warm-start | SVF trained on `r_safe` (high Q = safe); Q_c regresses on `c_t` (high Q = dangerous). Naive state_dict copy initialises Q_c upside-down. `warm_start_from_svf` exists but requires `force_sign_flip=True` (loads body, reinits head). Whether warm-start beats fresh init is an empirical question deferred to a P3.1 A/B. |
 | 2026-05-19 | Commit snapshot-cadence + eval-video fixes directly to `main` (not a phase branch) | User decision; urgent — C2 was blocked on the snapshot bug and a re-run had to start ASAP. Breaks the CLAUDE.md "never commit to main directly" rule by explicit override. |
 | 2026-05-19 | Add eval video recording to `train_cqn_as.py` (option b), not post-hoc | User asked for it during the C2-restart cycle so videos land in the same re-run rather than a third pass. Episode-0-only per eval cycle keeps disk + wall-time negligible. |
+| 2026-05-20 | Build the CQN-AS demo pipeline (Workstream D) | C2 re-run came back degenerate (robot flees human, 31-step episodes, identical off/oracle/noisy curves). Diagnosed as `num_demos=0` (CQN-AS is demo-driven; never discovers the sparse task reward) + no workspace shaping. User decision: demos are needed. Note: the 2026-05-16 "demos are 3-dof / dead" claim is suspect — `saucepan_to_hob` is 4-dof, ACT loaded 36 demos at 4-dof, cache exists; Workstream D D0 re-verifies before any re-recording. |
 
 ---
 
