@@ -67,9 +67,9 @@ EVAL_SEEDS = (0, 1, 2)
 # Fill after training: per-cell snapshot path (peak by W&B eval/episode_reward
 # curve, or final snapshot if the curve is monotone). Relative to REPO_ROOT.
 SNAPSHOTS: dict[str, str | None] = {
-    "off": None,
-    "oracle": None,
-    "noisy": None,
+    "off": "~/Documents/safety_bigym/exp_local/cqn_as_safety/saucepan_to_hob_20260519110325/snapshot_80000.pt",
+    "oracle": "~/Documents/safety_bigym/exp_local/cqn_as_safety/saucepan_to_hob_20260519110356/snapshot_80000.pt",
+    "noisy": "~/Documents/safety_bigym/exp_local/cqn_as_safety/saucepan_to_hob_20260519110409/snapshot_80000.pt",
 }
 
 
