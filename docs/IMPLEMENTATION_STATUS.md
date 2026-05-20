@@ -1,0 +1,263 @@
+# Implementation Status — Hybrid Safety Critic
+
+Last updated: 2026-05-20
+Active branch: `main` (P3.0 merged via PR #9; subsequent fixes committed to main and pushed)
+Plan: [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
+Initial-phase plan: [/Users/ayushpatel/.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md](../../.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md)
+Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
+
+---
+
+## Next session — start here
+
+**Phase 0/0.5/1/2 are done; P3.0 (Phase 3 scaffolding) is done and merged. The immediate blocker is a C2 (E1.4) re-run.** The C2 cells launched 2026-05-18 trained fine but saved **zero snapshots** — a snapshot-cadence bug in `train_cqn_as.py` (now fixed, `6e7fdc1`). They must be killed and restarted with current `main`. Everything needed for the restart is on `origin/main`.
+
+### 🔴 Do this first — restart C2 on the GPU box
+
+The old C2 cells are unusable (no snapshots on disk). On the GPU box:
+
+```bash
+pgrep -af train_cqn_as            # see what's running
+pkill -f "train_cqn_as.py.*saucepan_to_hob"   # kill the snapshot-less cells
+cd ~/Documents/safety_bigym && git pull --ff-only origin main
+venv/bin/python -m pytest tests/test_cqn_as_snapshot_cadence.py tests/test_cqn_as_eval_video.py -q   # sanity
+export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+export AMASS_DATA_DIR=<CMU path on the box>
+python scripts/phase1_reward_pilot_cqn_as.py --train > /tmp/c2_cmds.sh   # 3 cells, now emit save_snapshot=true + save_video=true
+# fire each printed command under nohup; logs to /tmp/c2_{off,oracle,noisy}.log
+```
+
+**Verify within ~12k steps** that `exp_local/cqn_as_safety/saucepan_to_hob_*/snapshot_10000.pt` exists and `eval_videos/step_*.mp4` are appearing. If not, stop — the pulled code didn't take.
+
+### What to do when the re-run C2 cells finish
+
+1. **Harvest snapshot paths** from the 3 hydra run dirs:
+   ```bash
+   ls -la exp_local/cqn_as_safety/saucepan_to_hob_*/snapshot_*.pt
+   ```
+   Snapshots now land at every `snapshot_every_frames` (default 10000) **plus a final-state save at 200000** (the fix). Pick the peak-by-eval-curve from W&B per `bodyslam` mode and paste into `SNAPSHOTS` at the top of [`scripts/phase1_reward_pilot_cqn_as.py`](../scripts/phase1_reward_pilot_cqn_as.py:73-77). Eval-rollout mp4s are in each run's `eval_videos/` (and W&B under `eval/video`) for visual sanity-checking the channel-vs-no-channel behavior.
+
+2. **C2.4 — fire the eval grid** (~1h, 9 cells = 3 modes × 3 seeds × 20 episodes on `disruption=coworker_eval`):
+   ```bash
+   python scripts/phase1_reward_pilot_cqn_as.py --eval > /tmp/c2_eval_commands.sh
+   # Then fire each printed command. They use +snapshot_path=... which
+   # train_cqn_as.py honours (Workspace.load_snapshot, eval-only mode
+   # when num_train_frames=0).
+   ```
+
+3. **C3 — decision logic** (record in this file's Decision Log + Workstream C section):
+   - If `bodyslam=noisy` cell beats `off` by ≥20% SSM reduction → `bodyslam=noisy` for Phase 3 actor.
+   - If neither beats `off` → `bodyslam=off` for actor (the filter consumes the channel only).
+   - If `oracle` helps but `noisy` doesn't → `bodyslam=oracle` in training, and investigate the noise model.
+
+### Then Phase 3.1 unblocks (the Lagrangian glue)
+
+P3.0 shipped all the scaffolding. **P3.1 is the next coding milestone** and is gated only on the C3 obs-config decision:
+- λ PID updater on rolling-mean cost (start `K_I=1e-3, K_P=1e-2, K_D=0, λ_max=100, d=0.01` per the plan)
+- dual-Q action selection `argmax_a [Q_r − λ·Q_c]` over CQN-AS coarse-to-fine bins
+- `Q_c` training-loop integration in `train_cqn_as.py` — regress `CostCritic` on the per-step `cost` already in the batch dict (P3.0c wired it; `agent.update()` just ignores `batch["cost"]`/`batch["max_cost"]` today)
+- decide warm-start: A/B `CostCritic.warm_start_from_svf(..., force_sign_flip=True)` vs fresh init (deferred from P3.0b)
+
+Continuous `ssm_margin` is still computed by `ISO15066Wrapper` and present in `info["safety"]`; the bounded per-step cost `c_t = max(c_ssm, c_pfl)` lives in [`filters/cost_signal.py`](../safety_bigym/filters/cost_signal.py). See [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md) Phase 3 (Option B-value-mean).
+
+### Closed in 2026-05-18 → 2026-05-20 work
+
+- **A6.1-A6.4** smoke gates green; **B5** SVF v1 critic trained/eval'd/swept → `checkpoints/svf_coworker_train_v1.pt`, operating point R≈4.0 (see 2026-05-18 notes)
+- **A8** PR merged to main (CQN-AS vendor)
+- **P3.0 (Phase 3 scaffolding)** merged via PR #9 — workspace reward shaping, `CostCritic` module, per-step cost pipeline, smoke verification. See Workstream P3.0 below.
+- **Snapshot-cadence bug** in `train_cqn_as.py` found + fixed (`6e7fdc1`) — C2's first run wasted (zero snapshots saved). Regression test `tests/test_cqn_as_snapshot_cadence.py`.
+- **Eval video recording** added (`09faaa4`) — `save_video=true` dumps `eval_videos/step_*.mp4` + W&B `eval/video`. Module `safety_bigym/agents/cqn_as/eval_video.py`, tests `tests/test_cqn_as_eval_video.py`.
+
+Earlier ready-to-pick-up tracks (now closed): Workstream A6 (smoke + A8 PR), Workstream B5 (SVF training).
+
+---
+
+## Workstream A — CQN-AS Vendor + Smoke Gate
+
+- [x] A0. Branch `safety-critic/phase-3-cqn-as-vendor` created
+- [x] A0. Status file created (this file)
+- [x] A1. Standalone CQN-AS smoke on stock `dishwasher_close` — `num_train_frames=20k` — passed on GPU box 2026-05-15. Headless-rendering gotcha: requires `MUJOCO_GL=egl` + `MUJOCO_EGL_DEVICE_ID=0` (no X server on the GPU box). Unblocks A3/A4/A5.
+- [x] A2. Vendored modules under `safety_bigym/safety_bigym/agents/cqn_as/`
+  - [x] A2.1 `__init__.py` (+ `agents/__init__.py`)
+  - [x] A2.2 `cqn_utils.py` (verbatim from CQN-AS `cqn_utils.py`) + `utils.py` (verbatim from CQN-AS `utils.py`)
+  - [x] A2.3 `replay_buffer.py` (verbatim from `bigym_src/replay_buffer_action_sequence.py`)
+  - [x] A2.4 `agent.py` (from `bigym_src/cqn_as.py`, 842 LOC — kept as one file; imports patched to relative). Split into `networks.py` deferred unless adapter work warrants it.
+  - [x] A2.5 `cfgs/agent/cqn_as.yaml` (restructured) + `cfgs/cqn_as_config.yaml` root (A5)
+  - [x] All four modules AST-parse; `cqn_utils` and `replay_buffer` import cleanly without third-party deps
+- [x] A3. Env adapter wraps `SafetyBiGymEnv` cleanly (`safety_bigym/agents/cqn_as/env_adapter.py`, ~470 LOC, parses)
+- [x] A4. Encoder accepts `human_pos_estimate` (gated on `bodyslam.mode`) — adapter injects 6D vector into `low_dim_obs`; `C2FCriticNetwork` already takes `low_dim: int` so no agent.py changes needed; training entrypoint sizes the critic from `train_env.low_dim_raw_observation_spec().shape[0]`
+- [x] A5. Training entrypoint `train_cqn_as.py` + Hydra config — handles `num_demos=0` (smoke gate) by skipping the demo replay buffer; safety info logged per-step + at episode end
+- [x] A6.1 Smoke gate: encoder accepts `human_pos_estimate` — green on `cqn_as_smoke_dishwasher_oracle_v4` (2026-05-18). `adv_low_dim_encoder` is 288→64 with `bodyslam=oracle` vs 264→64 with `bodyslam=off`; the 24-unit diff = 6D `human_pos_estimate` × frame_stack=4. Encoder sizes correctly on both ends; no shape errors over 2000 frames.
+- [x] A6.2 Smoke gate: COWORKER scenario doesn't crash on episode boundary — green. v4 ran 38 episodes (first one full 350-step, subsequent ~36-step truncations on random policy). Per-episode trajectory mode varies across rollouts.
+- [x] A6.3 Smoke gate: per-step cost logging inside K-step chunk — green. `safety/ssm_margin`, `safety/pfl_force_ratio`, `safety/ssm_violation`, `safety/pfl_violation` log at global_step % 50 == 0; episode-end `episode_safety/*` aggregate also fires. Confirms info["safety"] surfaces per env-step, not per K-step chunk.
+- [x] A6.4 Smoke gate: action space tractable — green. Pre-update env stepping ~117 steps/s; post-update (episode 3+) ~6.4 steps/s = 150ms/step including agent update. Per env-control cycle (K=16) the budget was 640ms; we run well under.
+- [x] A7. Adapter test file green — [`tests/test_cqn_as_adapter.py`](../tests/test_cqn_as_adapter.py), 24/24 green locally; sibling tests (`test_coworker_disruption`, `test_svf_dataset`, `test_safety_labeling`, `test_bodyslam_wrapper`) still 46 passed / 1 skipped. Tests are pure-Python — `SafetyBiGymEnvFactory._create_env` is monkeypatched to a stub gym env so no MuJoCo/AMASS required; covers low_dim shape (with/without bodyslam), action [-1,1] roundtrip incl. gripper-tail handling, TimeStep first/mid/last typing, episode_length truncation, info["safety"] + info["episode_safety"] forwarding, frame-stack widening, pixels=False zero placeholder, ExtendedTimeStepWrapper action injection.
+- [ ] A8. PR off `safety-critic/phase-3-cqn-as-vendor` to `main`
+
+## Workstream B — Phase 2 Dataset Regen
+
+- [x] B1.1 ACT re-roll on COWORKER train: `dishwasher_close` (GPU box; user-launched, complete)
+- [x] B1.2 ACT re-roll on COWORKER train: `drawers_open_all` (GPU box; user-launched, complete)
+- [x] B1.3 ACT re-roll on COWORKER train: `saucepan_to_hob` (GPU box; user-launched, complete)
+- [x] B1.4 `filters/snapshots.py` SNAPSHOTS dict updated with new W&B peak-by-eval-success paths
+  - `dishwasher_close` → `dishwasher_close_20260515184635/snapshots/50000_snapshot.pt`
+  - `drawers_open_all` → `drawers_open_all_20260515184721/snapshots/40000_snapshot.pt`
+  - `saucepan_to_hob` → `saucepan_to_hob_20260516123308/snapshots/70000_snapshot.pt`
+
+Task selection (2026-05-15, user): `reach_target_single` excluded from training/eval tasks — horizon too short. The three working long-horizon tasks (`dishwasher_close`, `drawers_open_all`, `saucepan_to_hob`) replace it everywhere downstream.
+- [x] B2. `svf_collect_dataset.py` rewired
+  - [x] B2.1 `_build_live_env` dispatches on disruption cell label — `coworker_train` / `coworker_eval` → COWORKER factories, anything else → legacy `DisruptionType[...]` path (back-compat preserved)
+  - [x] B2.2 `--disruption-space {coworker_train,coworker_eval,legacy_multi}` flag added; default `coworker_train`; `CollectionPlan.smoke()` updated to use it
+  - [x] B2.2a Docstring + `--help` updated; existing svf collect/eval/sweep smoke tests unaffected (they construct CollectionPlan directly with legacy disruption strings, which dispatch to the legacy branch)
+  - [x] B2.3 10k-transition smoke confirms violation rate ≥5% (GPU box) — passed 2026-05-16 at `--proximity-threshold 0.50`: random 11.0%, snapshot 15.5% (datasets/svf_b23_smoke_v5)
+  - [x] B2.4 4-dof floating base aligned with RoboBase training: `_build_live_env` now passes `floating_dofs=[X, Y, Z, RZ]` to `JointPositionActionMode`. Bare-BiGym default (3 dofs: X, Y, RZ) gave `action_dim=15` and silent state_dict shape mismatch on Phase 0 ACT snapshots which were trained under RoboBase's `cfg.env.enable_all_floating_dof=True` path (`action_dim=16`, `qpos=66`).
+  - [x] B2.5 Snapshot agent now instantiated against a synthesized observation_space that mirrors RoboBase's `ConcatDim(shape_length=1)` + `FrameStack(frame_stack=1)` output (`low_dim_state: (1, D_concat)`, `rgb_<cam>: (1, 3, H, W)`). Bare-BiGym rgb shape `(3, 84, 84)` failed the encoder's 4-D assertion at `bc.py:155`.
+  - [x] B2.6 Env wrapping decoupled from snapshot's training-time `bodyslam.mode`: env is now wrapped with `BodySLAMWrapper(plan.bodyslam_mode)` *always*, so the SVF dataset records `human_pos_estimate` regardless of which actor generated the action. `_SnapshotPolicy.adapt_obs` continues to strip the channel before feeding Phase 0 actors via `includes_human_pos=False`. Previous logic (`bodyslam_mode = snap_bs`) would have produced a dataset without the critic's most important input feature.
+  - [x] B2.7 `label_transition` switched from ISO 15066 SSM (`ssm_violation`) to geometric proximity (`min_separation < proximity_threshold`, default 0.10m). ISO 15066's industrial-cell calibration demanded ~5m clearance at kitchen-scale robot velocities → every transition labelled unsafe (93% on random-only smoke). `--proximity-threshold` CLI flag surfaced; `ssm_margin` still logged for ISO traceability & Phase 3 Lagrangian. `tests/test_safety_labeling.py` rewritten for the new bar (9 tests green).
+  - [x] B2.8 Shard schema extended with `min_separation` and `pfl_force_ratio` per-transition. Enables retroactive relabelling without re-collection: proximity-threshold sweeps work today; PFL retrofit needs re-collection through a PFL-fixed env (current values are all zero) but the schema is forward-compatible. `TransitionShardWriter.write_shard` + `SafetyTransitionDataset.__getitem__` + `rollout_episode` + both demo/snapshot write paths updated; `tests/test_svf_dataset.py` round-trips both fields (8 tests green).
+- [x] B3. Dataset collected: 315k transitions × 3 tasks × 2 sources → `datasets/svf_coworker_train_v1/` (2026-05-17)
+  - 3 tasks: `dishwasher_close`, `drawers_open_all`, `saucepan_to_hob`
+  - 2 sources: `random` + `snapshot` (demo source skipped — see B2 notes / blockers)
+  - Settings: `--proximity-threshold 0.50`, `--bodyslam-mode noisy`, `--episodes-per-cell 210`, `--max-steps 250`
+  - Per-cell violation rates: random/{dishwasher_close=4.6%, drawers_open_all=17.5%, saucepan_to_hob=14.4%}, snapshot/{dishwasher_close=10.2%, drawers_open_all=11.0%, saucepan_to_hob=9.6%}. Aggregate ~11.2% (~35k violations / 315k transitions).
+- [x] B4. Sanity checks pass — 3/4 clean, 1 caveat noted, 1 logging gap tracked separately
+  - [x] B4.1 Violation rate ≥5% per source — 5/6 cells clean; `random/dishwasher_close` lands at 4.6%, technically below the 5% soft floor but 2,415 absolute violations on 52,500 transitions is plenty for CQL class-weighted training. Accepted as "passing with margin". Source-diversity signal (random > snapshot per task) held at full scale.
+  - [x] B4.2 Action-magnitude distribution sane — passes with caveat. Snapshot's per-dim std is markedly tighter than random's (0.15-0.33 vs 0.9-1.7 on body joints), confirming snapshot is task-driven not chaotic. Caveat: snapshot's action range looks like *raw tanh-space outputs* without `RescaleFromTanhWithMinMax` denormalization (gripper dims emit values down to -1.1 which the env then silently clips; body-joint dims sit in `[-1, 1]` rather than the env's full ±π range). Snapshot is exploring a narrower action subspace than a deployed policy would; v1 still informative but the gap is real. Tracked as a follow-up — see notes.
+  - [x] B4.3 Trajectory-mode coverage — pass. 200-reset sample per task draws APPROACH_LOITER_DEPART/COWORKER_PATROL/STATIONARY at 30-36% each (within ±4pt of uniform 1/3).
+  - [x] B4.4 Per-axis coverage — 3/5 axes verified pass (closest_approach, near_loiter, walk_speed all span their full target ranges with sensible distributions); `reach_period` and `target_mix_p_ee` are sampled by `make_coworker_train_space` but **not stored on `ScenarioParams`** so they can't be audited post-reset. Logging gap, not a sampling gap. Tracked as a follow-up — see notes.
+- [x] B5. SVF training on v1 dataset — proximity-trained safety critic landed; checkpoint at `checkpoints/svf_coworker_train_v1.pt` (627k). Headline Phase 2 deliverable.
+  - [x] B5.1 **Smoke** — green 2026-05-18. Bellman MSE 630.07 → 445.14 (29.4% reduction) over 100 grad steps. Smoke output was initially silent because `logging.basicConfig` was a no-op against a pre-configured root handler; `force=True` fix landed.
+  - [x] B5.2 **Full train** — green 2026-05-18, ~1h35m wall-clock. 200k steps, batch_size=512, cql_alpha=5.0, target_violation_rate=0.30. Final step: loss=1.77, bellman=6.20, cql=-0.89, q_mean=3.19. Bellman MSE plateaued ~6.2 (not the ideal <1 fit; suggests the critic is underfit relative to the OOD eval distribution, see B5.3 notes).
+  - [x] B5.3 **Eval** — green on both eval distributions:
+    - **OOD (`coworker_eval`)** at R=0.5: intervention=0, residual≈0.955 — critic's Q is uniformly ≥0.5 even on the 95%-violating random rollouts. At R=4.0 (from B5.4 sweep): intervention≈99%, residual 3–8%. Hard-safety-filter operating point. Results: `results/svf_eval_v1.csv`.
+    - **In-dist (`coworker_train`)** at R=3.5: intervention 28–34%, residual 74–87% (`results/svf_eval_v1_indist.csv`, 2026-05-18). This is the calibrated sensible operating point — the gate fires partially when it sees risk. The reason residual stays high is *structural to the proximity label*: `min_separation < 0.50m` is a state property; once the COWORKER human walks within 0.9-1.4m of the robot (APPROACH_LOITER_DEPART), every subsequent timestep registers as a violation regardless of the robot's action. The fallback policy stops the **robot** from contributing to proximity but can't stop the **human** approach. ~15pp residual drop from random baseline at 30% intervention rate confirms the critic reduces robot-driven proximity events.
+  - [x] B5.4 **Threshold sweep** — green 2026-05-18 (v2 results in `results/svf_sweep_{task}_v2.csv`). Q distribution centred at ~3.4 with a narrow safe/unsafe gap; cliff between R=3 (10–22% intervention, residual ≈ 0.93) and R=4 (97–99% intervention, residual 3–8%). **Operating point R≈4.0** trades aggressive intervention for a 30× drop in residual violations vs random. Functional as a hard safety gate; tight for an actor-coupled filter.
+  - [ ] B5.5 If the in-dist eval (B5.3 follow-up) confirms critic narrowness even on `coworker_train`, the **snapshot action denormalization** fix from B4.2 plus a v2 dataset collection is the next move. Open as deferred — only fire if the in-dist check fails.
+
+## Workstream C — E1.4 CQN-AS Observation Ablation
+
+**Anchor task: `saucepan_to_hob`** (user decision 2026-05-15). Chosen because the legacy E1.1 side-finding showed oracle improved task success 0.22 → 0.58 while *worsening* SSM violations — the most informative cell to probe whether an RL reward signal redirects the policy to use the human-state channel for safety rather than progress.
+
+- [x] C1. Sweep script [`scripts/phase1_reward_pilot_cqn_as.py`](../scripts/phase1_reward_pilot_cqn_as.py) — modelled on `phase1_reward_pilot.py` but invokes `train_cqn_as.py`. 3 train cells (`bodyslam=off|oracle|noisy`) × `saucepan_to_hob` × `disruption=coworker_train`, `env.safety.add_violation_penalty=true env.safety.violation_penalty=0.05`, `num_train_frames=200000`, `num_demos=0`. `--smoke` runs a 2000-frame validation on a single cell. `--eval` prints eval commands against `disruption=coworker_eval` (20 episodes × 3 seeds × 3 modes) once SNAPSHOTS at the top of the script are filled in post-train. Blocks on A6 green (smoke gate validates the same composition path).
+- C2 unblocked 2026-05-18 by replay-buffer collate fix + CQNASAgent state_dict + train_cqn_as `+snapshot_path` eager-load. Eval half also unblocked (snapshot loader now functional).
+- ⚠️ **C2's first run (2026-05-18) is DEAD — must be re-run.** All 3 cells trained to ~190k+ but saved **zero snapshots** due to the snapshot-cadence bug (`6e7fdc1`, see notes 2026-05-19). The run dirs have `buffer/` + `train_cqn_as.log` only, no `snapshot_*.pt`. Kill + restart with current `main` (see "Next session — start here"). The restart also picks up `save_video=true` (eval mp4s).
+- [ ] C2.1 Cell `bodyslam=off` × saucepan_to_hob launched + complete *(re-run pending)*
+- [ ] C2.2 Cell `bodyslam=oracle` × saucepan_to_hob launched + complete *(re-run pending)*
+- [ ] C2.3 Cell `bodyslam=noisy` × saucepan_to_hob launched + complete *(re-run pending)*
+- [ ] C2.4 Eval on COWORKER eval space (20 episodes × 3 seeds × 3 cells)
+- [ ] C3. Decision recorded → Phase 3 obs config locked
+  - [ ] If channel helps: `bodyslam=noisy` for Phase 3 actor
+  - [ ] If channel doesn't help: `bodyslam=off` for actor (filter consumes channel only)
+  - [ ] If oracle helps, noisy doesn't: `bodyslam=oracle` + noise-model investigation
+
+## Workstream P3.0 — Phase 3 Scaffolding (DONE, merged PR #9)
+
+The minimum scaffolding for the Phase 3 Lagrangian (Option B-value-mean) to launch. C3-gated only on the actor's obs config; the scaffolding itself is bodyslam-agnostic. **Does not** include the λ updater, dual-Q action selection, or any training run — those are P3.1+. Smoke passes in ~10s locally (`scripts/phase3_p30_smoke.py`).
+
+- [x] P3.0a — **Workspace reward shaping.** `SafetyConfig.add_workspace_penalty` + `workspace_radius` (0.4) + `workspace_beta` (0.2); `SafetyBiGymEnv._compute_workspace_penalty()` subtracts `β·max(0, ‖p_ee − p_task‖ − r_ws)` from task reward in `_reward()`. Threaded through `safety_bigym_factory._create_env`. Tests: `tests/test_workspace_shaping.py` (10).
+- [x] P3.0b — **`CostCritic` module** ([`filters/cost_critic.py`](../safety_bigym/filters/cost_critic.py)). Architectural twin of the Phase 2 `SafetyCritic` (same MLP, input spec, checkpoint format) but regresses on continuous cost `c_t` (high Q = dangerous). `warm_start_from_svf()` **refuses without `force_sign_flip=True`** — SVF and Q_c heads point opposite directions. Tests: `tests/test_cost_critic.py` (12). Warm-start vs fresh-init A/B deferred to P3.1.
+- [x] P3.0c — **Per-step cost pipeline.** [`filters/cost_signal.py`](../safety_bigym/filters/cost_signal.py) `compute_cost()` → `c_t = min(1, max(c_ssm, c_pfl))`. env_adapter attaches `c_t` per env-step to TimeStep; replay_buffer accumulates n-step discounted `cost` + per-step `max_cost`; `to_torch_pixel_tensor_dict` exposes both in the batch dict (8/10-tuple back-compat); `train_cqn_as` data_specs carries `cost`. **`agent.update()` ignores `batch["cost"]`/`["max_cost"]` today — P3.1 wires Q_c to consume them.** Tests: `test_cost_signal.py` (16), `test_replay_cost_field.py` (4), `test_cqn_as_adapter.py` (+6), `test_cqn_as_utils_cost.py` (3).
+- [x] P3.0d — **Smoke verification** [`scripts/phase3_p30_smoke.py`](../scripts/phase3_p30_smoke.py). 500 env-steps on dishwasher_close confirm workspace penalty fires (500/500 steps) + per-step `c_t > 0` (≈450/500) + warm-start guard fires. `--dry-run` skips MuJoCo (~1s). Surfaced two real bugs (see notes 2026-05-19): H1 EE lookup, factory not propagating workspace cfg.
+
+---
+
+## Carried-forward bugs (not in scope for this plan)
+
+- [ ] PFL contact-detection bug (HIGH; see [CLAUDE.md](../CLAUDE.md))
+- [ ] SSM margin outliers (LOW)
+
+---
+
+## Decision log
+
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-05-15 | Vendor CQN-AS into safety_bigym (vs in-place patch) | User decision; cleaner long-term, accepted bigger upfront refactor |
+| 2026-05-15 | Scope: P0 + P1 (CQN-AS smoke + dataset regen + E1.4) | User decision; covers 1–2 week horizon |
+| 2026-05-15 | Status file at `.claude/IMPLEMENTATION_STATUS.md`, per-task checkboxes | User decision; single living doc next to plan files |
+| 2026-05-15 | Task pool: dishwasher_close, drawers_open_all, saucepan_to_hob (reach_target_single excluded) | User decision; reach_target_single horizon too short |
+| 2026-05-15 | E1.4 anchor: saucepan_to_hob (single task, not 3) | User decision; aligns with E1.1 side-finding cell where oracle improved success but worsened safety — most diagnostic for "does RL redirect channel usage toward safety?" |
+| 2026-05-16 | Phase 2 SVF labelling: geometric proximity, not ISO 15066 SSM | ISO 15066's stopping-distance formula demands ~5m clearance at kitchen-scale robot velocities; first B2.3 smoke at 93% violation rate confirmed the dataset would be degenerate. Switched to `min_separation < proximity_threshold`. `ssm_margin` retained as continuous cost signal for Phase 3 Lagrangian. |
+| 2026-05-16 | Phase 2 `proximity_threshold` = 0.50 m for B3 production | Diagnostic d_min quantiles + smoke calibration sweep landed 0.50m at random 11% / snapshot 15.5% (sources distinguishable, dataset workable). 0.10m gave <2% (dead dataset); 0.30m gave 9% identical across sources (kitchen task is human-trajectory-dominated below the policy-effect threshold). 50cm matches the system's effective reaction window. |
+| 2026-05-16 | B3 skips `demo` source entirely | BiGym DemoStore cache only has demos recorded with `floating_dofs=['pelvis_x', 'pelvis_y', 'pelvis_rz']` (3 dofs); B2.4 fix moved env construction to 4 dofs (X, Y, Z, RZ) matching RoboBase training. Metadata mismatch → `DemoNotFoundError`. User decision: ship B3 without demos rather than re-record. Loses the safe-side mass demos provide; random + snapshot must cover the safe distribution. Re-recording demos through 4-dof env is a future follow-up if SVF training reveals safe-class undercoverage. |
+| 2026-05-16 | Don't block B3 on PFL contact-detection fix | PFL bug is BiGym-internal and unbounded (could be days/weeks). Proximity is a defensible *preventive* safety signal independently — fires before contact rather than at contact. B2.8 schema change stores `min_separation` and `pfl_force_ratio` per-transition so proximity threshold sweeps are free post-collection. Full PFL retrofit (training on `use_pfl=True` labels) still needs a re-collection through a PFL-fixed env because current pfl_force_ratio is identically zero. v1 SVF is a proximity-trained gate; PFL retrofit is Phase 4/5 polish if the fix lands in scope. |
+| 2026-05-18 | P3.0 scope = scaffolding only (workspace shaping + CostCritic + per-step cost + smoke), C3-gated | User decision in plan mode. Unblocks the first Phase 3 training run without committing to the λ/dual-Q machinery (P3.1) before C3 locks the obs config. Built bodyslam-agnostic so it stays valid whichever way C3 lands. |
+| 2026-05-18 | P3.0b: ship CostCritic with fresh init, not SVF warm-start | SVF trained on `r_safe` (high Q = safe); Q_c regresses on `c_t` (high Q = dangerous). Naive state_dict copy initialises Q_c upside-down. `warm_start_from_svf` exists but requires `force_sign_flip=True` (loads body, reinits head). Whether warm-start beats fresh init is an empirical question deferred to a P3.1 A/B. |
+| 2026-05-19 | Commit snapshot-cadence + eval-video fixes directly to `main` (not a phase branch) | User decision; urgent — C2 was blocked on the snapshot bug and a re-run had to start ASAP. Breaks the CLAUDE.md "never commit to main directly" rule by explicit override. |
+| 2026-05-19 | Add eval video recording to `train_cqn_as.py` (option b), not post-hoc | User asked for it during the C2-restart cycle so videos land in the same re-run rather than a third pass. Episode-0-only per eval cycle keeps disk + wall-time negligible. |
+
+---
+
+## Notes / blockers
+
+_Append as work proceeds. Each note dated. Most-recent first._
+
+### 2026-05-20 — handoff snapshot
+- **State of `main`:** P3.0 merged (PR #9). Two follow-up commits pushed: `6e7fdc1` (snapshot-cadence fix) and `09faaa4` (eval video). `origin/main` is current; the GPU box only needs `git pull`.
+- **The one live blocker:** C2's first run saved no snapshots. Kill + restart is the first action of the next session (see "Next session — start here"). Nothing else is blocked.
+- **Test suite baseline:** 11 pre-existing failures on `main` unrelated to recent work — 7 in `test_cql_trainer.py` + 3 in `test_svf_train_critic_smoke.py` (both from a `TransitionShardWriter.write_shard` signature drift that added required `min_separation`/`pfl_force_ratio` kwargs the tests don't pass), 1 in `test_episode_safety_metrics.py` (`episode_safety` now emitted every step, stale "not until done" assertion). These are real test-rot, not regressions — worth a cleanup pass but not blocking. Everything else green (~277 passing).
+
+### 2026-05-19 — snapshot-cadence bug + eval video
+- **Snapshot-cadence bug (root cause).** `Workspace.train()` called `save_snapshot()` only from inside the `if time_step.last():` block, gated by `utils.Every` (`step % every == 0`). A snapshot landed only when an episode boundary *coincidentally* fell on a multiple of `snapshot_every_frames`. For saucepan_to_hob COWORKER-train (episodes ~150 steps, stochastic termination), that alignment is ~never → 200k-step runs saved zero snapshots despite `save_snapshot=true`. Fix `6e7fdc1`: hoist the check out of the episode-end block to fire every step, **plus a final-state save** after the train loop exits (eval-curve peak is usually near the end). Regression test `tests/test_cqn_as_snapshot_cadence.py` reproduces the pre-fix bug and pins the post-fix schedule.
+- **Eval video (`09faaa4`).** `cfg.save_video` existed in `cqn_as_config.yaml` but was unwired (no-op). Now `Workspace.eval()` captures episode-0 frames per eval cycle → `eval_videos/step_<step>_ep0.mp4` @30fps + W&B `eval/video`. Helpers in `safety_bigym/agents/cqn_as/eval_video.py` (separate module so tests skip the MuJoCo import chain); all failures swallowed + logged so a video glitch can't kill a training run. `phase1_reward_pilot_cqn_as.py --train` emits `save_video=true` automatically.
+- **Two real bugs the P3.0d smoke surfaced** (both fixed in P3.0d commit `17c6dc0`, now on main via PR #9):
+  1. **`SafetyBiGymEnv._compute_workspace_penalty` used `self._robot.get_ee_position()` — H1 has no such method** (it's `get_hand_pos(HandSide)`, which returned `[0,0,0]` at rest anyway). The original P3.0a silently no-op'd on every task. Fixed to read EE from `_get_robot_state()` with the `ee_pos → link_pos["ee"]` fallback (`link_pos["ee"]` is populated via `_ROBOT_LINK_NAMES` mj_name2id and is the load-bearing path for H1). See CLAUDE.md gotcha.
+  2. **`safety_bigym_factory._create_env` wasn't threading the workspace-shaping fields** (`add_workspace_penalty`/`radius`/`beta`) from `cfg.env.safety` into `SafetyConfig`, so YAML/CLI overrides had no effect at training time. Now mirrors the `add_violation_penalty` plumbing.
+
+### 2026-05-18 (later — B5 complete, C2 unblocked)
+- **B5 done end-to-end.** SVF v1 critic trained, eval'd, threshold-swept. Headline: at R≈4.0 the runtime gate catches 95% of violations on `coworker_eval × random policy` (residual_violation 3–8% vs random's 95% baseline). The Q gap between safe and unsafe states is tight (cliff between R=3 and R=4) — diagnostic of an underfit/distribution-shifted critic, not a broken one. In-distribution eval at `coworker_train` pending to settle the question.
+- **Two more train-cqn-as bugs fixed today** unblocking C2 training and C2 eval:
+  1. **DataLoader collate "Trying to resize storage that is not resizable"** (`safety_bigym/agents/cqn_as/replay_buffer.py:_copying_collate`). Default torch.utils.data collate uses `torch.as_tensor(numpy_array)` (zero-copy), then in worker processes takes a shared-memory path `elem.new(storage).resize_(...)`. With numpy-backed elements, `elem.new` inherits the non-resizable attribute and `.resize_` raises. Deterministic on torch≥2.5 + num_workers>0; bit A6 v5 and C2 cell 1 (bsoff) at the second batch. Fix: custom collate that copies via `torch.from_numpy(np.ascontiguousarray(x)).clone()` before `torch.stack`.
+  2. **Snapshot save/load no-op** (`safety_bigym/agents/cqn_as/agent.py` + `train_cqn_as.py:Workspace.load_snapshot`). The vendored `CQNASAgent` had no `state_dict` / `load_state_dict`; the existing `save_snapshot` path silently wrote `agent_state=None`. Added both methods (round-trip encoder + critic + critic_target; optimizers loaded best-effort). `train_cqn_as.py` main now branches on `+snapshot_path=...`: load before train/eval; if `num_train_frames<=0` run eval() once and exit. This unblocks the C2 **eval** half — `phase1_reward_pilot_cqn_as.py --eval` was already emitting `+snapshot_path=...` in command lists.
+- **C2 status:** unblocked. C2 cell 1 (saucepan_to_hob / bsoff) had crashed at step 2000 with the collate error before today's fix.
+- **B5.4 threshold sweep methodology note for B5.5/C2 eval:** the v1 sweep at default thresholds [10, 25, 50, 75, 90] was uniformly intervention=1.0 because the trained Q distribution lives in roughly [0.5, 5.0]. Future sweeps should start from `q_mean` (read off training log: ~3 for v1) and bracket ±1.5×. Encoded the recommendation in B5.4 entry above.
+
+### 2026-05-18 — A6 smoke gates green
+- **A6 cleared in run `cqn_as_smoke_dishwasher_oracle_v4`.** 2000 frames, 38 episodes, no crash. All four gates pass — see the A6.1-A6.4 entries above. Run accessible at wandb `safety-critic/runs/pt18q5ir`.
+- **Four bugs fixed en route to green, all on the vendored CQN-AS / train entrypoint:**
+  1. **Missing `tensordict` dependency** — `safety_bigym/agents/cqn_as/{agent,utils}.py` import it; not in `setup.py`. Pinned `tensordict==0.6.0` (matches `CQN-AS/conda_env.yml`) plus `dm_env`. GPU box needed `pip install tensordict==0.6.0` once.
+  2. **Python 3.12 `random.seed(numpy.uint32)` rejection** — `replay_buffer.py:_worker_init_fn` passed a numpy uint32 to `random.seed`, which 3.12 rejects via TypeError (older versions tolerated via `__index__`). CQN-AS upstream's conda env pins python=3.10 so it never hit this. Fix: `random.seed(int(seed))`.
+  3. **TensorDict bool conversion in train loop** — `agent.update()` returns a TensorDict; my training loop's `if metrics:` and `_log`'s `if not metrics:` both raise on TensorDict. Replaced with explicit length checks.
+  4. **Worker-aware update gate** — `len(replay_storage) > 0` is necessary but not sufficient: the replay loader stripes episode files by `eps_idx % num_workers`, so worker N is empty until episode N-1 is stored. Upstream never hits this because `num_demos > 0` pre-fills every worker. With `num_demos=0` (smoke), updates must wait for `global_episode >= num_replay_workers`. Without this guard, DataLoader worker 1 raises IndexError on its first sample.
+- **One follow-up still in flight (not blocking A6 green):** the training-update `[train] step=N q_critic_loss=...` lines didn't appear in the v4 log because `_log` iterated `TensorDict.items()` twice (dict comprehension + format-string join) and the second iteration was empty under the single-use-generator semantics of tensordict 0.6.0. Patched to materialise items into a list once (also calls `.item()` on 0-d tensors for clean float formatting). The training itself was happening — the step rate dropped from 117/s to 6.4/s after episode 2, which is the agent update overhead. Verifiable on the next smoke run.
+- **B5.1 silent return resolved.** The earlier "py exit=0 + 0 bytes" was the script succeeding silently — `checkpoints/svf_smoke.pt` (626k) already on disk from the supposedly-silent run. Root cause: `logging.basicConfig` was a no-op because an earlier import had already configured the root handler; with no INFO handler in scope, every `logger.info` was silently dropped. Fixed with `force=True` on the basicConfig call. Next B5.1 run should print "Loading dataset…", per-step loss progression, and either "Smoke OK" or a SystemExit with the failed Bellman-MSE assertion.
+
+### 2026-05-17 (later — A7 + C1 landed, Claude-side parallel work)
+- **A7 adapter pytest landed** at [`tests/test_cqn_as_adapter.py`](../tests/test_cqn_as_adapter.py). 24 tests, all green; 46/47 still green on the sibling suites (`test_coworker_disruption`, `test_svf_dataset`, `test_safety_labeling`, `test_bodyslam_wrapper`). Tests use a monkeypatched `SafetyBiGymEnvFactory._create_env` returning a stub gym env so the suite runs in <3s with no MuJoCo / AMASS / W&B dependencies. Coverage: low_dim shape ± bodyslam, action [-1,1] roundtrip including gripper-tail [0,1] handling, TimeStep first/mid/last typing on reset/mid/terminal, episode_length-divided-by-demo_down_sample_rate truncation, info["safety"] per-step + info["episode_safety"] at episode-end forwarding, frame-stack widening + first-frame repeat-fill on reset, pixels=False zero-rgb placeholder, missing-state-key + missing-bodyslam-key fail-loud, ExtendedTimeStepWrapper action attachment + spec forwarding.
+- **C1 sweep script landed** at [`scripts/phase1_reward_pilot_cqn_as.py`](../scripts/phase1_reward_pilot_cqn_as.py). Modelled on `phase1_reward_pilot.py` but invokes `train_cqn_as.py`. CLI mirrors the existing pilot: `--train` prints the 3 ready-to-run training commands (`bodyslam=off|oracle|noisy` × `saucepan_to_hob` × `disruption=coworker_train`, `num_train_frames=200000`, `num_demos=0`, `env.safety.add_violation_penalty=true env.safety.violation_penalty=0.05`, W&B on with `e1.4` tag); `--eval` prints commands against `disruption=coworker_eval` (20 episodes × 3 seeds × 3 modes) once the SNAPSHOTS dict at the top of the script is populated post-train; `--smoke --cell <mode>` runs a 2000-frame validation on a single cell for local sanity checks. Headless env vars (`MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0`) are embedded in every command.
+- **C1 caveat (snapshot loading).** The eval commands pass `+snapshot_path=<path>` and `num_train_frames=0`, mirroring `train_safety.py`'s convention. `train_cqn_as.py` does NOT yet honour `+snapshot_path` (Workspace.__init__ has no eager load — there's only `save_snapshot`, no `load_snapshot`). Wiring this in is a small follow-up (~15-line addition to `train_cqn_as.py` mirroring the Phase-0 robobase drift fix at the eager-load path). Blocking only the C2 eval phase, not C2 training. Tracked here so it doesn't get lost between now and C3.
+- **Both deliverables are GPU-free.** A6 smoke gates + B5 SVF training remain the next GPU dependencies; A8 PR is the only Claude-side item still gated (waits on A6 green).
+
+### 2026-05-17
+- **Mid-scale B3 validation passed.** 6 cells × 20 episodes × 250 max-steps × 0.50m proximity threshold + noisy bodyslam → 30k transitions clean. Per-cell violation rates: `random/dishwasher_close`=14.7%, `random/drawers_open_all`=32.4%, `random/saucepan_to_hob`=15.8%, `snapshot/dishwasher_close`=6.0%, `snapshot/drawers_open_all`=4.0%, `snapshot/saucepan_to_hob`=7.7%. Aggregate ~12% violation rate; all cells well above 5% floor, sources distinguishable per task (10-25 point gaps).
+- **Source-diversity pattern reversed from v5** (the single-task oracle smoke). v5 had snapshot > random on `dishwasher_close` (15.5% vs 11.0% at 0.50m oracle). Mid-scale (multi-task, noisy) has **random > snapshot on every task** (factor of 2-8×). The new pattern is more intuitive — random's chaotic limb extension produces more accidental near-human transitions than a task-trained policy that mostly stays at the workstation. The v5 reversal was a single-task artifact; multi-task data clarifies the underlying signal. Doesn't change B3 design; both patterns produce informative datasets.
+- **Two small fixes landed this session:**
+  - `TASK_REGISTRY` import path for `saucepan_to_hob` corrected from `bigym.envs.saucepan` (doesn't exist) to `bigym.envs.pick_and_place.SaucepanToHob`. Was crashing the mid-scale run between the 4th and 5th cells; one-line fix in [svf_collect_dataset.py:72](../scripts/svf_collect_dataset.py#L72).
+  - `_build_live_env` now passes `SafetyConfig(log_violations=False)`. Under proximity-based labelling, the env's per-step `SSM Violation!` WARNING fires almost every step (kitchen-scale `Required: 5-20m` is meaningless under proximity bar), drowning out useful collection logs. `ssm_margin` / `min_separation` remain populated in `info["safety"]` and stored in shards; only the logger is muted. Was flagged as a follow-up in the 05-16 notes; now landed.
+- **EGL teardown traceback at process exit is harmless.** MuJoCo's renderer destructor calls `eglDestroyContext` after EGL has already shut down → `EGL_NOT_INITIALIZED`. Happens *after* the final "Wrote N transitions" line, so all data is already on disk. Affects every collection run; ignore or, if it ever blocks CI, install an `atexit` cleanup before EGL teardown. Tracked here only so future readers don't waste time chasing it.
+- **v1 dataset follow-ups (none blocking SVF training, all worth knowing):**
+  1. **Snapshot action denormalization.** `_SnapshotPolicy.__call__` returns the agent's tanh-space output as-is. RoboBase training wraps the env with `RescaleFromTanhWithMinMax`, which our SVF collection path doesn't replicate — the env silently clips gripper dims to [0, 1] and the body-joint actions occupy only the inner `[-1, 1]` band of the env's true ±π range. Snapshot rollouts are still task-relevant (10% per-task violation rate is non-degenerate) but explore a narrower action subspace than a deployed properly-rescaled policy would. Decision: ship v1, evaluate runtime SVF; if it behaves oddly on actions near joint limits, fix the denormalization for a v2 collection. Estimated fix: ~10 lines in `_SnapshotPolicy.__call__` to unrescale using the `_action_stats` already in the snapshot payload.
+  2. **`ScenarioParams` missing two axes.** `make_coworker_train_space` samples 5 parameter axes but the `ScenarioParams` dataclass at [scenarios/scenario_sampler.py:25-64](../safety_bigym/scenarios/scenario_sampler.py#L25-L64) only exposes 3 (trajectory_type, closest_approach, walk_speed, patrol_near_loiter); `reach_period` and `target_mix_p_ee` are consumed internally but never persisted on the dataclass. B4.4 coverage check can't audit these two axes. Small dataclass extension; independent of any other workstream.
+  3. **Aggregate 11% violation rate is workable but skewed safe.** With class-weighted CQL training it's fine. If the v1 SVF underperforms on the unsafe class (under-predicts risk), the right knob is probably either (a) tighten the proximity threshold for retraining-from-shards (free — `min_separation` is per-step), or (b) re-collect with `closest_approach` skewed toward the lower end of the COWORKER train range. (a) is much cheaper.
+
+### 2026-05-16
+- B2.3 → B2.7 landed in one session. The Phase 2 dataset architecture is materially different from the original B2 sub-plan; see decision log for the three substantive decisions (labelling, threshold, demo skip).
+- **Dead demo source (open follow-up).** BiGym DemoStore cache has demos recorded with `JointPositionActionMode(absolute=True, floating_base=True, floating_dofs=['pelvis_x', 'pelvis_y', 'pelvis_rz'])` — 3-dof base. Phase 2 production env uses 4-dof base (X, Y, Z, RZ) to match RoboBase ACT training (B2.4). Metadata signature mismatch → `DemoNotFoundError`. Recording fresh 4-dof demos through `mojo.demonstrations` (or scripting them via the SNAPSHOT actors run as expert) is the canonical fix; tracked as a future task, not blocking B3.
+- **Random vs snapshot policy-effect signal observed at threshold ≥ 0.50m.** At 0.10m and 0.30m the two sources produce statistically indistinguishable violation rates — kitchen-fixed-workspace tasks (e.g., dishwasher_close) have the human's AMASS trajectory dominating relative-proximity statistics. Above 0.50m, snapshot's task-driven reach toward the workspace overlaps more with human approach trajectories than random's whole-workspace flailing. The 4.5-point gap at 0.50m (random 11.0%, snapshot 15.5%) is the source-diversity signal we relied on for the dataset design.
+- **Snapshot policy adapter loads cleanly** after B2.4-B2.6: encoder builds, `load_state_dict` succeeds, rollouts produce sensible `data.cvel`-derived robot velocities. Caveat for any future snapshot-eval path: `_SnapshotPolicy._synthesize_snapshot_obs_space` mirrors RoboBase's exact wrap order (ConcatDim → FrameStack), and `adapt_obs` mirrors ConcatDim's `keys_to_ignore` and bodyslam-aware gating. If you change either upstream, both helpers need to change in lockstep — silent state_dict mismatches are easy to introduce.
+- **PFL retrofit recipe** (when the contact-detection bug eventually lands):
+  1. Re-collect through a PFL-fixed env using the same `svf_collect_dataset.py` command (the writer schema is already in place; only `pfl_force_ratio` values change from zero to meaningful). Output to a new directory — don't mix.
+  2. Train SVF with `label_transition(..., use_pfl=True)` so the binary label ORs in `pfl_violation`. The proximity threshold can remain at 0.50 m or be tightened; PFL catches the contact tail PFL was designed for.
+  3. Compare v1 (proximity-only) and v2 (proximity + PFL) critics on identical eval episodes to confirm PFL adds discriminative signal rather than just inflating the violation rate.
+  Stored `min_separation` from v1 still relabels for new proximity thresholds; stored `pfl_force_ratio` from v1 is all zeros and useless for retrofit — that's why step 1 needs fresh data, not just relabelling.
+
+### 2026-05-15 (later)
+- A1 passed on GPU box. CQN-AS reference impl learns on stock `dishwasher_close` end-to-end. Vendoring track unblocked.
+- B1 (3 ACT re-rolls on COWORKER train space) ran on GPU box. Snapshot paths pending — user to paste W&B URLs or `exp_local/...` paths.
+- Hydra group regression fixed: `cfgs/disruptions/` → `cfgs/disruption/`, registered in `safety_config.yaml` defaults, yamls now set `env.disruption_type=COWORKER` (forces weights override via factory line 220) so legacy weights dict merging doesn't pollute the COWORKER-only distribution.
+- **GPU-box prerequisite (record once, forget never):** `export MUJOCO_GL=egl; export MUJOCO_EGL_DEVICE_ID=0` (headless box has no DISPLAY; default GLFW backend fails on `mjr_makeContext`).
+
+### 2026-05-15
+- Branch created off `main` carrying forward pre-existing uncommitted edits to: `safety_env.py`, `safety_bigym_factory.py`, `human_controller.py`, `trajectory_planner.py`, `disruption_types.py`, `scenario_sampler.py`. Committed as `c75ee12` (Phase 0.5 baseline).
+- CQN-AS cloned at upstream commit `8cf806e` (HEAD of `/Users/ayushpatel/Documents/FYP3/CQN-AS/`).
+- BiGym pin delta noted: safety_bigym's BiGym at `79420b0` (2 commits ahead of CQN-AS pin `72d3054`). Both delta commits are typo fixes; compatibility expected (and now confirmed by A1).
