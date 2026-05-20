@@ -5,6 +5,7 @@ Active branch: `main` (P3.0 merged via PR #9; subsequent fixes committed to main
 Plan: [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
 Initial-phase plan: [/Users/ayushpatel/.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md](../../.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md)
 Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
+Phase 3 orientation: [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md) (goal, what's done/left, contingencies, scope)
 Phase 2 writeup: [phase2_results.md](phase2_results.md) (implementation + B5 results + B5.5 plan)
 
 ---
