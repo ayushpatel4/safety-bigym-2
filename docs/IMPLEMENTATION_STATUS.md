@@ -214,6 +214,11 @@ Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPE
 
 _Append as work proceeds. Each note dated. Most-recent first._
 
+### 2026-05-20 (later, post-smoke) — test-rot cleanup + new baseline
+- **Documented 11 failures fixed** (commit `f550a57`): `test_cql_trainer.py` (7) + `test_svf_train_critic_smoke.py` (3) caught up to the B2.8 `write_shard` schema (added per-step `min_separation`/`pfl_force_ratio` kwargs, consistent with `r_safe`); `test_episode_safety_metrics.py` (1) stale "not until done" assertion replaced (the wrapper intentionally emits `episode_safety` every step). Those 3 files: 17 passed.
+- **Repo hygiene** (`d9548c9`): 27 committed `__pycache__/*.pyc` untracked (they predated the gitignore rule), `*.mp4` ignored.
+- **New baseline:** full `pytest tests/` **with `AMASS_DATA_DIR` set** = 335 passed, **5 failed in `test_svf_collect_smoke.py`**. These are AMASS-gated (they *skip* without AMASS, which is why the old "everything green" baseline missed them). Breakdown: 2 are stale 4-dof shape rot (assert action `(n,15)`, env is now `(n,16)` since B2.4); 3 are in the demo-source path (`test_demo_source_*` + the manifest test) failing on a `write_shard` shape `ValueError` — same area as the in-flight B5.5 `svf_collect_dataset.py` snapshot-denorm changes (bundled in `bed92f7`). **Deferred to the B5.5 session by user decision (2026-05-20); left untouched.**
+
 ### 2026-05-20 (later, post-smoke) — env.safety schema fix + commit-bundling note
 - `cfgs/env/safety_bigym.yaml` now declares `add_workspace_penalty`/`workspace_radius`/`workspace_beta` (commit `bed92f7`). Strict-mode Hydra was rejecting `env.safety.add_workspace_penalty=true` overrides because the YAML schema only listed the violation-penalty fields; the workspace fields were already wired in `SafetyConfig` + the factory via `.get(..., default)`, but couldn't be set from CLI. Unblocks the D3b-validation run.
 - Bookkeeping: commit `bed92f7` *also* carries the in-flight Workstream B5.5 work (`scripts/svf_collect_dataset.py` changes + new `tests/test_svf_collect_snapshot_denorm.py`) that was already staged when I committed the cfg fix. Files are real B5.5 progress, just landed in a commit message that doesn't mention them.
