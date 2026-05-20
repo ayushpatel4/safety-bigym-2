@@ -20,15 +20,18 @@ This file is NOT vendored from CQN-AS; it's a local glue module. Action
 normalisation and frame-stacking logic mirror CQN-AS/bigym_src/bigym_env.py
 :BiGym so the agent's action/obs assumptions hold unchanged.
 
-Demos (CQN-AS is demo-driven RL): get_demos() is a stub for now. The
-smoke gate (A6) needs env composition only, not demos. Wiring CQN-AS
-demos through SafetyBiGymEnvFactory's demo path is follow-up work after
-the smoke gate is green.
+Demos (CQN-AS is demo-driven RL): get_demos() loads 4-dof BiGym demos
+through SafetyBiGymEnvFactory's raw-env + DemoStore path, injects
+``human_pos_estimate`` via BodySLAMWrapper demo_replay, and converts them
+to ExtendedTimeStep lists (Workstream D). Ported from
+CQN-AS/bigym_src/bigym_env.py:BiGym.{get_demos,convert_demo_to_timesteps,
+extract_action_stats,rescale_demo_actions}.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 from collections import deque
 from typing import Any, Dict, NamedTuple, Optional, Tuple, Union
 
@@ -50,7 +53,11 @@ from safety_bigym.filters.cost_signal import (
     PFL_RATIO_THRESHOLD_DEFAULT,
     compute_cost,
 )
-from safety_bigym.perception.bodyslam_wrapper import OBS_KEY as BODYSLAM_OBS_KEY
+from safety_bigym.perception.bodyslam_wrapper import (
+    OBS_KEY as BODYSLAM_OBS_KEY,
+    BodySLAMWrapper,
+)
+from safety_bigym.perception.demo_position_provider import AMASSDemoPositionProvider
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +183,46 @@ class ExtendedTimeStepWrapper:
 
     def __getattr__(self, name):
         return getattr(self._env, name)
+
+
+class _DemoReplayEnv:
+    """Minimal in-memory gym-like env that replays a demo's observations.
+
+    Used only as the inner env for :class:`BodySLAMWrapper` during demo
+    ``human_pos_estimate`` injection (get_demos). It exposes the gym
+    surface BodySLAMWrapper touches — a ``spaces.Dict`` ``observation_space``,
+    ``reset() -> (obs, info)`` and ``step(action) -> (obs, 0.0, False, False,
+    info)`` — and walks the demo's recorded observations one per step.
+
+    The emitted ``info`` carries no ``"safety"`` key, so BodySLAMWrapper's
+    ``_get_true_pos`` falls back to the AMASS ``position_provider`` (the
+    demo_replay path), exactly as the factory's ``_maybe_wrap_demo_bodyslam``
+    does for the RoboBase BC demo env.
+    """
+
+    def __init__(self, observation_space: spaces.Dict):
+        self.observation_space = observation_space
+        self.unwrapped = self
+        self._current_scenario = None
+        self._observations: list = []
+        self._idx = 0
+
+    def load(self, observations: list) -> None:
+        """Point the env at a new demo's observation sequence."""
+        self._observations = observations
+        self._idx = 0
+
+    def reset(self, **kwargs):
+        self._idx = 0
+        return self._observations[0], {}
+
+    def step(self, action):
+        self._idx += 1
+        idx = min(self._idx, len(self._observations) - 1)
+        return self._observations[idx], 0.0, False, False, {}
+
+    def close(self) -> None:
+        pass
 
 
 class SafetyBiGymCQNAdapter:
@@ -334,22 +381,220 @@ class SafetyBiGymCQNAdapter:
         return self._env.render()
 
     def get_demos(self, num_demos: int):
-        """Stub — demos are a follow-up to the A6 smoke gate.
+        """Load + convert BiGym demos into CQN-AS ExtendedTimeStep lists.
 
-        SafetyBiGymEnvFactory loads demos via the raw (non-safety-wrapped)
-        BiGym env, then re-wraps with BodySLAMWrapper in demo_replay mode
-        (synthesising human_pos_estimate from an AMASS clip). Porting that
-        path into the CQN-AS demo pipeline requires reformatting the
-        loaded demos into CQN-AS's ExtendedTimeStep list (see
-        CQN-AS/bigym_src/bigym_env.py:BiGym.convert_demo_to_timesteps).
+        Port of CQN-AS/bigym_src/bigym_env.py:BiGym.get_demos adapted to
+        the SafetyBiGym pipeline (Workstream D). Steps:
 
-        Raise here so unconfigured demo training fails loudly; for the
-        smoke gate, configure with num_demos=0 / disable demo pretraining.
+        1. Load raw 4-dof demos via SafetyBiGymEnvFactory's raw-env +
+           DemoStore path (``_get_demo_fn``); the raw env is required
+           because DemoStore matches by env *class name*.
+        2. Truncate each demo at the first rewarding state (so the demo's
+           final reward ≈ 1.0 and the demo replay buffer keeps it).
+        3. When ``bodyslam != off``, inject a per-step ``human_pos_estimate``
+           into each demo observation using the same
+           ``AMASSDemoPositionProvider`` + ``BodySLAMWrapper(demo_replay=True)``
+           mechanism the factory's ``_maybe_wrap_demo_bodyslam`` uses, so the
+           demo low_dim width/statistics match the live env.
+        4. Convert each demo to a list of :class:`ExtendedTimeStep` (obs via
+           ``_extract_obs``, action from ``info["demo_action"]``, step types,
+           ``cost=0.0`` since demos carry no live human).
+        5. Override ``self._action_stats`` with demo-derived per-dim stats so
+           demo and live actions share one normalisation, then rescale the
+           demo actions into [-1, 1] under those stats.
+
+        Returns a ``list`` of demos, each a ``list[ExtendedTimeStep]``.
+        ``train_cqn_as.load_demos`` adds each timestep to the (demo) replay
+        buffers via ``ReplayBufferStorage.add``.
         """
-        raise NotImplementedError(
-            "CQN-AS demos through SafetyBiGymEnvFactory are not wired yet "
-            "(follow-up to A6 smoke gate). For smoke runs set num_demos=0."
+        if num_demos == 0:
+            raise ValueError("get_demos called with num_demos=0")
+
+        factory = SafetyBiGymEnvFactory()
+        raw_demos = factory._get_demo_fn(self._cfg, num_demos)
+
+        # Truncate each demo at the first rewarding state (upstream parity).
+        filtered = []
+        for raw_demo in raw_demos:
+            steps = []
+            for demostep in raw_demo.timesteps:
+                steps.append(demostep)
+                if demostep.reward > 0:
+                    break
+            filtered.append(steps)
+
+        # Inject human_pos_estimate when the channel is on.
+        if self._inject_human_pos:
+            self._inject_human_pos_into_demos(filtered)
+
+        demos = []
+        num_successful = 0.0
+        for steps in filtered:
+            demo, successful = self._convert_demo_to_timesteps(steps)
+            num_successful += float(successful)
+            demos.append(demo)
+        logger.info(
+            "Converted %d demos (%d successful) for CQN-AS.",
+            len(demos), int(num_successful),
         )
+
+        # Demo-derived action stats shared with the live path, then rescale.
+        self._action_stats = self._extract_action_stats(demos)
+        demos = [self._rescale_demo_actions(demo) for demo in demos]
+        return demos
+
+    # ------------------------------------------------------------------
+    # Demo conversion internals (ported from CQN-AS/bigym_src/bigym_env.py)
+    # ------------------------------------------------------------------
+
+    def _inject_human_pos_into_demos(self, demos: list) -> None:
+        """Mutate each demostep.observation to add ``human_pos_estimate``.
+
+        Drives a :class:`BodySLAMWrapper` in demo_replay mode (fed by an
+        ``AMASSDemoPositionProvider``) over an in-memory replay env, mirroring
+        the factory's ``_maybe_wrap_demo_bodyslam``. A fresh provider clip +
+        root transform is sampled per demo (the wrapper's reset() calls
+        ``provider.reset()``).
+        """
+        bs = self._cfg.env.get("bodyslam") if hasattr(self._cfg, "env") else None
+        motion_dir = self._cfg.env.get(
+            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+        )
+        clip_paths = list(self._cfg.env.get("motion_clip_paths", []))
+        if not motion_dir or not clip_paths:
+            raise RuntimeError(
+                "Demo human_pos injection requires motion_clip_dir + "
+                "motion_clip_paths in env config (or AMASS_DATA_DIR env var)."
+            )
+        provider = AMASSDemoPositionProvider(
+            clip_paths=clip_paths,
+            motion_dir=motion_dir,
+            seed=int(bs.get("seed", 0)) ^ 0xDEAD,
+        )
+
+        # Build a Dict observation_space mirroring the demo obs keys so
+        # BodySLAMWrapper accepts the inner env.
+        sample_obs = demos[0][0].observation
+        inner_spaces = {
+            key: spaces.Box(
+                low=-np.inf, high=np.inf,
+                shape=np.asarray(val).shape, dtype=np.float32,
+            )
+            for key, val in sample_obs.items()
+        }
+        inner = _DemoReplayEnv(spaces.Dict(inner_spaces))
+        wrapper = BodySLAMWrapper(
+            inner,
+            mode=self._bodyslam_mode,
+            ou_alpha=float(bs.get("ou_alpha", 0.9)),
+            noise_std=float(bs.get("noise_std", 0.05)),
+            latency_steps=int(bs.get("latency_steps", 3)),
+            occlusion_noise_mult=float(bs.get("occlusion_noise_mult", 3.0)),
+            dropout_prob=float(bs.get("dropout_prob", 0.02)),
+            seed=int(bs.get("seed", 0)),
+            position_provider=provider,
+            demo_replay=True,
+        )
+
+        for steps in demos:
+            observations = [ds.observation for ds in steps]
+            inner.load(observations)
+            obs, _ = wrapper.reset()
+            steps[0].observation = obs
+            for i in range(1, len(steps)):
+                obs, _, _, _, _ = wrapper.step(None)
+                steps[i].observation = obs
+
+    def _convert_demo_to_timesteps(self, demo: list):
+        """Turn a list of raw demosteps into a list of ExtendedTimeStep.
+
+        Port of CQN-AS BiGym.convert_demo_to_timesteps; adds the Phase 3
+        ``cost`` field (0.0 — demos have no live human, safe-side placeholder)
+        and an empty ``info`` dict.
+        """
+        timesteps: list = []
+
+        # Reset the frame-stack deques (mirrors upstream).
+        self._low_dim_obses.clear()
+        for frames in self._frames.values():
+            frames.clear()
+
+        rewards = [ds.reward for ds in demo]
+        successful_demo = sum(rewards) > 0.25
+
+        last_timestep = False
+        for i, demostep in enumerate(demo):
+            obs = self._extract_obs(demostep.observation)
+            reward = float(demostep.reward)
+            discount = 1.0
+            term, trunc = demostep.termination, demostep.truncation
+            action = np.asarray(
+                demostep.info["demo_action"], dtype=np.float32
+            )
+
+            if i == 0:
+                step_type = StepType.FIRST
+            else:
+                if (i == len(demo) - 1) or reward > 0:
+                    if not (term or trunc):
+                        trunc = True  # timelimit
+                    step_type = StepType.LAST
+                    if term:
+                        discount = 0.0
+                    last_timestep = True
+                else:
+                    step_type = StepType.MID
+
+            timesteps.append(
+                ExtendedTimeStep(
+                    rgb_obs=obs["rgb_obs"],
+                    low_dim_obs=obs["low_dim_obs"],
+                    step_type=step_type,
+                    action=action,
+                    reward=reward,
+                    discount=discount,
+                    demo=int(successful_demo),
+                    info={},
+                    cost=0.0,
+                )
+            )
+            if last_timestep:
+                break
+
+        return timesteps, successful_demo
+
+    def _extract_action_stats(self, demos: list) -> Dict[str, np.ndarray]:
+        """Per-dim action min/max over all demos; gripper tail forced [0,1].
+
+        Port of CQN-AS BiGym.extract_action_stats. Overrides the identity
+        default so demo + live actions share one normalisation.
+        """
+        actions = []
+        for demo in demos:
+            for ts in demo:
+                actions.append(ts.action)
+        actions = np.stack(actions)
+
+        action_max = np.hstack([np.max(actions, 0)[:-2], 1, 1]).astype(np.float32)
+        action_min = np.hstack([np.min(actions, 0)[:-2], 0, 0]).astype(np.float32)
+
+        env_low = self._env.action_space.low
+        env_high = self._env.action_space.high
+        if not (np.all(action_min >= env_low) and np.all(action_max <= env_high)):
+            logger.warning(
+                "Demo action stats exceed env action bounds; clipping to range."
+            )
+            action_min = np.maximum(action_min, env_low).astype(np.float32)
+            action_max = np.minimum(action_max, env_high).astype(np.float32)
+
+        return {"min": action_min, "max": action_max}
+
+    def _rescale_demo_actions(self, demo: list) -> list:
+        """Rescale each demo action raw→[-1,1] under the current action_stats."""
+        return [
+            ts._replace(action=self._convert_action_from_raw(ts.action))
+            for ts in demo
+        ]
 
     def close(self) -> None:
         if hasattr(self._env, "close"):

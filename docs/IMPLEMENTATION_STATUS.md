@@ -10,19 +10,22 @@ Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
 
 ## Next session — start here
 
-**Phase 0/0.5/1/2 done; P3.0 (Phase 3 scaffolding) done and merged. The immediate task is the CQN-AS demo pipeline (Workstream D).**
+**Phase 0/0.5/1/2 done; P3.0 (Phase 3 scaffolding) done and merged. Workstream D (CQN-AS demo pipeline) is code-complete + unit-tested (2026-05-20); two GPU-box smokes remain, then Phase 3 (P3.1).**
 
-**Why:** the C2 (E1.4) re-run completed (snapshots + videos now save correctly — the cadence bug is fixed) but came back **degenerate**: 31-step episodes, robot fleeing the human, off/oracle/noisy reward curves identical. Diagnosed (2026-05-19/20) as two stacked confounds — `num_demos=0` (CQN-AS is demo-driven; it never discovers the sparse task reward) and no workspace shaping. **User decision (2026-05-20): build the demo pipeline.** That is the next coding session's whole job.
+**Why D existed:** the C2 (E1.4) re-run came back **degenerate** (31-step episodes, robot fleeing the human, identical off/oracle/noisy curves). Diagnosed as `num_demos=0` (CQN-AS is demo-driven) + no workspace shaping. The demo pipeline is now wired.
 
-### 🔴 Do this first — Workstream D (CQN-AS demo pipeline)
+### 🔴 Do this first — GPU-box smokes for Workstream D, then Phase 3
 
-Full handoff (context, the building blocks that already exist, the upstream reference to port, acceptance criteria, gotchas): **[PHASE3_DEMO_PIPELINE_HANDOFF.md](PHASE3_DEMO_PIPELINE_HANDOFF.md)** — read it top-to-bottom first.
+`SafetyBiGymCQNAdapter.get_demos()` is implemented (`safety_bigym/agents/cqn_as/env_adapter.py`); D0/D1/D2/D3a are done (see Workstream D + the 2026-05-20 note). Remaining (D3b):
+1. **2000-frame smoke** (verifies demo-fill + no worker-striping IndexError) — needs `tensordict==0.6.0`, present on the GPU box only:
+   ```bash
+   export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+   python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
+     bodyslam=oracle num_demos=10 num_train_frames=2000 wandb.use=false
+   ```
+2. **~30–50k-frame validation** with `env.safety.add_workspace_penalty=true` (single bodyslam mode, oracle) → confirm the policy *attempts* the task (non-trivial episode lengths, task reward > 0) rather than evacuating.
 
-One-line summary: `SafetyBiGymCQNAdapter.get_demos()` is a `NotImplementedError` stub; implement it by reusing the factory's raw-env + DemoStore path and porting `convert_demo_to_timesteps`/`extract_action_stats` from `CQN-AS/bigym_src/bigym_env.py`, injecting `human_pos_estimate` via the existing BodySLAMWrapper demo_replay mechanism. **Resolve the dof question first** (D0 in the handoff — the "demos are 3-dof / dead" claim is likely a red herring; demos exist and ACT loaded 36 at 4-dof).
-
-### After Workstream D
-
-Re-run E1.4 (C2) with demos + `env.safety.add_workspace_penalty=true` for a clean channel answer (or fold the channel question into Phase 3 E3.6), then proceed to P3.1 (the Lagrangian glue). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
+Then **proceed straight to P3.1** (the Lagrangian glue). **We are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
 
 ### What to do when the re-run C2 cells finish
 
@@ -160,12 +163,13 @@ The minimum scaffolding for the Phase 3 Lagrangian (Option B-value-mean) to laun
 
 Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPELINE_HANDOFF.md](PHASE3_DEMO_PIPELINE_HANDOFF.md). One-session task.
 
-- [ ] D0. **Resolve the dof question first (cheap).** The "demos are 3-dof / dead" claim (decision log 2026-05-16) is likely a red herring: `saucepan_to_hob.yaml` is 4-dof, ACT trained on 36 demos at 4-dof, cache exists at `~/.bigym/demonstrations/0.9.0/SaucepanToHob`. Verify `SafetyBiGymEnvFactory._get_demo_fn(cfg, num_demos=5)` returns demos at 4-dof before assuming any re-recording.
-- [ ] D1. Implement `SafetyBiGymCQNAdapter.get_demos()` (currently a `NotImplementedError` stub) — reuse the factory raw-env + DemoStore path, port `convert_demo_to_timesteps`/`extract_action_stats`/`rescale_demo_actions` from `CQN-AS/bigym_src/bigym_env.py`, inject `human_pos_estimate` via the existing BodySLAMWrapper demo_replay mechanism, carry the P3.0c `cost` field on demo timesteps.
-- [ ] D2. Demo-derived `action_stats` shared with the live path (also fixes the B4.2 snapshot-denormalization caveat).
-- [ ] D3. pytest (stubbed DemoStore, no MuJoCo) + a ~30–50k-frame trained smoke with demos + workspace shaping showing task attempts (not evacuation).
+- [x] D0. **Dof question RESOLVED — it was a red herring (2026-05-20).** Cache dir `~/.bigym/demonstrations/0.9.0/SaucepanToHob/JointPositionActionMode_floating_pelvis_x_pelvis_y_pelvis_z_pelvis_rz_absolute` is **4-dof**. `SafetyBiGymEnvFactory()._get_demo_fn(cfg, num_demos=5)` returned 5 `Demo` objects (~427 steps each), `info["demo_action"]` shape **(16,)** (4-dof: 14 body + 2 grippers), obs keys proprioception(60)/grippers(2)/floating_base(4) + rgb cameras, per-step reward (demo0 sum=35.0, max=1.0). **Port implemented; no re-recording.**
+- [x] D1. `SafetyBiGymCQNAdapter.get_demos()` implemented (2026-05-20) — reuses `_get_demo_fn` raw-env + DemoStore path, ports `convert_demo_to_timesteps`/`extract_action_stats`/`rescale_demo_actions` from `CQN-AS/bigym_src/bigym_env.py`, injects `human_pos_estimate` via `BodySLAMWrapper(demo_replay=True)` + `AMASSDemoPositionProvider` over an in-memory `_DemoReplayEnv`, carries the P3.0c `cost=0.0` field (demos have no live human → safe-side placeholder).
+- [x] D2. Demo-derived `action_stats` override `self._action_stats` (shared with the live path; also addresses the B4.2 snapshot-denormalization caveat).
+- [x] D3a. pytest `tests/test_cqn_as_demos.py` (stubbed DemoStore + stubbed AMASSDemoPositionProvider, no MuJoCo) — green, 11 tests; full demo+adapter suite 40 passed.
+- [ ] D3b. ~30–50k-frame trained validation run with demos + `env.safety.add_workspace_penalty=true` showing task attempts (not evacuation) — **GPU-box handoff** (single bodyslam mode, oracle recommended). The 2000-frame `num_demos=10` smoke is also a GPU-box handoff: this Mac venv lacks `tensordict==0.6.0` (user decision 2026-05-20 not to install it locally; the env builds + Step-0 demo loading verified here, agent instantiation needs tensordict).
 
-**Once D is done:** re-run E1.4 (C2) with demos + workspace shaping for a *clean* channel answer, OR fold the channel question into Phase 3 E3.6. Either way Workstream D unblocks a non-degenerate CQN-AS actor for Phase 3.
+**Once D3b confirms non-degenerate learning:** proceed straight to Phase 3 (P3.1) with `bodyslam=oracle` (or noisy) for the actor and fold the off/oracle/noisy channel ablation into Phase 3 eval (E3.6). **We are NOT re-running E1.4 (C2) as a standalone gate** (user decision 2026-05-20 — see decision log).
 
 ---
 
@@ -194,12 +198,28 @@ Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPE
 | 2026-05-19 | Commit snapshot-cadence + eval-video fixes directly to `main` (not a phase branch) | User decision; urgent — C2 was blocked on the snapshot bug and a re-run had to start ASAP. Breaks the CLAUDE.md "never commit to main directly" rule by explicit override. |
 | 2026-05-19 | Add eval video recording to `train_cqn_as.py` (option b), not post-hoc | User asked for it during the C2-restart cycle so videos land in the same re-run rather than a third pass. Episode-0-only per eval cycle keeps disk + wall-time negligible. |
 | 2026-05-20 | Build the CQN-AS demo pipeline (Workstream D) | C2 re-run came back degenerate (robot flees human, 31-step episodes, identical off/oracle/noisy curves). Diagnosed as `num_demos=0` (CQN-AS is demo-driven; never discovers the sparse task reward) + no workspace shaping. User decision: demos are needed. Note: the 2026-05-16 "demos are 3-dof / dead" claim is suspect — `saucepan_to_hob` is 4-dof, ACT loaded 36 demos at 4-dof, cache exists; Workstream D D0 re-verifies before any re-recording. |
+| 2026-05-20 | **D0: "demos are 3-dof / dead" is a confirmed red herring** — demos load at 4-dof, port (not re-record) | Verified: cache dir is `..._pelvis_x_pelvis_y_pelvis_z_pelvis_rz_absolute` (4-dof); `_get_demo_fn(cfg, 5)` returns 5 Demos with `info["demo_action"]` shape (16,). The old `DemoNotFoundError` (B3) came from a different env-construction path, not from demos being 3-dof. Supersedes the 2026-05-16 "B3 skips demo source" rationale's dof claim. |
+| 2026-05-20 | **Do NOT re-run E1.4 (C2) as a standalone gate; fold the obs-channel ablation into Phase 3 (E3.6)** | User decision. E1.1 already signalled the observation channel isn't the dominant safety lever (no cell cleared the ≥20% SSM bar; oracle improved task success but not safety); the cost-signal Lagrangian is the thesis lever; the Phase 3 filter/`Q_c` consume `human_pos_estimate` regardless of the actor's obs config. After demos land + a single validation run confirms non-degenerate learning, go straight to P3.1 with `bodyslam=oracle` (or noisy) and ablate off/oracle/noisy inside Phase 3 eval. Saves ~3×200k frames. |
+| 2026-05-20 | Commit Workstream D (`get_demos` + tests + docs) directly to `main` | User decision; matches the 2026-05-19 precedent for the snapshot-cadence + eval-video fixes. Breaks the CLAUDE.md "never commit to main directly" rule by explicit override. Unit tests green (40 passed); GPU-box smokes pending. |
 
 ---
 
 ## Notes / blockers
 
 _Append as work proceeds. Each note dated. Most-recent first._
+
+### 2026-05-20 — Workstream D landed (demo pipeline)
+- **D0 resolved (red herring).** 4-dof demos load fine through `SafetyBiGymEnvFactory._get_demo_fn`; see decision log. No re-recording.
+- **`get_demos` implemented** in `safety_bigym/agents/cqn_as/env_adapter.py` (replaces the `NotImplementedError` stub). Flow: `_get_demo_fn` raw-env+DemoStore load → truncate each demo at first reward>0 → (bodyslam≠off) inject `human_pos_estimate` via `BodySLAMWrapper(demo_replay=True)`+`AMASSDemoPositionProvider` driven over a new in-memory `_DemoReplayEnv` → `_convert_demo_to_timesteps` (obs via existing `_extract_obs`, action from `info["demo_action"]`, FIRST/MID/LAST typing, `cost=0.0`) → `_extract_action_stats` overrides `self._action_stats` → `_rescale_demo_actions` to [-1,1]. Returns `list[list[ExtendedTimeStep]]` consumed by `train_cqn_as.load_demos`.
+- **Tests:** `tests/test_cqn_as_demos.py` (11 tests, stubbed DemoStore + AMASS provider, no MuJoCo) green; full `test_cqn_as_demos.py + test_cqn_as_adapter.py` = 40 passed.
+- **Smoke is a GPU-box handoff.** This Mac venv lacks `tensordict==0.6.0` (declared in setup.py but only installed on the GPU box; user chose not to install locally). Verified locally: the live env builds and `_get_demo_fn` loads demos; `CQNASAgent` instantiation needs tensordict. Run on the GPU box:
+  ```bash
+  export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+  python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
+    bodyslam=oracle num_demos=10 num_train_frames=2000 wandb.use=false
+  ```
+  Expect: `Loaded N demos; replay size now ...`, 2000 frames train with no crash and no worker-striping IndexError. Then the ~30–50k-frame validation with `env.safety.add_workspace_penalty=true` for task-attempt evidence.
+- **Next:** straight to Phase 3 (P3.1); fold the obs-channel ablation into E3.6 (no standalone E1.4 re-run).
 
 ### 2026-05-20 — handoff snapshot
 - **State of `main`:** P3.0 merged (PR #9). Two follow-up commits pushed: `6e7fdc1` (snapshot-cadence fix) and `09faaa4` (eval video). `origin/main` is current; the GPU box only needs `git pull`.
