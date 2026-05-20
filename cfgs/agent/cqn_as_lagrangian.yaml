@@ -1,0 +1,23 @@
+# @package _global_
+# Phase 3 (P3.1) Lagrangian constrained-RL agent. Inherits every base CQN-AS
+# hyperparam from cqn_as.yaml, swaps the _target_ to the LagrangianCQNASAgent,
+# and adds the cost-critic + lambda-PID knobs. Select with `agent=cqn_as_lagrangian`;
+# plain CQN-AS (`agent=cqn_as`, the default) is untouched.
+defaults:
+  - cqn_as
+  - _self_
+
+agent:
+  _target_: safety_bigym.agents.cqn_as.lagrangian_agent.LagrangianCQNASAgent
+  # Cost critic (Q_c) C51 support range. Per-step c_t in [0, 1]; the n-step
+  # discounted-cost return ceiling sits well under 10.
+  cost_v_min: 0.0
+  cost_v_max: 10.0
+  # Lagrange multiplier PID (PHASE3_1_HANDOFF.md defaults).
+  lambda_init: 0.0
+  lambda_k_i: 1e-3
+  lambda_k_p: 1e-2
+  lambda_k_d: 0.0
+  lambda_max: 100.0
+  cost_budget: 0.01           # constraint target d on rolling-mean cost
+  rolling_cost_momentum: 0.99
