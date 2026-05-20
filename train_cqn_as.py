@@ -371,6 +371,21 @@ class Workspace:
                 for _ in range(self.cfg.num_update_steps):
                     batch = next(self.replay_iter)
                     batch = utils.to_torch_pixel_tensor_dict(batch, self.device)
+                    # Guard: a non-finite reward/discount feeds NaN into the C51
+                    # target projection (compute_target_q_dist), where floor(NaN)
+                    # becomes a garbage index and index_add_ dies with an opaque,
+                    # async CUDA device-side assert (dstIndex < dstAddDimSize) that
+                    # mis-points at a later op. Fail here instead, naming the field.
+                    for _k in ("reward", "discount", "action", "cost"):
+                        if _k in batch and not torch.isfinite(batch[_k]).all():
+                            bad = batch[_k]
+                            raise ValueError(
+                                f"non-finite values in batch['{_k}'] before "
+                                f"agent.update (min={bad.min().item()}, "
+                                f"max={bad.max().item()}); this would crash the "
+                                f"C51 target projection. Likely a malformed demo "
+                                f"or env reward — check num_demos/the demo set."
+                            )
                     metrics = self.agent.update(batch)
                     self._update_step += 1
                     self.agent.update_target_critic(self._update_step)
