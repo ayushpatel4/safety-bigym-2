@@ -214,6 +214,10 @@ Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPE
 
 _Append as work proceeds. Each note dated. Most-recent first._
 
+### 2026-05-20 (later, post-smoke) — env.safety schema fix + commit-bundling note
+- `cfgs/env/safety_bigym.yaml` now declares `add_workspace_penalty`/`workspace_radius`/`workspace_beta` (commit `bed92f7`). Strict-mode Hydra was rejecting `env.safety.add_workspace_penalty=true` overrides because the YAML schema only listed the violation-penalty fields; the workspace fields were already wired in `SafetyConfig` + the factory via `.get(..., default)`, but couldn't be set from CLI. Unblocks the D3b-validation run.
+- Bookkeeping: commit `bed92f7` *also* carries the in-flight Workstream B5.5 work (`scripts/svf_collect_dataset.py` changes + new `tests/test_svf_collect_snapshot_denorm.py`) that was already staged when I committed the cfg fix. Files are real B5.5 progress, just landed in a commit message that doesn't mention them.
+
 ### 2026-05-20 (later) — D3b-smoke PASSED on GPU box
 2000-frame smoke ran clean on swirl (`exp_local/cqn_as_safety/saucepan_to_hob_20260520124507`). Acceptance criterion 1 met end-to-end:
 - `Loaded 10 demos` → `Converted 10 demos (6 successful) for CQN-AS` → `Loaded 10 demos; replay size now 3663`.
