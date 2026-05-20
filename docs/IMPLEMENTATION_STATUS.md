@@ -17,14 +17,16 @@ Phase 2 writeup: [phase2_results.md](phase2_results.md) (implementation + B5 res
 
 ### 🔴 Do this first — GPU-box smokes for Workstream D, then Phase 3
 
-`SafetyBiGymCQNAdapter.get_demos()` is implemented (`safety_bigym/agents/cqn_as/env_adapter.py`); D0/D1/D2/D3a are done (see Workstream D + the 2026-05-20 note). Remaining (D3b):
-1. **2000-frame smoke** (verifies demo-fill + no worker-striping IndexError) — needs `tensordict==0.6.0`, present on the GPU box only:
-   ```bash
-   export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
-   python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
-     bodyslam=oracle num_demos=10 num_train_frames=2000 wandb.use=false
-   ```
-2. **~30–50k-frame validation** with `env.safety.add_workspace_penalty=true` (single bodyslam mode, oracle) → confirm the policy *attempts* the task (non-trivial episode lengths, task reward > 0) rather than evacuating.
+`SafetyBiGymCQNAdapter.get_demos()` is implemented; D0/D1/D2/D3a/D3b-smoke are done. The 2000-frame smoke on the GPU box passed cleanly on 2026-05-20 (10 demos loaded, replay filled, train loop clean, ep1 ran the full 1000-step budget — the smoking-gun signal that demos unblock non-degenerate learning). **One run left:**
+- **~30–50k-frame validation** with demos + workspace shaping (single bodyslam mode, oracle):
+  ```bash
+  export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+  python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
+    bodyslam=oracle num_demos=10 num_train_frames=50000 \
+    env.safety.add_workspace_penalty=true \
+    wandb.use=true wandb.name=cqn_as_demos_validation_$(date +%s)
+  ```
+  Expect: non-trivial `episode_reward > 0` on some episodes, episode lengths staying long (not collapsing back to 31-step evacuation), and `safety/ssm_violation` rate trending down or stable.
 
 Then **proceed straight to P3.1** (the Lagrangian glue). **We are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
 
@@ -211,6 +213,17 @@ Full scope + acceptance criteria + first investigation step in [PHASE3_DEMO_PIPE
 ## Notes / blockers
 
 _Append as work proceeds. Each note dated. Most-recent first._
+
+### 2026-05-20 (later) — D3b-smoke PASSED on GPU box
+2000-frame smoke ran clean on swirl (`exp_local/cqn_as_safety/saucepan_to_hob_20260520124507`). Acceptance criterion 1 met end-to-end:
+- `Loaded 10 demos` → `Converted 10 demos (6 successful) for CQN-AS` → `Loaded 10 demos; replay size now 3663`.
+- Train loop ran 2000 frames with `replay_buffer_num_workers` default (2) and **no IndexError** — demos pre-filled both workers, the cold-start race is gone.
+- **Episode 1 ran the full 1000-step budget** (the previous demo-less C2 baseline collapsed to 31-step evacuation). Ep1 `episode_reward=0` (expected at this scale; agent untrained) but `episode_length=1000` is the load-bearing signal.
+- Per-step `safety/ssm_margin` swings cleanly between approach (negative, e.g. -0.36/-0.94) and retreat (positive, up to 7.95) as the COWORKER human moves. Ep1 violation rate decayed to 5.3% by step 1000.
+- `snapshot_2000.pt` saved at exit (cadence fix firing).
+- EGL teardown traceback at process exit is the harmless `EGL_NOT_INITIALIZED` already documented in the 2026-05-17 note — fires after the snapshot saves, no data impact.
+
+Next run is D3b-validation at ~50k frames with `env.safety.add_workspace_penalty=true` (command in "Next session — start here"). That's the run that tells us whether the policy *attempts* the task vs runs a well-behaved random walk.
 
 ### 2026-05-20 — Workstream D landed (demo pipeline)
 - **D0 resolved (red herring).** 4-dof demos load fine through `SafetyBiGymEnvFactory._get_demo_fn`; see decision log. No re-recording.
