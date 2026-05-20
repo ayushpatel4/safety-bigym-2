@@ -163,7 +163,7 @@ if stage sweep; then
         --critic-path "$CKPT" \
         --thresholds $THRS \
         --policy random \
-        --tasks "$task" \
+        --task "$task" \
         --disruption coworker_eval \
         --bodyslam-mode noisy \
         --output-csv "$out" \
