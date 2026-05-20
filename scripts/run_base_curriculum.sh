@@ -99,11 +99,12 @@ run_stage() {
     "${extra[@]}"
 }
 
-# Stage 0: no human. This is the GATE — episode_reward must climb >0 on some
-# episodes with returns inside [-6, 2]. If it fails, the problem is demos/CQN-AS,
-# not safety: stop and reassess before stages 1-2.
-run_stage stage0_nohuman null "${STAGE0_FRAMES}"
-SNAP0="$(latest_snapshot "${OUTDIR}/stage0_nohuman")"
+# Stage 0: human present but idle/distant (no interference; keeps obs width and
+# model architecture identical to stages 1-2 so snapshots resume cleanly). This
+# is the GATE — episode_reward must climb >0 on some episodes with returns inside
+# [-6, 2]. If it fails, the problem is demos/CQN-AS, not safety: stop and reassess.
+run_stage stage0_idle coworker_idle "${STAGE0_FRAMES}"
+SNAP0="$(latest_snapshot "${OUTDIR}/stage0_idle")"
 
 run_stage stage1_easy coworker_easy "${STAGE1_FRAMES}" "${SNAP0}"
 SNAP1="$(latest_snapshot "${OUTDIR}/stage1_easy")"

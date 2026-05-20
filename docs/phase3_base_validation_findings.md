@@ -103,9 +103,13 @@ distribution gap** so the policy learns the task before facing the full human di
 4. **Human curriculum (staged).** The env is stateless w.r.t. training step (no within-run ramp
    without new plumbing), but snapshot-resume works with zero new code (`train_cqn_as.py::load_snapshot`),
    so the curriculum is three sequential stages, each resuming the prior snapshot:
-   **stage 0** no human (`disruption=null`) → **stage 1** gentle coworker (`disruption=coworker_easy`)
+   **stage 0** idle/distant human (`disruption=coworker_idle` — present but ~3 m off and never
+   reaching, so it doesn't interfere) → **stage 1** gentle coworker (`disruption=coworker_easy`)
    → **stage 2** full `disruption=coworker_train`. Stage 0 doubles as a "can it learn the task at
-   all?" sanity check.
+   all?" sanity check. *The human is kept present (not removed) so the obs width / BodySLAMWrapper
+   / `human_pos_estimate` channel — and therefore the model architecture — match across all stages
+   and snapshots resume cleanly; `inject_human=false` would change the obs width under
+   `bodyslam=oracle` and break resume.*
 
 ### Code changes (landed 2026-05-20)
 - `workspace_excess_cap` threaded through 4 sites: `SafetyConfig` (`config.py`), env yaml
@@ -123,8 +127,8 @@ distribution gap** so the policy learns the task before facing the full human di
   inactive below cap, `cap=None` reproduces unbounded, support invariant). Full suite: 321 pass,
   34 skipped, 0 fail. Invariant check: `0.05 · 1.0 / 0.01 = 5 ≤ |v_min| = 6`. ✅
 - **GPU box (staged, human launches `run_base_curriculum.sh`):**
-  - **Stage 0 (no human)** is the gate — episode_reward must climb **>0 on some episodes** with
-    returns inside [−6, 2] (no saturation). If stage 0 fails, the problem is demos/CQN-AS, not
+  - **Stage 0 (idle/distant human)** is the gate — episode_reward must climb **>0 on some episodes**
+    with returns inside [−6, 2] (no saturation). If stage 0 fails, the problem is demos/CQN-AS, not
     safety: stop and reassess.
   - Stages 1→2: task attempts persist as the human ramps in; episodes stay long; `safety/ssm_violation`
     stable/down; reward does not diverge.

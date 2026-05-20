@@ -1,0 +1,25 @@
+# @package _global_
+# COWORKER *idle* distribution — stage 0 of the base-policy human curriculum.
+#
+# The human is present in the scene (so the observation width / BodySLAMWrapper
+# / human_pos_estimate channel match stages 1-2 and snapshots resume cleanly)
+# but stays far away and effectively never interferes: it loiters ~3 m off, never
+# reaches for the EE, and walks slowly. This gives the "can the agent learn the
+# task at all, with no human in the way?" gate WITHOUT changing the model
+# architecture between curriculum stages.
+#
+# NOTE: a true `inject_human=false` would change the obs width under
+# bodyslam=oracle (the wrapper tracks the live human from `info`) and break
+# snapshot-resume into stages 1-2 — hence "present but idle" rather than absent.
+#
+# Hydra usage:
+#   python train_cqn_as.py ... disruption=coworker_idle
+
+env:
+  disruption_type: COWORKER
+  disruptions:
+    coworker_closest_approach_range: [3.0, 3.6]
+    coworker_reach_period_range: [30.0, 40.0]
+    coworker_target_mix_p_ee_range: [0.0, 0.0]
+    coworker_near_loiter_range: [1.0, 2.0]
+    coworker_walk_speed_range: [0.5, 0.8]
