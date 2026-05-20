@@ -371,20 +371,28 @@ class Workspace:
                 for _ in range(self.cfg.num_update_steps):
                     batch = next(self.replay_iter)
                     batch = utils.to_torch_pixel_tensor_dict(batch, self.device)
-                    # Guard: a non-finite reward/discount feeds NaN into the C51
-                    # target projection (compute_target_q_dist), where floor(NaN)
-                    # becomes a garbage index and index_add_ dies with an opaque,
-                    # async CUDA device-side assert (dstIndex < dstAddDimSize) that
-                    # mis-points at a later op. Fail here instead, naming the field.
-                    for _k in ("reward", "discount", "action", "cost"):
+                    # Guard: a non-finite tensor anywhere in the batch propagates
+                    # NaN into the network -> NaN action / projection target ->
+                    # floor(NaN) garbage index -> index_add_/gather dies with an
+                    # opaque async CUDA device-side assert (dstIndex < dstAddDimSize)
+                    # that mis-points at a later op (e.g. cumsum). Fail here instead,
+                    # naming the offending field. Covers observations (low_dim_obs
+                    # carries the demo-injected human_pos_estimate) + reward/action.
+                    for _k in (
+                        "reward", "discount", "action", "cost",
+                        "low_dim_obs", "next_low_dim_obs",
+                    ):
                         if _k in batch and not torch.isfinite(batch[_k]).all():
                             bad = batch[_k]
+                            n_bad = int((~torch.isfinite(bad)).sum().item())
                             raise ValueError(
                                 f"non-finite values in batch['{_k}'] before "
-                                f"agent.update (min={bad.min().item()}, "
-                                f"max={bad.max().item()}); this would crash the "
-                                f"C51 target projection. Likely a malformed demo "
-                                f"or env reward — check num_demos/the demo set."
+                                f"agent.update ({n_bad} of {bad.numel()} bad; "
+                                f"finite range [{bad[torch.isfinite(bad)].min().item() if torch.isfinite(bad).any() else float('nan')}, "
+                                f"{bad[torch.isfinite(bad)].max().item() if torch.isfinite(bad).any() else float('nan')}]); "
+                                f"this would crash the C51 critic. Likely a "
+                                f"malformed demo (e.g. human_pos_estimate) or env "
+                                f"signal — check the demo set / obs pipeline."
                             )
                     metrics = self.agent.update(batch)
                     self._update_step += 1
