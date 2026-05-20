@@ -27,7 +27,8 @@ Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_
 | Operating point (hard gate) | **R ≈ 4.0** |
 | OOD eval @ R=4.0 (random policy on `coworker_eval`) | intervention ≈ 99 %, residual violation 3–8 % |
 | In-dist eval @ R=3.5 (random policy on `coworker_train`) | intervention 28–34 %, residual 74–87 % |
-| Active follow-up | **B5.5** — v2 dataset with action denormalization (see §B5.5) |
+| B5.5 (v2 + action denormalization) | **Done, negative** (2026-05-20) — patch correct, but residual is structural (proximity floor), not action-narrowness. Hard gate improved to <1 % residual @ R≈3.5; partial-intervention residual unchanged (~87 %). See §7. |
+| Active follow-up | **Label change** — tighter-τ relabel and/or robot-controllability-aware label, both offline from v2 shards (see §8) |
 
 ---
 
@@ -255,6 +256,52 @@ a clear error if the patch isn't in `main`.
 If the residual doesn't move, the next move is the tighter-τ relabel (§5.3)
 rather than another collection.
 
+### Results (2026-05-20) — patch fired, hypothesis NOT confirmed
+
+Full run completed: collect → train (`checkpoints/svf_coworker_train_v2.pt`,
+training `q_mean ≈ 2.96`) → eval → sweep. The denormalization patch fired (no
+raw-tanh warning; `action_stats` present on the snapshot payload).
+
+**Sweep on `coworker_eval`** (`results/svf_sweep_v2_{task}.csv`, 10 ep ×
+250 steps per R; residual ranges across the 3 tasks):
+
+| R | intervention | residual (v2) |
+|---:|---:|---:|
+| 1.46 | ~27–30 % | **86.6–88.1 %** |
+| 1.96 | ~37–48 % | 74–83 % |
+| 2.46 | ~63–68 % | 49–61 % |
+| 2.96 | ~88–90 % | 15–19 % |
+| 3.46 | ~98 % | 0.3–0.7 % |
+| 3.96 | ~99.5 % | 0–0.2 % |
+
+**Fixed-R=4.0 eval** (`results/svf_eval_v2_{cell}.csv`): saturated —
+intervention ≈99 %, residual ≈0 % on both `coworker_train` and
+`coworker_eval`. R=4.0 sits above the v2 rollout Q range, so it clamps
+everything; not a meaningful operating point for v2.
+
+**Verdict.** Two regimes vs v1:
+
+| Regime | v1 | v2 | Read |
+|---|---|---|---|
+| Hard gate (~98–99 % intervention) | residual 3–8 % @ R=4.0 | residual **<1 %** @ R≈3.5 | marginal win, but both ≈freeze the robot |
+| Partial gate (~30 % intervention) | residual 74–87 % (in-dist) | residual **~87 %** (OOD) | **no improvement** |
+
+The success criterion — ≥10 pp residual drop at a *partial* intervention rate
+— is **not met**. The intervention/residual tradeoff is ~linear up to the
+~90 % cliff: the critic acts like a coarse "clamp fraction" dial, not a
+discriminative safe/unsafe classifier. This is the **structural proximity
+floor** from §5.3, not action-subspace narrowness — once the human is within
+0.9–1.4 m, every step is a violation regardless of robot action, so residual
+only collapses when the robot is frozen.
+
+**Conclusion:** B5.5 is **done and negative.** Action denormalization was
+worth fixing (it's correct now, and the hard-gate residual improved sub-1 %)
+but it is not the lever for the partial-intervention residual. Do **not**
+collect a v3. Next move is the **tighter-τ relabel** (free, from stored
+`min_separation`) and/or a **robot-controllability-aware label** that only
+penalises proximity the robot can actually influence (§8). Both are offline
+from the existing v2 shards.
+
 ---
 
 ## 8. Known gaps / follow-ups
@@ -270,7 +317,18 @@ rather than another collection.
 - **`ScenarioParams` missing two axes** (`reach_period`, `target_mix_p_ee`) —
   sampled but not persisted, blocks per-axis coverage audit. Small dataclass
   extension, no other dependency.
-- **B5.5 not yet enough on its own** if the in-dist residual is dominated by
-  the human-approach-driven structural floor rather than action subspace
-  narrowness — fallback is a tighter-τ relabel (free) before any v3
-  collection.
+- **B5.5 closed negative (2026-05-20).** Confirmed the in-dist/OOD residual is
+  dominated by the human-approach-driven structural proximity floor, not action
+  subspace narrowness (§7 Results). Two offline follow-ups from the v2 shards,
+  in priority order:
+  1. **Tighter-τ relabel** — recompute `r_safe = (min_separation ≥ τ)` for
+     τ ∈ {0.30, 0.40} from stored per-step `min_separation`, retrain, re-sweep.
+     Free (no collection). Tightening the bar concentrates the unsafe class on
+     genuinely-close states; may sharpen the cliff but won't remove the floor.
+  2. **Robot-controllability-aware label** — gate the violation on the robot
+     *contributing* to the approach (e.g. EE moving toward the human, or
+     `min_separation` decreasing due to robot motion) rather than raw geometric
+     proximity. This is the principled fix for the "freeze = only way to win"
+     pathology, but needs a label-function change + retrain, not just a relabel.
+  Either way, the v2 critic is usable **as a hard gate** (R≈3.5, residual <1 %)
+  today; the partial-intervention filter is what's blocked on the label.
