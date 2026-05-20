@@ -141,9 +141,41 @@ P3.1 (the Lagrangian glue) is code-complete + unit-tested on branch
 `cfgs/agent/cqn_as_lagrangian.yaml`, 3 test files; 10 local tests pass, agent test gated on
 `tensordict`). It correctly remains behind this validation gate and needs no edits.
 
+## 7b. Bring-up bug found during re-validation: C51 projection index overshoot (fixed 2026-05-21)
+
+The first stage-0 smoke crashed with an opaque CUDA device-side assert
+(`indexFuncLargeIndex ... dstIndex < dstAddDimSize`) inside the vendored
+`compute_target_q_dist` `index_add_`. Isolation: `num_demos=36` crashed at ~step 871,
+`num_demos=10` ran clean — and a finite-batch guard added to `train_cqn_as` did **not**
+fire, proving the reward was finite (not a NaN).
+
+Root cause: the C51 target projection computes `b = (Tz − v_min)/delta_z` then
+`upper = ceil(b)`. `delta_z` (here 0.08) is not exactly representable in float32, so
+when a transition's target reaches the support ceiling `Tz = v_max` — which happens for
+**reward=1 success transitions** (`1 + 0.99·v_max` clamps to `v_max`) — the division
+rounds up (`b = 100.0000022` for `atoms=101`) and `ceil(b) = atoms`, one past the valid
+range `[0, atoms-1]`, so `index_add_` addresses an out-of-bounds atom. It is stochastic:
+more successful demos (29/36 vs 6/10) → more reward=1 transitions sampled → it surfaces
+within a few hundred steps instead of never. The widened support and demo bump only
+*exposed* this latent vendored bug; they didn't cause it.
+
+Fix: clamp `b` to `[0, atoms-1]` before floor/ceil in `compute_target_q_dist`
+(`agent.py`) — a one-line numerical bugfix matching standard Rainbow implementations;
+projection math is unchanged for interior values. Also fixes the same path used by the
+P3.1 cost critic. Regression test: `tests/test_c51_projection_bounds.py` (forces the
+`Tz=v_max` boundary; tensordict-gated). A finite-batch guard in `train_cqn_as` now turns
+any *future* non-finite reward/discount/action/cost into a legible error instead of a
+device-side assert.
+
 ## 7. Durable lesson
 **Any shaped/dense reward must keep its discounted return inside the critic's value support
 `[v_min, v_max]`, or the C51 Bellman-target clamp silently saturates value learning** — the
 agent trains without error and produces a degenerate policy. When adding reward shaping to a
 distributional critic, always check `|shaped per-step reward| / (1 − γ) ≤ support half-range`,
 or bound the shaping term as we did here.
+
+**And: a C51 target projection must clamp its atom index** — float rounding at the support
+ceiling can push `ceil(b)` one atom past the end and crash `index_add_` with an opaque
+device-side assert. Diagnose opaque CUDA index asserts by re-running with
+`CUDA_LAUNCH_BLOCKING=1` (pins the real op) and guarding batch tensors with `torch.isfinite`
+to rule out NaN first.

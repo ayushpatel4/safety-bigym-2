@@ -4,6 +4,13 @@
 # Do not modify the algorithmic logic; if upstream changes are needed, update the
 # provenance hash above. Local extensions (e.g., cost-Q for Phase 3) should land in
 # a sibling module that subclasses or composes this agent rather than editing it.
+#
+# FYP3 local edits (bugfixes only, algorithmic logic unchanged):
+#   - 2026-05-21: clamp the C51 projection index `b` to [0, atoms-1] in
+#     compute_target_q_dist (float32 rounding at Tz==v_max made ceil overshoot to
+#     `atoms`, OOB-ing index_add_ with a CUDA device-side assert). See the inline
+#     comment + docs/phase3_base_validation_findings.md.
+#   - state_dict / load_state_dict added (snapshot persistence); see below.
 from typing import Tuple
 import torch
 import torch.nn as nn
@@ -554,6 +561,17 @@ class C2FCritic(nn.Module):
         Tz = Tz.clamp(min=self.v_min, max=self.v_max)
         # Compute L2 projection of Tz onto fixed support z
         b = (Tz - self.v_min) / self.delta_z
+        # FYP3 (safety_bigym) numerical fix: clamp b to [0, atoms-1] before
+        # floor/ceil. delta_z is generally not exactly representable in float32
+        # (e.g. 0.08), so at the support ceiling Tz==v_max the division rounds
+        # *up* (e.g. b=100.0000022 for atoms=101), making ceil(b)=atoms and the
+        # index_add_ below address atom index `atoms` (out of [0, atoms-1]) ->
+        # a CUDA device-side assert (dstIndex < dstAddDimSize). This fires
+        # whenever a transition's target reaches v_max (reward=1 success
+        # transitions), so it surfaces stochastically with more successful
+        # demos. Standard Rainbow implementations clamp here. Bugfix only — the
+        # projection math is unchanged for interior values. (vendored 8cf806e)
+        b = b.clamp(min=0.0, max=float(self.atoms - 1))
         # Mask for conditions
         lower, upper = b.floor().to(torch.int64), b.ceil().to(torch.int64)
         lower_mask = (upper > 0) & (lower == upper)
