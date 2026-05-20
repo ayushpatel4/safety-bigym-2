@@ -926,6 +926,11 @@ class SafetyBiGymEnv(BiGymEnv):
 
         dist = float(np.linalg.norm(np.asarray(ee_pos, dtype=float) - task_pos))
         excess = max(0.0, dist - self.safety_config.workspace_radius)
+        # Bound the per-step penalty at -beta*cap so the discounted return stays
+        # inside the critic's value support (see SafetyConfig.workspace_excess_cap).
+        cap = self.safety_config.workspace_excess_cap
+        if cap is not None:
+            excess = min(excess, float(cap))
         return -self.safety_config.workspace_beta * excess
 
     def step(self, action):

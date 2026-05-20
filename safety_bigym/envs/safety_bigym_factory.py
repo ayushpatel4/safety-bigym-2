@@ -172,7 +172,12 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 safety_cfg_block.get("workspace_radius", 0.4)
             ),
             workspace_beta=float(
-                safety_cfg_block.get("workspace_beta", 0.2)
+                safety_cfg_block.get("workspace_beta", 0.05)
+            ),
+            workspace_excess_cap=(
+                None
+                if safety_cfg_block.get("workspace_excess_cap", 1.0) is None
+                else float(safety_cfg_block.get("workspace_excess_cap", 1.0))
             ),
         )
 

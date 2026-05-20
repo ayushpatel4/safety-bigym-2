@@ -125,8 +125,12 @@ def test_ee_via_link_pos_fallback_used():
 
 def test_3d_distance_metric_is_euclidean():
     """Confirms penalty uses 3D Euclidean distance, not e.g. xy-only."""
+    # cap disabled so the test measures the raw distance, not the bound.
     cfg = SafetyConfig(
-        add_workspace_penalty=True, workspace_radius=0.0, workspace_beta=1.0
+        add_workspace_penalty=True,
+        workspace_radius=0.0,
+        workspace_beta=1.0,
+        workspace_excess_cap=None,
     )
     # EE at (1,1,1), task at origin → ||·|| = sqrt(3) ≈ 1.732
     stub = _stub(
@@ -137,9 +141,75 @@ def test_3d_distance_metric_is_euclidean():
     )
 
 
-def test_config_defaults_are_phase3_plan_values():
-    """Defaults must match UPDATED_PROJECT_PLAN.md:337 (r_ws=0.4, beta=0.2)."""
+# ---------- workspace_excess_cap: bounded penalty (2026-05-20 fix) ----------
+
+
+def test_excess_cap_saturates_penalty_beyond_cap():
+    """Beyond the cap the penalty is flat at -beta*cap (de-saturates the critic)."""
+    cfg = SafetyConfig(
+        add_workspace_penalty=True,
+        workspace_radius=0.4,
+        workspace_beta=0.05,
+        workspace_excess_cap=1.0,
+    )
+    # dist=5.0 → raw excess=4.6, but capped to 1.0 → penalty = -0.05 * 1.0
+    far = _stub(np.array([5.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0]), cfg=cfg)
+    farther = _stub(np.array([9.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0]), cfg=cfg)
+    assert SafetyBiGymEnv._compute_workspace_penalty(far) == pytest.approx(-0.05)
+    # Two distances both past the cap give the SAME penalty (the saturation we want).
+    assert SafetyBiGymEnv._compute_workspace_penalty(
+        farther
+    ) == SafetyBiGymEnv._compute_workspace_penalty(far)
+
+
+def test_excess_cap_inactive_below_cap():
+    """Below the cap the penalty equals the uncapped linear value."""
+    cfg = SafetyConfig(
+        add_workspace_penalty=True,
+        workspace_radius=0.4,
+        workspace_beta=0.05,
+        workspace_excess_cap=1.0,
+    )
+    # dist=1.0 → excess=0.6 < cap → penalty = -0.05 * 0.6 = -0.03
+    stub = _stub(np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0]), cfg=cfg)
+    assert SafetyBiGymEnv._compute_workspace_penalty(stub) == pytest.approx(-0.03)
+
+
+def test_excess_cap_none_reproduces_unbounded_behaviour():
+    """cap=None must reproduce the original linear (pre-fix) penalty."""
+    cfg = SafetyConfig(
+        add_workspace_penalty=True,
+        workspace_radius=0.4,
+        workspace_beta=0.2,
+        workspace_excess_cap=None,
+    )
+    # dist=5.0 → excess=4.6, unbounded → -0.2 * 4.6 = -0.92
+    stub = _stub(np.array([5.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0]), cfg=cfg)
+    assert SafetyBiGymEnv._compute_workspace_penalty(stub) == pytest.approx(-0.92)
+
+
+def test_support_invariant_holds_for_defaults():
+    """beta * cap / (1 - gamma) must stay within the widened critic support |v_min|.
+
+    Guards the design invariant from docs/phase3_base_validation_findings.md so a
+    future beta/cap bump can't silently re-saturate the C51 target clamp. gamma and
+    v_min are the curriculum run's values (agent.v_min=-6, gamma=0.99).
+    """
+    cfg = SafetyConfig()
+    gamma = 0.99
+    v_min_abs = 6.0
+    discounted_floor = cfg.workspace_beta * cfg.workspace_excess_cap / (1.0 - gamma)
+    assert discounted_floor <= v_min_abs
+
+
+def test_config_defaults_are_base_validation_fix_values():
+    """Defaults updated 2026-05-20: beta lowered + bounded penalty.
+
+    See docs/phase3_base_validation_findings.md. The unbounded beta=0.2 dense
+    penalty saturated the C51 critic; defaults now ship the bounded form.
+    """
     cfg = SafetyConfig()
     assert cfg.add_workspace_penalty is False
     assert cfg.workspace_radius == 0.4
-    assert cfg.workspace_beta == 0.2
+    assert cfg.workspace_beta == 0.05
+    assert cfg.workspace_excess_cap == 1.0

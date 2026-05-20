@@ -71,13 +71,22 @@ class SafetyConfig:
     violation_penalty: float = -1.0
 
     # Phase 3 workspace reward shaping
-    # r_workspace = -beta * max(0, ||p_ee - p_task|| - r_ws); subtracted from task reward.
-    # Prevents the Lagrangian policy from satisfying its cost constraint by
-    # evacuating the workspace. beta swept in E3.X.workspace; defaults chosen per
-    # UPDATED_PROJECT_PLAN.md:337.
+    # r_workspace = -beta * min(workspace_excess_cap, max(0, ||p_ee - p_task|| - r_ws));
+    # subtracted from task reward. Prevents the Lagrangian policy from satisfying its
+    # cost constraint by evacuating the workspace.
+    #
+    # `workspace_excess_cap` BOUNDS the per-step penalty at `-beta * cap`. This is
+    # load-bearing: an unbounded dense penalty produces a discounted return
+    # (-beta*excess / (1 - gamma)) that blows past the CQN-AS C51 critic's value
+    # support [v_min, v_max], so the Bellman-target clamp saturates value learning
+    # and the gradient that should pull the EE back is clipped away (the 2026-05-20
+    # base-validation failure; see docs/phase3_base_validation_findings.md). Keep the
+    # design invariant `beta * workspace_excess_cap / (1 - gamma) <= |v_min|`.
+    # beta lowered 0.2 -> 0.05 and cap added 2026-05-20 for that reason.
     add_workspace_penalty: bool = False
     workspace_radius: float = 0.4
-    workspace_beta: float = 0.2
+    workspace_beta: float = 0.05
+    workspace_excess_cap: Optional[float] = 1.0
 
     # Logging
     log_violations: bool = True

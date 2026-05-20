@@ -190,7 +190,11 @@ def _smoke_rollout(cfg: DictConfig, *, num_steps: int = 500) -> dict:
         raw_inner = raw.unwrapped if hasattr(raw, "unwrapped") else raw
         sc = raw_inner.safety_config
         if sc.add_workspace_penalty and np.isfinite(ee_dist):
-            wp = -sc.workspace_beta * max(0.0, ee_dist - sc.workspace_radius)
+            excess = max(0.0, ee_dist - sc.workspace_radius)
+            cap = getattr(sc, "workspace_excess_cap", None)
+            if cap is not None:
+                excess = min(excess, float(cap))
+            wp = -sc.workspace_beta * excess
         else:
             wp = 0.0
         workspace_pen_trace.append(wp)
