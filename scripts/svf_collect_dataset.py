@@ -505,6 +505,27 @@ def demo_episode_to_transitions(
 # ---------- snapshot source ---------------------------------------------------
 
 
+_RAW_TANH_WARNED = False
+
+
+def _warn_raw_tanh_once() -> None:
+    """Log a single warning per process when a snapshot policy fires without
+    action_stats — i.e. we're producing raw tanh-space actions (the v1
+    behaviour, see B4.2 caveat). New collections should set action_stats so
+    actions span the env's true range."""
+    global _RAW_TANH_WARNED
+    if _RAW_TANH_WARNED:
+        return
+    _RAW_TANH_WARNED = True
+    logger.warning(
+        "Snapshot policy missing action_stats — emitting raw tanh-space "
+        "actions. This is the v1 behaviour; env will clip grippers and "
+        "body joints. Re-collect with a snapshot whose payload contains "
+        "action_stats (workspace.py drift) to fix. See "
+        "docs/phase2_results.md §B5.5."
+    )
+
+
 @dataclass
 class _SnapshotPolicy:
     """Wraps a RoboBase-loaded agent into a policy callable.
@@ -524,12 +545,27 @@ class _SnapshotPolicy:
     off/missing ⇒ False (Phase 0). Phase 0 snapshots get a shorter
     low_dim_state that omits the 6-D human pose estimate; Phase 1
     snapshots include it.
+
+    **Action denormalization (B5.5, 2026-05-20).** ACT/DP actors return raw
+    tanh-space outputs in [-1, 1]; RoboBase training wraps the env with
+    :class:`RescaleFromTanhWithMinMax`, so the deployed policy sees actions
+    mapped back to the env's true ±π body-joint range and [0, 1] gripper
+    range. The SVF collection path doesn't replicate that wrapper, so we
+    apply the same transform in :meth:`__call__` when ``action_stats`` is
+    set. ``action_stats`` is read by :func:`load_snapshot_policy` from
+    ``payload["action_stats"]`` (written by the FYP3 robobase workspace
+    drift); ``min_max_margin`` comes from the snapshot's ``cfg.min_max_margin``
+    (default 0.0). Without the stats the policy returns raw tanh outputs and
+    logs a warning once, preserving the v1 behaviour for old snapshots.
     """
 
     agent: Any
     cameras: Tuple[str, ...] = ()  # empty ⇒ no-pixel policy
     camera_resolution: Tuple[int, int] = (84, 84)
     includes_human_pos: bool = False
+    # B5.5: tanh-denormalization payload. None ⇒ legacy raw-tanh behaviour.
+    action_stats: Optional[Dict[str, np.ndarray]] = None
+    min_max_margin: float = 0.0
 
     @property
     def expects_pixels(self) -> bool:
@@ -597,7 +633,23 @@ class _SnapshotPolicy:
         # ACT returns a chunk; take the first step.
         if action_np.ndim >= 2:
             action_np = action_np.reshape(-1, action_np.shape[-1])[0]
-        return action_np.astype(np.float32, copy=False)
+        action_np = action_np.astype(np.float32, copy=False)
+        # B5.5: replicate RoboBase's RescaleFromTanhWithMinMax. Without this
+        # the env silently clips gripper dims to [0, 1] and body-joint dims
+        # explore only the inner [-1, 1] band of the ±π range. See B4.2
+        # caveat in docs/phase2_results.md.
+        if self.action_stats is not None:
+            from robobase.envs.wrappers.rescale_from_tanh import (
+                RescaleFromTanhWithMinMax,
+            )
+
+            action_np = RescaleFromTanhWithMinMax.transform_from_tanh(
+                action_np, self.action_stats, self.min_max_margin
+            )
+            action_np = np.asarray(action_np, dtype=np.float32)
+        else:
+            _warn_raw_tanh_once()
+        return action_np
 
 
 def _peek_snapshot_cfg(snapshot_path: Path):
@@ -793,11 +845,25 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
                 p.data.copy_(sp)
     agent.train(False)
 
+    # B5.5: lift the action denormalization payload off the snapshot so the
+    # SVF collection path matches RoboBase's RescaleFromTanhWithMinMax wrap.
+    # Both fields are saved by the FYP3 robobase workspace.py drift; legacy
+    # snapshots without them fall back to raw tanh + a one-shot warning.
+    action_stats = payload.get("action_stats")
+    if action_stats is not None:
+        action_stats = {
+            "min": np.asarray(action_stats["min"], dtype=np.float32),
+            "max": np.asarray(action_stats["max"], dtype=np.float32),
+        }
+    min_max_margin = float(cfg.get("min_max_margin", 0.0))
+
     return _SnapshotPolicy(
         agent=agent,
         cameras=cameras,
         camera_resolution=resolution,
         includes_human_pos=includes_human_pos,
+        action_stats=action_stats,
+        min_max_margin=min_max_margin,
     )
 
 

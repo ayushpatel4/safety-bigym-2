@@ -35,6 +35,14 @@ env:
   safety:
     add_violation_penalty: false
     violation_penalty: 0.05
+    # P3.0a workspace reward shaping. Penalises the EE for drifting outside a
+    # radius around the task-relevant object — counters the C2 evacuation mode
+    # where the agent learns to flee the human because the violation penalty
+    # is the only signal. Off by default; opt in per-launch (e.g. Phase 3
+    # validation / P3.1 training). Defaults mirror SafetyConfig (filters/...).
+    add_workspace_penalty: false
+    workspace_radius: 0.4
+    workspace_beta: 0.2
 
   disruptions:
     weights:
