@@ -51,6 +51,10 @@ def _seed_dataset(tmp_path: Path, n: int = 256, n_violations: int = 64):
         r_safe=r_safe,
         done=done,
         ssm_margin=margin,
+        # B2.8 schema: per-step separation + PFL ratio (required since the
+        # writer signature drift). Consistent with r_safe; PFL zero (bug).
+        min_separation=np.where(r_safe > 0, 1.0, 0.05).astype(np.float32),
+        pfl_force_ratio=np.zeros(n, dtype=np.float32),
         source=np.zeros(n, dtype=np.uint8),
         task_id=np.zeros(n, dtype=np.uint8),
     )

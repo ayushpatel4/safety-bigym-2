@@ -65,13 +65,17 @@ def _make_wrapped(scripted):
     return EpisodeSafetyMetrics(_StubSafetyEnv(scripted))
 
 
-def test_no_episode_safety_until_done():
+def test_episode_safety_emitted_every_step():
+    """EpisodeSafetyMetrics injects ``episode_safety`` on every step (not just
+    at episode end) so VectorEnv/W&B always sees the key. The running summary
+    is valid mid-episode; consumers read it at done for the final aggregate."""
     scripted = [_safety(), _safety(), _safety()]
     env = _make_wrapped(scripted)
     env.reset()
     _, _, done, trunc, info = env.step(env.action_space.sample())
     assert not done and not trunc
-    assert "episode_safety" not in info
+    assert "episode_safety" in info  # running summary present mid-episode
+    assert "ep_ssm_violation_rate" in info["episode_safety"]
 
 
 def test_episode_safety_emitted_on_terminated():
