@@ -370,6 +370,10 @@ class C2FCriticNetwork(nn.Module):
 
 
 class C2FCritic(nn.Module):
+    # FYP3 (safety_bigym) one-shot flag: log the C51 projection extents the first
+    # time the target indices fall out of range (see compute_target_q_dist).
+    _fyp3_idx_logged = False
+
     def __init__(
         self,
         action_shape: tuple,
@@ -579,6 +583,44 @@ class C2FCritic(nn.Module):
         # Apply masks separately
         lower = torch.where(lower_mask, lower - 1, lower)
         upper = torch.where(upper_mask, upper + 1, upper)
+
+        # FYP3 (safety_bigym) hardening + diagnostic. The index_add_ below was
+        # OOB-ing on GPU even with finite batch reward/obs (train_cqn_as guard
+        # confirms) and the b-clamp above. Log the real projection extents the
+        # first time anything is out of range, then clamp the integer atom
+        # indices to [0, atoms-1] so a stray index cannot address out of bounds.
+        if not C2FCritic._fyp3_idx_logged:
+            lo_min = int(lower.min().item())
+            lo_max = int(lower.max().item())
+            up_min = int(upper.min().item())
+            up_max = int(upper.max().item())
+            n_atoms = self.atoms
+            if (
+                lo_min < 0
+                or up_min < 0
+                or lo_max > n_atoms - 1
+                or up_max > n_atoms - 1
+                or not bool(torch.isfinite(b).all().item())
+            ):
+                import logging as _logging
+
+                _logging.getLogger(__name__).error(
+                    "FYP3 C51 projection out-of-range: atoms=%d lower=[%d,%d] "
+                    "upper=[%d,%d] b_finite=%s reward_finite=%s "
+                    "discount_finite=%s Tz=[%.4f,%.4f] support=[%.4f,%.4f] "
+                    "delta_z=%.8f",
+                    n_atoms, lo_min, lo_max, up_min, up_max,
+                    bool(torch.isfinite(b).all().item()),
+                    bool(torch.isfinite(reward).all().item()),
+                    bool(torch.isfinite(discount).all().item()),
+                    float(Tz.min().item()), float(Tz.max().item()),
+                    float(self.support.min().item()),
+                    float(self.support.max().item()),
+                    float(self.delta_z),
+                )
+                C2FCritic._fyp3_idx_logged = True
+        lower = lower.clamp(0, self.atoms - 1)
+        upper = upper.clamp(0, self.atoms - 1)
 
         # Repeat Tz for (L * D) times -> [B * L * D, atoms]
         multiplier = batch_size // lower.shape[0]
