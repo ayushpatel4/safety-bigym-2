@@ -28,10 +28,19 @@
 #   cd safety_bigym && source venv/bin/activate    # needs tensordict
 #
 # Usage:
-#   scripts/run_base_curriculum.sh                 # full run
+#   scripts/run_base_curriculum.sh                 # full run (stages 0->1->2)
 #   SMOKE=1 scripts/run_base_curriculum.sh         # ≤2000-frame stage-0 smoke only
 #   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
+#
+#   # Resume ONLY stage 2 (e.g. after a machine crash) — skips stages 0/1 and
+#   # restarts stage 2 from the newest snapshot it can find. Point RESUME_DIR at
+#   # the prior run dir; the resumed run writes to <RESUME_DIR>/stage2_full_resume.
+#   RESUME_STAGE2=1 RESUME_DIR=exp_local/cqn_as_base_curriculum/<run_tag> \
+#       scripts/run_base_curriculum.sh
+#   # ...or pass an explicit checkpoint:
+#   RESUME_STAGE2=1 RESUME_DIR=<dir> RESUME_SNAPSHOT=<path.pt> \
+#       scripts/run_base_curriculum.sh
 
 set -euo pipefail
 
@@ -101,6 +110,31 @@ run_stage() {
     "wandb.name=${RUN_TAG}_${name}" \
     "${extra[@]}"
 }
+
+# --- Resume-only path: rerun stage 2 from the newest available snapshot ---
+if [[ "${RESUME_STAGE2:-0}" == "1" ]]; then
+  if [[ -z "${RESUME_DIR:-}" ]]; then
+    echo "ERROR: RESUME_STAGE2=1 requires RESUME_DIR=<prior run dir>." >&2
+    exit 1
+  fi
+  OUTDIR="${RESUME_DIR}"
+  RUN_TAG="${RUN_TAG:-$(basename "${OUTDIR}")}"
+  # Explicit snapshot wins; else newest from a prior stage-2 (resume or not),
+  # else fall back to stage 1's final snapshot.
+  SNAP="${RESUME_SNAPSHOT:-}"
+  if [[ -z "${SNAP}" ]]; then
+    SNAP="$(ls -t "${OUTDIR}"/stage2_full*/snapshot_*.pt 2>/dev/null | head -1)"
+  fi
+  [[ -z "${SNAP}" ]] && SNAP="$(latest_snapshot "${OUTDIR}/stage1_easy")"
+  if [[ -z "${SNAP}" ]]; then
+    echo "ERROR: no snapshot found under ${OUTDIR} (stage2_full*/ or stage1_easy/)." >&2
+    exit 1
+  fi
+  echo "== resuming stage 2 from: ${SNAP} =="
+  run_stage stage2_full_resume coworker_train "${STAGE2_FRAMES}" "${SNAP}"
+  echo "== stage 2 resume complete. snapshots under ${OUTDIR}/stage2_full_resume =="
+  exit 0
+fi
 
 # Stage 0: human present but idle/distant (no interference; keeps obs width and
 # model architecture identical to stages 1-2 so snapshots resume cleanly). This

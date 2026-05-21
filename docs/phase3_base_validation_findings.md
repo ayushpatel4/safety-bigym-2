@@ -135,6 +135,24 @@ distribution gap** so the policy learns the task before facing the full human di
 - **Then** un-park P3.1: `agent=cqn_as_lagrangian` 2000-frame smoke on the fixed base, then hand the
   E3.* sweeps to the human.
 
+## 5b. Re-validation results (2026-05-21) — GATE PASSED
+
+After the C51 offset fix, the staged curriculum ran on the GPU box:
+- **Stage 0 (`coworker_idle`, ~30k) and stage 1 (`coworker_easy`, ~30k): completed.** The robot
+  **completes the task** and **`episode_reward` reached ~1.8** (positive, near the +2 support
+  ceiling — the critic is no longer saturated; contrast the failed run's −78→−775 divergence).
+  This **clears the gate**: the base policy is non-degenerate and task-competent, so P3.1 has a sound
+  base to build on.
+- **Stage 2 (`coworker_train`, full coworker): in progress** — looked promising, then the run died
+  from a machine-level crash (not a code assert). Resumable from the latest stage-2 snapshot via
+  `RESUME_STAGE2=1 RESUME_DIR=<run> scripts/run_base_curriculum.sh` (skips stages 0/1). Stage 2's
+  output doubles as the **unconstrained baseline on the real distribution** (the comparison point for
+  P3.1) and the **warm-start for P3.1**, so it's worth completing.
+
+Caveat for resumes: `train_cqn_as` restores agent weights but **restarts the step counter and replay
+buffer** on `+snapshot_path` load (it's not a full train-state checkpoint), so a resume trains a fresh
+budget from the resumed weights — fine for continuing, just not step-exact.
+
 ## 6. P3.1 status — parked (no change needed)
 P3.1 (the Lagrangian glue) is code-complete + unit-tested on branch
 `safety-critic/phase-3-constrained-rl` (`lagrangian.py`, `lagrangian_agent.py`,
