@@ -590,35 +590,25 @@ class C2FCritic(nn.Module):
         # first time anything is out of range, then clamp the integer atom
         # indices to [0, atoms-1] so a stray index cannot address out of bounds.
         if not C2FCritic._fyp3_idx_logged:
-            lo_min = int(lower.min().item())
-            lo_max = int(lower.max().item())
-            up_min = int(upper.min().item())
-            up_max = int(upper.max().item())
-            n_atoms = self.atoms
-            if (
-                lo_min < 0
-                or up_min < 0
-                or lo_max > n_atoms - 1
-                or up_max > n_atoms - 1
-                or not bool(torch.isfinite(b).all().item())
-            ):
-                import logging as _logging
+            import logging as _logging
 
-                _logging.getLogger(__name__).error(
-                    "FYP3 C51 projection out-of-range: atoms=%d lower=[%d,%d] "
-                    "upper=[%d,%d] b_finite=%s reward_finite=%s "
-                    "discount_finite=%s Tz=[%.4f,%.4f] support=[%.4f,%.4f] "
-                    "delta_z=%.8f",
-                    n_atoms, lo_min, lo_max, up_min, up_max,
-                    bool(torch.isfinite(b).all().item()),
-                    bool(torch.isfinite(reward).all().item()),
-                    bool(torch.isfinite(discount).all().item()),
-                    float(Tz.min().item()), float(Tz.max().item()),
-                    float(self.support.min().item()),
-                    float(self.support.max().item()),
-                    float(self.delta_z),
-                )
-                C2FCritic._fyp3_idx_logged = True
+            _logging.getLogger(__name__).error(
+                "FYP3 C51 projection (one-shot): atoms=%d lower=[%d,%d] "
+                "upper=[%d,%d] b_finite=%s reward_finite=%s discount_finite=%s "
+                "nextq_finite=%s Tz=[%.4f,%.4f] support=[%.4f,%.4f] delta_z=%.8f "
+                "shape=%s batch_size=%d lower_rows=%d",
+                self.atoms, int(lower.min().item()), int(lower.max().item()),
+                int(upper.min().item()), int(upper.max().item()),
+                bool(torch.isfinite(b).all().item()),
+                bool(torch.isfinite(reward).all().item()),
+                bool(torch.isfinite(discount).all().item()),
+                bool(torch.isfinite(next_q_probs_a).all().item()),
+                float(Tz.min().item()), float(Tz.max().item()),
+                float(self.support.min().item()), float(self.support.max().item()),
+                float(self.delta_z), tuple(shape), int(batch_size),
+                int(lower.shape[0]),
+            )
+            C2FCritic._fyp3_idx_logged = True
         lower = lower.clamp(0, self.atoms - 1)
         upper = upper.clamp(0, self.atoms - 1)
 

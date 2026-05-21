@@ -67,6 +67,9 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE1_FRAMES=0
   STAGE2_FRAMES=0
   WANDB=(wandb.use=false)
+  # Synchronous CUDA so any device-side assert points at the real op/line
+  # (smoke is short; the slowdown is irrelevant here).
+  export CUDA_LAUNCH_BLOCKING=1
 else
   STAGE0_FRAMES="${STAGE0_FRAMES:-30000}"
   STAGE1_FRAMES="${STAGE1_FRAMES:-30000}"
