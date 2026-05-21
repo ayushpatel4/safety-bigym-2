@@ -141,31 +141,47 @@ P3.1 (the Lagrangian glue) is code-complete + unit-tested on branch
 `cfgs/agent/cqn_as_lagrangian.yaml`, 3 test files; 10 local tests pass, agent test gated on
 `tensordict`). It correctly remains behind this validation gate and needs no edits.
 
-## 7b. Bring-up bug found during re-validation: C51 projection index overshoot (fixed 2026-05-21)
+## 7b. Bring-up bug found during re-validation: C51 projection offset OOB (fixed 2026-05-21)
 
 The first stage-0 smoke crashed with an opaque CUDA device-side assert
 (`indexFuncLargeIndex ... dstIndex < dstAddDimSize`) inside the vendored
-`compute_target_q_dist` `index_add_`. Isolation: `num_demos=36` crashed at ~step 871,
-`num_demos=10` ran clean — and a finite-batch guard added to `train_cqn_as` did **not**
-fire, proving the reward was finite (not a NaN).
+`compute_target_q_dist` `index_add_`. This took several iterations to pin down — worth
+recording the dead ends because they're instructive:
 
-Root cause: the C51 target projection computes `b = (Tz − v_min)/delta_z` then
-`upper = ceil(b)`. `delta_z` (here 0.08) is not exactly representable in float32, so
-when a transition's target reaches the support ceiling `Tz = v_max` — which happens for
-**reward=1 success transitions** (`1 + 0.99·v_max` clamps to `v_max`) — the division
-rounds up (`b = 100.0000022` for `atoms=101`) and `ceil(b) = atoms`, one past the valid
-range `[0, atoms-1]`, so `index_add_` addresses an out-of-bounds atom. It is stochastic:
-more successful demos (29/36 vs 6/10) → more reward=1 transitions sampled → it surfaces
-within a few hundred steps instead of never. The widened support and demo bump only
-*exposed* this latent vendored bug; they didn't cause it.
+1. **First hypothesis (wrong): the `b`-overshoot at the support ceiling.** `b = (Tz −
+   v_min)/delta_z` then `ceil(b)`; with `delta_z=0.08` (not exact in float32), `Tz=v_max`
+   could give `b=100.0000022 → ceil=101 = atoms` (out of `[0,100]`). Plausible, and it fit
+   the demos-dependence story. **Clamping `b` did NOT fix it.**
+2. **Second hypothesis (wrong): a NaN reward/observation.** A finite-batch guard in
+   `train_cqn_as` (reward/discount/action/cost, then also `low_dim_obs`) **never fired**,
+   and a one-shot diagnostic in the projection showed `b_finite=True`,
+   `reward_finite=True`, `nextq_finite=True`, and `lower=[0,99] upper=[1,100]` — all in
+   range. So neither NaN nor the atom index was the culprit.
+3. **Root cause (confirmed under `CUDA_LAUNCH_BLOCKING=1`):** the per-row scatter
+   **`offset`** was built with `torch.linspace(0, (batch_size-1)*atoms, batch_size,
+   dtype=int64)`. The diagnostic showed `batch_size = B·L·D = 512·3·256 = 393216`, so the
+   offset endpoint is `(393216-1)·101 ≈ 39.7M`. **On CUDA, integer `linspace` is computed
+   via float32**, which cannot represent integers past `2**24 ≈ 16.7M`; at ~40M the
+   spacing is 4, so the offsets round and the boundary row addresses at/just past
+   `m.numel()` → the `index_add_` assert. It's **data-dependent** (whether the boundary
+   row's `lower`/`upper` hits the over-the-edge value), which is exactly why 29/36
+   successful demos tripped it and 6/10 didn't — same `batch_size`, different `lower` at
+   the critical row. (On CPU `linspace(int64)` is exact, so it never reproduced locally.)
 
-Fix: clamp `b` to `[0, atoms-1]` before floor/ceil in `compute_target_q_dist`
-(`agent.py`) — a one-line numerical bugfix matching standard Rainbow implementations;
-projection math is unchanged for interior values. Also fixes the same path used by the
-P3.1 cost critic. Regression test: `tests/test_c51_projection_bounds.py` (forces the
-`Tz=v_max` boundary; tensordict-gated). A finite-batch guard in `train_cqn_as` now turns
-any *future* non-finite reward/discount/action/cost into a legible error instead of a
-device-side assert.
+Fix: build the offset with exact int64 `torch.arange(batch_size) * atoms`
+(`agent.py::compute_target_q_dist`) — correct on CPU and CUDA for any `batch_size`. Two
+cheap clamps (`b` and integer `lower`/`upper` to `[0, atoms-1]`) are kept as defensive
+hardening but were **not** the trigger. Also fixes the same projection used by the P3.1
+cost critic. Tests: `tests/test_c51_projection_bounds.py` (offset arange-exactness +,
+tensordict-gated, the `Tz=v_max` boundary path). The finite-batch guard in `train_cqn_as`
+stays in — it ruled out NaN and will make any *future* non-finite signal a legible error
+instead of a device-side assert.
+
+**Diagnosis playbook for opaque CUDA index asserts** (worth reusing): run with
+`CUDA_LAUNCH_BLOCKING=1` to pin the real op/line; guard inputs with `torch.isfinite` to
+rule out NaN; log the actual index extents + tensor shapes at the failing op; and
+remember that **`torch.linspace` into an integer dtype rounds in float on CUDA** — use
+`arange` for exact large integer ranges.
 
 ## 7. Durable lesson
 **Any shaped/dense reward must keep its discounted return inside the critic's value support
@@ -174,8 +190,10 @@ agent trains without error and produces a degenerate policy. When adding reward 
 distributional critic, always check `|shaped per-step reward| / (1 − γ) ≤ support half-range`,
 or bound the shaping term as we did here.
 
-**And: a C51 target projection must clamp its atom index** — float rounding at the support
-ceiling can push `ceil(b)` one atom past the end and crash `index_add_` with an opaque
-device-side assert. Diagnose opaque CUDA index asserts by re-running with
-`CUDA_LAUNCH_BLOCKING=1` (pins the real op) and guarding batch tensors with `torch.isfinite`
-to rule out NaN first.
+**And: `torch.linspace` into an integer dtype rounds in float32 on CUDA.** Building a
+large index `offset` (here `batch_size·atoms ≈ 40M > 2**24`) with `linspace` produced
+out-of-range scatter indices and an opaque `index_add_` device-side assert — exact on CPU,
+wrong on GPU, and data-dependent so it looked intermittent. Use exact int64 `arange` for
+large integer ranges. Diagnose opaque CUDA index asserts with `CUDA_LAUNCH_BLOCKING=1`
+(pins the real op), `torch.isfinite` guards (rule out NaN), and logging the actual index
+extents + shapes at the failing op.

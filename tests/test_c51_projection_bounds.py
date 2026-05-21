@@ -1,26 +1,56 @@
-"""Regression test for the C51 target-projection index clamp (2026-05-21 fix).
+"""Regression tests for the C51 target-projection OOB fix (2026-05-21).
 
-`compute_target_q_dist` projects the Bellman target onto the fixed atom support.
-delta_z is generally not exactly representable in float32, so at the support
-ceiling (Tz == v_max, reached by reward=1 success transitions) the division
-b = (Tz - v_min)/delta_z rounds *up* and ceil(b) lands on atom index `atoms`,
-which is out of [0, atoms-1]. Pre-fix that crashed index_add_ with a CUDA
-device-side assert; the fix clamps b. This test forces the boundary on CPU and
-asserts the projection runs and stays a valid distribution.
+`compute_target_q_dist` scatters the projected Bellman target into a flat buffer
+`m` of `batch_size * atoms` elements using a per-row `offset`. ROOT CAUSE of the
+device-side `index_add_` assert: the offset was built with `torch.linspace` in
+float32, which cannot represent integers past 2**24 (~16.7M). With
+`batch_size*atoms ~= 39.7M` (B*L*D*atoms) the offsets round and the boundary row
+addresses past `m.numel()`. The fix builds the offset with exact int64
+`arange * atoms`. Two cheap clamps (project index `b`, and integer lower/upper)
+are defensive hardening, not the trigger.
 
-Needs tensordict (the vendored agent imports it) — skips on the local dev box.
+`test_offset_*` validate the offset arithmetic at a magnitude where float32
+fails (no tensordict / GPU needed). The `compute_target_q_dist` tests exercise
+the small path end-to-end and need tensordict (skip on the local dev box).
 """
 
 import pytest
 
-pytest.importorskip("tensordict")
-
 import torch  # noqa: E402
 
-from safety_bigym.agents.cqn_as.agent import C2FCritic  # noqa: E402
+
+def _arange_offset(batch_size, atoms, dtype=torch.int64):
+    """The fixed offset (exact int64 arange * atoms)."""
+    return torch.arange(batch_size, dtype=dtype) * atoms
+
+
+def test_offset_arange_is_exact_where_linspace_rounds():
+    # batch_size*atoms ~= 40.4M > 2**24, where float32 linspace loses precision.
+    batch_size, atoms = 400_000, 101
+    numel = batch_size * atoms
+    arange = _arange_offset(batch_size, atoms)
+    # Exact: row i offset is exactly i*atoms, and the boundary stays in range.
+    assert int(arange[-1].item()) == (batch_size - 1) * atoms
+    assert int(arange.max().item()) + (atoms - 1) == numel - 1
+    # No collisions (every row maps to a distinct atom block).
+    assert torch.unique(arange).numel() == batch_size
+
+
+# NOTE: the buggy float `linspace` offset rounds only on CUDA (CUDA computes
+# integer linspace via float32); on CPU it is exact, so we cannot portably assert
+# the imprecision here. The arange invariant above is what guarantees no OOB, and
+# the GPU re-run is the end-to-end confirmation.
+
+import importlib.util  # noqa: E402
+
+_HAS_TENSORDICT = importlib.util.find_spec("tensordict") is not None
+_needs_td = pytest.mark.skipif(
+    not _HAS_TENSORDICT, reason="vendored agent needs tensordict (GPU box)"
+)
 
 
 def _make_critic(atoms=101, v_min=-6.0, v_max=2.0):
+    from safety_bigym.agents.cqn_as.agent import C2FCritic
     # Small but structurally real C2F critic; repr_dim/low_dim arbitrary since we
     # only exercise compute_target_q_dist (which uses forward()).
     return C2FCritic(
@@ -40,6 +70,7 @@ def _make_critic(atoms=101, v_min=-6.0, v_max=2.0):
     )
 
 
+@_needs_td
 @pytest.mark.parametrize("atoms,v_min,v_max", [(101, -6.0, 2.0), (51, -2.0, 2.0)])
 def test_projection_handles_v_max_ceiling_without_oob(atoms, v_min, v_max):
     torch.manual_seed(0)
@@ -62,6 +93,7 @@ def test_projection_handles_v_max_ceiling_without_oob(atoms, v_min, v_max):
     assert torch.allclose(sums, torch.ones_like(sums), atol=1e-4)
 
 
+@_needs_td
 def test_b_clamp_keeps_indices_in_range_at_extremes():
     """Directly check the boundary arithmetic the fix targets."""
     critic = _make_critic(atoms=101, v_min=-6.0, v_max=2.0)

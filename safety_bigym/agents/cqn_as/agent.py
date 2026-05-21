@@ -6,10 +6,14 @@
 # a sibling module that subclasses or composes this agent rather than editing it.
 #
 # FYP3 local edits (bugfixes only, algorithmic logic unchanged):
-#   - 2026-05-21: clamp the C51 projection index `b` to [0, atoms-1] in
-#     compute_target_q_dist (float32 rounding at Tz==v_max made ceil overshoot to
-#     `atoms`, OOB-ing index_add_ with a CUDA device-side assert). See the inline
-#     comment + docs/phase3_base_validation_findings.md.
+#   - 2026-05-21: compute_target_q_dist CUDA index_add_ OOB fix. ROOT CAUSE: the
+#     per-row `offset` was built with torch.linspace in float32, which can't
+#     represent integers past 2**24; with batch_size*atoms ~= 39.7M the offsets
+#     round and the boundary index lands past m.numel() -> device-side assert.
+#     Fixed by building offset with exact int64 arange*atoms. Also added two
+#     cheap hardening clamps (project index `b` to [0,atoms-1]; integer
+#     lower/upper to [0,atoms-1]) — defensive, not the trigger. See inline
+#     comments + docs/phase3_base_validation_findings.md.
 #   - state_dict / load_state_dict added (snapshot persistence); see below.
 from typing import Tuple
 import torch
@@ -370,10 +374,6 @@ class C2FCriticNetwork(nn.Module):
 
 
 class C2FCritic(nn.Module):
-    # FYP3 (safety_bigym) one-shot flag: log the C51 projection extents the first
-    # time the target indices fall out of range (see compute_target_q_dist).
-    _fyp3_idx_logged = False
-
     def __init__(
         self,
         action_shape: tuple,
@@ -565,16 +565,11 @@ class C2FCritic(nn.Module):
         Tz = Tz.clamp(min=self.v_min, max=self.v_max)
         # Compute L2 projection of Tz onto fixed support z
         b = (Tz - self.v_min) / self.delta_z
-        # FYP3 (safety_bigym) numerical fix: clamp b to [0, atoms-1] before
-        # floor/ceil. delta_z is generally not exactly representable in float32
-        # (e.g. 0.08), so at the support ceiling Tz==v_max the division rounds
-        # *up* (e.g. b=100.0000022 for atoms=101), making ceil(b)=atoms and the
-        # index_add_ below address atom index `atoms` (out of [0, atoms-1]) ->
-        # a CUDA device-side assert (dstIndex < dstAddDimSize). This fires
-        # whenever a transition's target reaches v_max (reward=1 success
-        # transitions), so it surfaces stochastically with more successful
-        # demos. Standard Rainbow implementations clamp here. Bugfix only — the
-        # projection math is unchanged for interior values. (vendored 8cf806e)
+        # FYP3 (safety_bigym) hardening: clamp b to [0, atoms-1] before floor/ceil
+        # so float rounding at the support ceiling (Tz==v_max) can't make
+        # ceil(b)=atoms. Defensive — standard in Rainbow implementations — but NOT
+        # the root cause of the index_add_ OOB seen here (that was the float32
+        # offset, fixed below). Projection math unchanged for interior values.
         b = b.clamp(min=0.0, max=float(self.atoms - 1))
         # Mask for conditions
         lower, upper = b.floor().to(torch.int64), b.ceil().to(torch.int64)
@@ -584,31 +579,10 @@ class C2FCritic(nn.Module):
         lower = torch.where(lower_mask, lower - 1, lower)
         upper = torch.where(upper_mask, upper + 1, upper)
 
-        # FYP3 (safety_bigym) hardening + diagnostic. The index_add_ below was
-        # OOB-ing on GPU even with finite batch reward/obs (train_cqn_as guard
-        # confirms) and the b-clamp above. Log the real projection extents the
-        # first time anything is out of range, then clamp the integer atom
-        # indices to [0, atoms-1] so a stray index cannot address out of bounds.
-        if not C2FCritic._fyp3_idx_logged:
-            import logging as _logging
-
-            _logging.getLogger(__name__).error(
-                "FYP3 C51 projection (one-shot): atoms=%d lower=[%d,%d] "
-                "upper=[%d,%d] b_finite=%s reward_finite=%s discount_finite=%s "
-                "nextq_finite=%s Tz=[%.4f,%.4f] support=[%.4f,%.4f] delta_z=%.8f "
-                "shape=%s batch_size=%d lower_rows=%d",
-                self.atoms, int(lower.min().item()), int(lower.max().item()),
-                int(upper.min().item()), int(upper.max().item()),
-                bool(torch.isfinite(b).all().item()),
-                bool(torch.isfinite(reward).all().item()),
-                bool(torch.isfinite(discount).all().item()),
-                bool(torch.isfinite(next_q_probs_a).all().item()),
-                float(Tz.min().item()), float(Tz.max().item()),
-                float(self.support.min().item()), float(self.support.max().item()),
-                float(self.delta_z), tuple(shape), int(batch_size),
-                int(lower.shape[0]),
-            )
-            C2FCritic._fyp3_idx_logged = True
+        # FYP3 (safety_bigym) hardening: clamp the integer atom indices to
+        # [0, atoms-1] so a stray atom index cannot address out of bounds. This
+        # is belt-and-suspenders alongside the b-clamp above; the actual OOB bug
+        # was the float32 linspace offset (fixed below), not the atom indices.
         lower = lower.clamp(0, self.atoms - 1)
         upper = upper.clamp(0, self.atoms - 1)
 
@@ -620,13 +594,19 @@ class C2FCritic(nn.Module):
 
         # Distribute probability of Tz
         m = torch.zeros_like(next_q_probs_a)
+        # FYP3 (safety_bigym) bugfix: build the per-row offset with exact int64
+        # arithmetic (arange * atoms) instead of torch.linspace. linspace computes
+        # in float32, which cannot represent integers past 2**24 (~16.7M); here
+        # batch_size*atoms = B*L*D*atoms = 512*3*256*101 ~= 39.7M, so the linspace
+        # endpoint/spacing round, the boundary row's offset lands at/just past
+        # m.numel(), and index_add_ trips a CUDA device-side assert
+        # (dstIndex < dstAddDimSize). Data-dependent (which row hits the max
+        # lower/upper), which is why it surfaced with more successful demos.
+        # arange(...) * atoms is exact for any batch_size. (vendored 8cf806e)
         offset = (
-            torch.linspace(
-                0,
-                ((batch_size - 1) * self.atoms),
-                batch_size,
-                device=lower.device,
-                dtype=lower.dtype,
+            (
+                torch.arange(batch_size, device=lower.device, dtype=lower.dtype)
+                * self.atoms
             )
             .unsqueeze(1)
             .expand(batch_size, self.atoms)
