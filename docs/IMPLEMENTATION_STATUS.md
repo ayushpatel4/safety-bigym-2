@@ -275,6 +275,14 @@ Pre-P3.1 gate: D3b-validation failed (above). The fix de-saturates the critic so
 
 _Append as work proceeds. Each note dated. Most-recent first._
 
+### 2026-05-23 (even later, attempt 3) — Workspace shaping fights G1's CNN; disabling for the from-scratch G1 curriculum
+- The from-scratch G1 curriculum (attempt 2, `base_curriculum_20260523_162757`) also degenerated. 22 episodes / ~13.7k frames in: episode 6 reached **−4.26** (close to task success!) but the policy regressed by ep 9 (−48), then locked in to evacuation by ep 18 — consistent ~278-step episodes at reward ~−13.2 (per-step penalty pinned at workspace floor `−β·cap = −0.05`). Eval videos confirmed: early eps attempt the task and miss, later eps just move away.
+- Diagnosis: the bounded workspace penalty (which fixed the SMPL-H demo-less evacuation) **now fights the BC signal on G1**. Demo RGB has no coworker; live RGB has a hard-edged Unitree humanoid that the CNN can't suppress. The policy briefly finds the workspace, knocks the saucepan around (triggering an early-termination terminal), and Q-learning amplifies "early death" as a way to bound the penalty integral.
+- **Decision (user, 2026-05-23):** disable workspace shaping for the G1 curriculum. 36 demos + sparse task reward should attract the policy without the dense penalty's adversarial gradient.
+- **Tooling change:** `scripts/run_base_curriculum.sh` now has a `WORKSPACE_PENALTY` env var (`0` = off, default; `1` = on with `β=0.05, cap=1.0`). Lets us re-enable per-stage later without script edits if stage 2 ever needs it.
+- Degenerate stage-0 dir renamed to `base_curriculum_20260523_162757.DEGEN_workspace_shaping_too_strong`.
+- Outstanding gap surfaced en route: no per-update metrics in the train log (`grep q_critic_loss|bc_loss` returns nothing). The `_log` fix from 2026-05-18 should have made these visible; a regression to triage next session, doesn't block the curriculum.
+
 ### 2026-05-23 (even later) — Warm-started G1 curriculum degenerated; restarting from scratch (no warm-start)
 - Fired `scripts/run_base_curriculum.sh` against G1 with the SMPL-H stage-1 snapshot still cached as the warm-start anchor (the curriculum script itself doesn't `+snapshot_path` by default — stage 0 was a clean init in practice, but stages 1/2 would have chained off it). At 18k stage-0 frames, reward bottomed at **−43.8** (ep 9) and oscillated in the **−10 to −22** band with no clear upward trend. **Per-step penalty pinned at the workspace-floor (−0.049 ≈ −β·cap)** = policy parked outside the task workspace nearly every step. Episode lengths decayed 1000 → 200-450 (evacuation pattern resurfacing).
 - Killed at 18k. Diagnosis: G1's appearance in the RGB observation is the obstruction. Demos provide no G1-aware RGB anchor (recorded with no coworker), so BC pretraining can't bridge the gap; the CNN learned features tuned to SMPL-H during the prior curriculum, then never re-tuned for G1.

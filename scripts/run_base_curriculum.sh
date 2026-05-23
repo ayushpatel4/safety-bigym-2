@@ -61,15 +61,32 @@ COMMON=(
   env=safety_bigym/saucepan_to_hob
   bodyslam=oracle
   num_demos=36
-  env.safety.add_workspace_penalty=true
-  env.safety.workspace_beta=0.05
-  env.safety.workspace_excess_cap=1.0
   agent.v_min=-6.0
   agent.v_max=2.0
   agent.atoms=101
   save_snapshot=true
   save_video=true
 )
+
+# Workspace shaping toggle (2026-05-23). The bounded penalty was added to fix
+# the SMPL-H demo-less evacuation collapse, but on G1 (PR #10) it fights the
+# CNN's task-feature extraction: the from-scratch G1 stage-0 attempt
+# (`base_curriculum_20260523_162757`) converged to deliberate early
+# termination at the workspace floor (~278-step episodes, reward ~−13). So
+# the toggle is exposed: re-enable per-stage if needed.
+#   WORKSPACE_PENALTY=0  -> add_workspace_penalty=false (default for G1 stage 0)
+#   WORKSPACE_PENALTY=1  -> add_workspace_penalty=true  with beta=0.05, cap=1.0
+if [[ "${WORKSPACE_PENALTY:-0}" == "1" ]]; then
+  COMMON+=(
+    env.safety.add_workspace_penalty=true
+    env.safety.workspace_beta=0.05
+    env.safety.workspace_excess_cap=1.0
+  )
+else
+  COMMON+=(
+    env.safety.add_workspace_penalty=false
+  )
+fi
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
