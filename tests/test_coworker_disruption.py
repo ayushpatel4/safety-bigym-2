@@ -124,47 +124,49 @@ def test_stationary_trajectory_holds_pose():
 # ----------------------------------------------------------------------
 
 
-# A minimal MJCF with the SMPL-H arm joint names that HumanIK expects.
-# We use planar revolutes (one per axis) so the chain has 9 DoFs per arm
-# exactly like the production SMPL-H asset.
-_FAKE_SMPLH_XML = """
+# A minimal MJCF with the Unitree G1 arm joint/body names that HumanIK
+# expects (shoulder pitch/roll/yaw + elbow per side; wrist yaw link as the EE
+# body). Single-DoF hinges, mirroring the production G1 asset.
+_FAKE_G1_XML = """
 <mujoco>
   <worldbody>
-    <body name="Pelvis" pos="0 0 1">
+    <body name="pelvis" pos="0 0 1">
       <geom type="sphere" size="0.05"/>
-      <body name="R_Shoulder" pos="0.2 0 0">
-        <joint name="R_Shoulder_x" type="hinge" axis="1 0 0" range="-3 3"/>
-        <joint name="R_Shoulder_y" type="hinge" axis="0 1 0" range="-3 3"/>
-        <joint name="R_Shoulder_z" type="hinge" axis="0 0 1" range="-3 3"/>
-        <geom type="capsule" fromto="0 0 0 0.3 0 0" size="0.04"/>
-        <body name="R_Elbow" pos="0.3 0 0">
-          <joint name="R_Elbow_x" type="hinge" axis="1 0 0" range="-3 3"/>
-          <joint name="R_Elbow_y" type="hinge" axis="0 1 0" range="-3 3"/>
-          <joint name="R_Elbow_z" type="hinge" axis="0 0 1" range="-3 3"/>
-          <geom type="capsule" fromto="0 0 0 0.25 0 0" size="0.035"/>
-          <body name="R_Wrist" pos="0.25 0 0">
-            <joint name="R_Wrist_x" type="hinge" axis="1 0 0" range="-3 3"/>
-            <joint name="R_Wrist_y" type="hinge" axis="0 1 0" range="-3 3"/>
-            <joint name="R_Wrist_z" type="hinge" axis="0 0 1" range="-3 3"/>
-            <geom type="sphere" size="0.03"/>
+      <body name="right_shoulder_pitch_link" pos="0.2 0 0">
+        <joint name="right_shoulder_pitch_joint" type="hinge" axis="0 1 0" range="-3 3"/>
+        <geom type="capsule" fromto="0 0 0 0.1 0 0" size="0.04"/>
+        <body name="right_shoulder_roll_link" pos="0.1 0 0">
+          <joint name="right_shoulder_roll_joint" type="hinge" axis="1 0 0" range="-3 3"/>
+          <geom type="capsule" fromto="0 0 0 0.1 0 0" size="0.04"/>
+          <body name="right_shoulder_yaw_link" pos="0.1 0 0">
+            <joint name="right_shoulder_yaw_joint" type="hinge" axis="0 0 1" range="-3 3"/>
+            <geom type="capsule" fromto="0 0 0 0.1 0 0" size="0.04"/>
+            <body name="right_elbow_link" pos="0.1 0 0">
+              <joint name="right_elbow_joint" type="hinge" axis="0 1 0" range="-3 3"/>
+              <geom type="capsule" fromto="0 0 0 0.2 0 0" size="0.035"/>
+              <body name="right_wrist_yaw_link" pos="0.2 0 0">
+                <geom type="sphere" size="0.03"/>
+              </body>
+            </body>
           </body>
         </body>
       </body>
-      <body name="L_Shoulder" pos="-0.2 0 0">
-        <joint name="L_Shoulder_x" type="hinge" axis="1 0 0" range="-3 3"/>
-        <joint name="L_Shoulder_y" type="hinge" axis="0 1 0" range="-3 3"/>
-        <joint name="L_Shoulder_z" type="hinge" axis="0 0 1" range="-3 3"/>
-        <geom type="capsule" fromto="0 0 0 -0.3 0 0" size="0.04"/>
-        <body name="L_Elbow" pos="-0.3 0 0">
-          <joint name="L_Elbow_x" type="hinge" axis="1 0 0" range="-3 3"/>
-          <joint name="L_Elbow_y" type="hinge" axis="0 1 0" range="-3 3"/>
-          <joint name="L_Elbow_z" type="hinge" axis="0 0 1" range="-3 3"/>
-          <geom type="capsule" fromto="0 0 0 -0.25 0 0" size="0.035"/>
-          <body name="L_Wrist" pos="-0.25 0 0">
-            <joint name="L_Wrist_x" type="hinge" axis="1 0 0" range="-3 3"/>
-            <joint name="L_Wrist_y" type="hinge" axis="0 1 0" range="-3 3"/>
-            <joint name="L_Wrist_z" type="hinge" axis="0 0 1" range="-3 3"/>
-            <geom type="sphere" size="0.03"/>
+      <body name="left_shoulder_pitch_link" pos="-0.2 0 0">
+        <joint name="left_shoulder_pitch_joint" type="hinge" axis="0 1 0" range="-3 3"/>
+        <geom type="capsule" fromto="0 0 0 -0.1 0 0" size="0.04"/>
+        <body name="left_shoulder_roll_link" pos="-0.1 0 0">
+          <joint name="left_shoulder_roll_joint" type="hinge" axis="1 0 0" range="-3 3"/>
+          <geom type="capsule" fromto="0 0 0 -0.1 0 0" size="0.04"/>
+          <body name="left_shoulder_yaw_link" pos="-0.1 0 0">
+            <joint name="left_shoulder_yaw_joint" type="hinge" axis="0 0 1" range="-3 3"/>
+            <geom type="capsule" fromto="0 0 0 -0.1 0 0" size="0.04"/>
+            <body name="left_elbow_link" pos="-0.1 0 0">
+              <joint name="left_elbow_joint" type="hinge" axis="0 1 0" range="-3 3"/>
+              <geom type="capsule" fromto="0 0 0 -0.2 0 0" size="0.035"/>
+              <body name="left_wrist_yaw_link" pos="-0.2 0 0">
+                <geom type="sphere" size="0.03"/>
+              </body>
+            </body>
           </body>
         </body>
       </body>
@@ -175,7 +177,7 @@ _FAKE_SMPLH_XML = """
 
 
 def _build_fake_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
-    model = mujoco.MjModel.from_xml_string(_FAKE_SMPLH_XML)
+    model = mujoco.MjModel.from_xml_string(_FAKE_G1_XML)
     data = mujoco.MjData(model)
     mujoco.mj_forward(model, data)
     return model, data

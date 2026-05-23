@@ -45,28 +45,28 @@ TEST_SCENE_XML = """
     <!-- Human body parts (simplified) -->
     <body name="human_torso" pos="0 0 1">
       <freejoint name="human_root"/>
-      <geom name="Pelvis_col" type="capsule" size="0.1" fromto="0 -0.1 0 0 0.1 0"/>
+      <geom name="pelvis_col" type="capsule" size="0.1" fromto="0 -0.1 0 0 0.1 0"/>
       <body name="human_chest" pos="0 0 0.3">
-        <geom name="Chest_col" type="capsule" size="0.12" fromto="0 -0.12 0 0 0.12 0"/>
+        <geom name="torso_col" type="capsule" size="0.12" fromto="0 -0.12 0 0 0.12 0"/>
         <body name="human_head" pos="0 0 0.3">
-          <geom name="Head_col" type="sphere" size="0.1"/>
+          <geom name="head_col" type="sphere" size="0.1"/>
         </body>
       </body>
       <body name="human_arm" pos="0.25 0 0.3">
         <joint name="shoulder" type="ball"/>
-        <geom name="R_Shoulder_col" type="capsule" size="0.04" fromto="0 0 0 0.15 0 0"/>
+        <geom name="right_shoulder_roll_link_col" type="capsule" size="0.04" fromto="0 0 0 0.15 0 0"/>
         <body name="human_forearm" pos="0.2 0 0">
           <joint name="elbow" type="hinge" axis="0 1 0"/>
-          <geom name="R_Elbow_col" type="capsule" size="0.035" fromto="0 0 0 0.15 0 0"/>
+          <geom name="right_elbow_link_col" type="capsule" size="0.035" fromto="0 0 0 0.15 0 0"/>
           <body name="human_hand" pos="0.18 0 0">
             <joint name="wrist" type="hinge" axis="0 1 0"/>
-            <geom name="R_Wrist_col" type="capsule" size="0.025" fromto="0 0 0 0.08 0 0"/>
+            <geom name="right_wrist_yaw_link_col" type="capsule" size="0.025" fromto="0 0 0 0.08 0 0"/>
           </body>
         </body>
       </body>
       <body name="human_thigh" pos="0.1 0 -0.2">
         <joint name="hip" type="hinge" axis="0 1 0"/>
-        <geom name="R_Knee_col" type="capsule" size="0.06" fromto="0 0 0 0 0 -0.4"/>
+        <geom name="right_hip_yaw_link_col" type="capsule" size="0.06" fromto="0 0 0 0 0 -0.4"/>
       </body>
     </body>
     
@@ -207,7 +207,7 @@ class TestPFLTransient:
         """Forearm transient limit should be 320N."""
         model, data, wrapper = setup_model
         
-        limits = get_limits_for_geom("R_Elbow_col")
+        limits = get_limits_for_geom("right_elbow_link_col")
         assert limits is not None
         assert limits.transient_force == 320
         assert limits.quasi_static_force == 160
@@ -263,7 +263,7 @@ class TestPFLQuasiStatic:
     
     def test_hand_quasi_static_limit(self):
         """Hand quasi-static limit should be 140N (stricter than 280N transient)."""
-        limits = get_limits_for_geom("R_Wrist_col")
+        limits = get_limits_for_geom("right_wrist_yaw_link_col")
         assert limits is not None
         assert limits.quasi_static_force == 140
         assert limits.transient_force == 280
@@ -281,18 +281,18 @@ class TestPFLQuasiStatic:
         
         # The classifier should return transient when no fixture
         contact_type = wrapper._classify_contact_type(
-            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "R_Wrist_col"),
+            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "right_wrist_yaw_link_col"),
             other_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "robot_ee_geom"),
         )
         assert contact_type == "transient"
         
         # Now simulate hand touching wall
         wall_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "wall")
-        wrapper._human_contacts_this_step["R_Wrist_col"].add("wall")
+        wrapper._human_contacts_this_step["right_wrist_yaw_link_col"].add("wall")
         
         # Now classifier should return quasi_static
         contact_type = wrapper._classify_contact_type(
-            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "R_Wrist_col"),
+            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "right_wrist_yaw_link_col"),
             other_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "robot_ee_geom"),
         )
         assert contact_type == "quasi_static"
@@ -304,14 +304,13 @@ class TestBodyRegionMapping:
     def test_all_collision_geoms_mapped(self):
         """All standard collision geoms should have mappings."""
         expected_mappings = {
-            "Head_col": "skull",
-            "Neck_col": "neck",
-            "Chest_col": "chest",
-            "Pelvis_col": "pelvis",
-            "R_Shoulder_col": "upper_arm",
-            "R_Elbow_col": "forearm",
-            "R_Wrist_col": "hand_palm",
-            "R_Knee_col": "thigh",
+            "head_col": "skull",
+            "torso_col": "chest",
+            "pelvis_col": "pelvis",
+            "right_shoulder_roll_link_col": "upper_arm",
+            "right_elbow_link_col": "forearm",
+            "right_wrist_yaw_link_col": "hand_palm",
+            "right_hip_yaw_link_col": "thigh",
         }
         
         for geom_name, expected_region in expected_mappings.items():
@@ -320,7 +319,7 @@ class TestBodyRegionMapping:
     
     def test_head_limits(self):
         """Head should trigger at 130N quasi-static."""
-        limits = get_limits_for_geom("Head_col")
+        limits = get_limits_for_geom("head_col")
         assert limits is not None
         assert limits.quasi_static_force == 130
         assert limits.transient_force == 260
@@ -451,7 +450,7 @@ class TestBuildSafetyInfo:
     def test_pfl_force_ratio_populated_from_single_contact(self):
         wrapper = _make_wrapper()
         contacts = [ContactInfo(
-            geom1_name="R_Elbow_col",
+            geom1_name="right_elbow_link_col",
             geom2_name="robot_ee_geom",
             force=256.0,
             contact_type="transient",
@@ -476,7 +475,7 @@ class TestBuildSafetyInfo:
     def test_pfl_violation_flag_set_when_ratio_over_one(self):
         wrapper = _make_wrapper()
         contacts = [ContactInfo(
-            geom1_name="R_Elbow_col",
+            geom1_name="right_elbow_link_col",
             geom2_name="robot_ee_geom",
             force=400.0,
             contact_type="transient",
@@ -499,15 +498,15 @@ class TestBuildSafetyInfo:
     def test_pfl_force_ratio_takes_max_across_contacts(self):
         wrapper = _make_wrapper()
         contacts = [
-            ContactInfo(geom1_name="R_Elbow_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="right_elbow_link_col", geom2_name="robot_ee_geom",
                         force=96.0, contact_type="transient", body_region="forearm",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.3, force_limit=320.0),
-            ContactInfo(geom1_name="R_Wrist_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="right_wrist_yaw_link_col", geom2_name="robot_ee_geom",
                         force=224.0, contact_type="transient", body_region="hand_palm",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.8, force_limit=280.0),
-            ContactInfo(geom1_name="Head_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="head_col", geom2_name="robot_ee_geom",
                         force=130.0, contact_type="transient", body_region="skull",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.5, force_limit=260.0),

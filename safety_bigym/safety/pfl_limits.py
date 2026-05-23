@@ -178,56 +178,63 @@ PFL_LIMITS: Dict[str, BodyRegionLimits] = {
 }
 
 
-# Mapping from SMPL-H collision geom names to ISO body regions
-# This maps the _col suffix geoms from smplh_human.xml
-GEOM_TO_REGION: Dict[str, str] = {
-    # Head
-    'Head_col': 'skull',
-    'Neck_col': 'neck',
-    
-    # Torso  
-    'Spine_col': 'back_shoulders',
-    'Chest_col': 'chest',
-    'Torso_col': 'abdomen',
-    'Pelvis_col': 'pelvis',
-    'L_Thorax_col': 'chest',
-    'R_Thorax_col': 'chest',
-    
-    # Left arm
-    'L_Shoulder_col': 'upper_arm',
-    'L_Elbow_col': 'forearm',
-    'L_Wrist_col': 'hand_palm',
-    
-    # Right arm
-    'R_Shoulder_col': 'upper_arm',
-    'R_Elbow_col': 'forearm',
-    'R_Wrist_col': 'hand_palm',
-    
-    # Left leg
-    'L_Hip_col': 'pelvis',
-    'L_Knee_col': 'thigh',
-    'L_Ankle_col': 'shin',
-    'L_Toe_col': 'foot',
-    
-    # Right leg
-    'R_Hip_col': 'pelvis',
-    'R_Knee_col': 'thigh',
-    'R_Ankle_col': 'shin',
-    'R_Toe_col': 'foot',
+import re
+
+# Mapping from Unitree G1 collision geom names (the `_col` geoms in
+# assets/g1_human_body.xml) to ISO 15066 Annex A body regions. The G1 plays
+# the coworker role the SMPL-H human used to; PFL force limits are unchanged,
+# only the geom->region keys are remapped. Names that carry a trailing index
+# (e.g. the four foot spheres `left_ankle_roll_link_col[0-3]`) are normalised
+# by get_region_for_geom, so only the base name needs an entry here.
+_G1_BASE_REGIONS: Dict[str, str] = {
+    # Trunk / head
+    'pelvis': 'pelvis',
+    'torso': 'chest',
+    'torso_logo': 'chest',
+    'head': 'skull',
 }
+# Per-side limbs (left_/right_ prefixes share the same region).
+_G1_LIMB_REGIONS: Dict[str, str] = {
+    'hip_pitch_link': 'pelvis',
+    'hip_roll_link': 'pelvis',
+    'hip_yaw_link': 'thigh',
+    'knee_link': 'shin',
+    'ankle_pitch_link': 'foot',
+    'ankle_roll_link': 'foot',
+    'shoulder_pitch_link': 'upper_arm',
+    'shoulder_roll_link': 'upper_arm',
+    'shoulder_yaw_link': 'upper_arm',
+    'elbow_link': 'forearm',
+    'wrist_roll_link': 'hand_palm',
+    'wrist_pitch_link': 'hand_palm',
+    'wrist_yaw_link': 'hand_palm',
+}
+
+GEOM_TO_REGION: Dict[str, str] = {
+    f'{base}_col': region for base, region in _G1_BASE_REGIONS.items()
+}
+for _side in ('left', 'right'):
+    for _base, _region in _G1_LIMB_REGIONS.items():
+        GEOM_TO_REGION[f'{_side}_{_base}_col'] = _region
 
 
 def get_region_for_geom(geom_name: str) -> Optional[str]:
     """
     Get the ISO body region for a collision geom.
-    
+
     Args:
         geom_name: Name of the collision geom
-        
+
     Returns:
-        ISO region name, or None if not a human body part
+        ISO region name, or None if not a coworker body part
     """
-    return GEOM_TO_REGION.get(geom_name)
+    region = GEOM_TO_REGION.get(geom_name)
+    if region is not None:
+        return region
+    # Strip a trailing numeric suffix (e.g. `..._col2` -> `..._col`) so the
+    # multi-geom links (feet) resolve to their base region.
+    base = re.sub(r"\d+$", "", geom_name)
+    return GEOM_TO_REGION.get(base)
 
 
 def get_limits_for_geom(geom_name: str) -> Optional[BodyRegionLimits]:

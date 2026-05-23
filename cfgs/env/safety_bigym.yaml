@@ -13,15 +13,11 @@ env:
   render_mode: rgb_array
   enable_all_floating_dof: false
 
-  # Safety-specific settings
+  # Safety-specific settings. The coworker is a Unitree G1 humanoid driven by
+  # scripted COWORKER trajectories — no AMASS motion clips.
   inject_human: true
-  motion_clip_dir: ${oc.env:AMASS_DATA_DIR,null}
-  motion_clip_paths:
-    - "74/74_01_poses.npz"
-    - "74/74_02_poses.npz"
-    - "09/09_01_poses.npz"
-    - "09/09_03_poses.npz"
-    - "122/122_04_poses.npz"
+  motion_clip_dir: null
+  motion_clip_paths: []
 
   # Disruption sampling. Tuned to put a meaningful fraction of episodes
   # into the SSM/PFL violation regime via passive intrusion (OBSTRUCTION:
@@ -44,20 +40,15 @@ env:
     workspace_radius: 0.4
     workspace_beta: 0.2
 
+  # COWORKER is the only disruption type for the G1 coworker. The five
+  # continuous COWORKER axes can be widened/narrowed here.
   disruptions:
     weights:
-      INCIDENTAL: 0.15
-      SHARED_GOAL: 0.15
-      DIRECT: 0.20
-      OBSTRUCTION: 0.20
-      RANDOM_PERTURBED: 0.10
-      CONTACT: 0.20
-    closest_approach_range: [0.0, 0.8]
-    pass_by_offset_range: [0.05, 1.2]
-    loiter_duration_range: [4.0, 10.0]
-    embed_distance_range: [0.0, 0.05]
-    walk_speed_range: [1.0, 2.0]
-    spawn_distance_range: [0.8, 1.8]
-    arc_radius_range: [0.5, 1.8]
+      COWORKER: 1.0
+    coworker_closest_approach_range: [0.9, 1.4]
+    coworker_reach_period_range: [4.5, 6.5]
+    coworker_target_mix_p_ee_range: [0.4, 0.6]
+    coworker_near_loiter_range: [7.0, 11.0]
+    coworker_walk_speed_range: [1.0, 1.6]
 
 demos: !!float .inf
