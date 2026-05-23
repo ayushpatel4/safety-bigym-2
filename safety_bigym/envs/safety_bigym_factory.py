@@ -134,17 +134,11 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 floating_base=True,
             )
 
-        # Human config from Hydra config
-        motion_clip_dir = cfg.env.get(
-            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
-        )
-        motion_clip_paths = list(cfg.env.get("motion_clip_paths", [
-            "74/74_01_poses.npz",
-            "74/74_02_poses.npz",
-            "09/09_01_poses.npz",
-            "09/09_03_poses.npz",
-            "122/122_04_poses.npz",
-        ]))
+        # The coworker is a G1 humanoid driven by scripted trajectories — no
+        # AMASS motion clips. These remain as (empty) config knobs only for
+        # backward compatibility with old YAMLs that still set them.
+        motion_clip_dir = cfg.env.get("motion_clip_dir", None)
+        motion_clip_paths = list(cfg.env.get("motion_clip_paths", []))
         inject_human = cfg.env.get("inject_human", True)
 
         human_config = HumanConfig(
@@ -229,6 +223,12 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 ) from e
             param_space_kwargs["disruption_weights"] = {dtype: 1.0}
             logger.info(f"Forcing disruption_type={dtype.name} for every episode.")
+        elif "disruption_weights" not in param_space_kwargs:
+            # G1 coworker only supports the COWORKER disruption (the other
+            # types relied on AMASS gait, which has been dropped). Default to
+            # COWORKER-only unless a YAML explicitly overrides the weights.
+            param_space_kwargs["disruption_weights"] = {DisruptionType.COWORKER: 1.0}
+            logger.info("Defaulting to COWORKER-only disruptions (G1 coworker).")
 
         scenario_sampler = ScenarioSampler(
             parameter_space=ParameterSpace(**param_space_kwargs),
