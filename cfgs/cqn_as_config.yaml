@@ -57,6 +57,12 @@ num_demos: 0
 # Pixels — required True for CQN-AS (CNN encoder).
 pixels: true
 visual_observation_shape: [84, 84]
+# Diagnostic toggle: when true, the adapter zeros the rgb_obs after building
+# it (architecture/encoder unchanged, but the CNN sees no RGB signal). Used
+# for the G1 base-curriculum CNN-bottleneck ablation (see plan Step 1). Off
+# by default. Setting cfg.pixels=false directly would feed num_views=0 to
+# MultiViewCNNEncoder and crash; this flag is the safe alternative.
+mask_pixels: false
 
 # Misc
 seed: 1

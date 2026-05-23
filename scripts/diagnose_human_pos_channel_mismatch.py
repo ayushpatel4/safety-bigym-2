@@ -26,9 +26,14 @@ Usage (GPU box):
         env=safety_bigym/saucepan_to_hob \\
         disruption=coworker_idle \\
         bodyslam=oracle \\
-        +num_demos=10 \\
+        num_demos=10 \\
         +live_steps=500 \\
         +outdir=/tmp/g1_channel_diag
+
+    Note: ``num_demos`` is already a key in ``cqn_as_config.yaml`` (default 0),
+    so it takes a plain ``num_demos=10`` override (no ``+`` prefix); Hydra
+    strict mode rejects ``+num_demos`` because the key already exists.
+    ``live_steps`` and ``outdir`` ARE new keys, so they need the ``+`` prefix.
 
 Output (under ``outdir``):
     demo_channel.npy    # (N_demo_steps, 3) AMASS-injected pelvis xyz

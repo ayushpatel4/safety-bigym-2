@@ -285,6 +285,13 @@ class SafetyBiGymCQNAdapter:
         )
         cam_shape = cfg.get("visual_observation_shape", [84, 84])
         self._camera_shape: Tuple[int, int] = (int(cam_shape[0]), int(cam_shape[1]))
+        # Diagnostic: when true, the rgb_obs returned to the agent is zeroed
+        # AFTER the stack is built (so num_views / shapes match the trained
+        # encoder, but the CNN sees no task signal in RGB). Used for the
+        # G1 base-curriculum CNN-bottleneck ablation. cfg.pixels=false would
+        # produce num_views=0 and crash MultiViewCNNEncoder; this flag is
+        # the safe alternative that keeps the architecture identical.
+        self._mask_pixels = bool(cfg.get("mask_pixels", False))
 
         self._step_counter = 0
         self._episode_length = int(cfg.env.episode_length)
@@ -774,6 +781,13 @@ class SafetyBiGymCQNAdapter:
         else:
             # Empty pixel placeholder so downstream code can still index it
             out["rgb_obs"] = np.zeros(self.rgb_observation_space.shape, np.uint8)
+
+        # CNN-bottleneck diagnostic: replace the rgb stack with zeros so the
+        # encoder architecture is unchanged but the CNN gets no RGB signal.
+        # Mutation is in place — frame_stack deques still hold real frames for
+        # subsequent timesteps, only the *emitted* obs is zeroed.
+        if self._mask_pixels:
+            out["rgb_obs"] = np.zeros_like(out["rgb_obs"])
 
         return out
 

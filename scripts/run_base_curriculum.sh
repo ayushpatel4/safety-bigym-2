@@ -88,6 +88,24 @@ else
   )
 fi
 
+# CNN-bottleneck diagnostic toggle (2026-05-24). G1 base-curriculum recovery
+# plan Step 1: if MASK_PIXELS=1, the env_adapter zeros rgb_obs after building
+# it — same architecture (num_views=3), but the CNN gets no task signal in
+# RGB. If stage 0 trains under MASK_PIXELS=1 where vanilla G1 stage 0 fails,
+# the visual encoder is the bottleneck (Step 2 — recolor + RGB aug becomes
+# the durable fix). If it ALSO fails, the cause is elsewhere (Step 4).
+#   MASK_PIXELS=0  -> mask_pixels=false (default)
+#   MASK_PIXELS=1  -> mask_pixels=true  (rgb_obs zeroed)
+if [[ "${MASK_PIXELS:-0}" == "1" ]]; then
+  COMMON+=(
+    mask_pixels=true
+  )
+else
+  COMMON+=(
+    mask_pixels=false
+  )
+fi
+
 if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
   STAGE1_FRAMES=0

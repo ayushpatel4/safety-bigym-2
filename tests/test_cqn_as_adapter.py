@@ -190,11 +190,13 @@ def _make_cfg(
     cameras: Tuple[str, ...] = (),
     episode_length: int = 200,
     demo_down_sample_rate: int = 20,
+    mask_pixels: bool = False,
 ):
     cfg = OmegaConf.create(
         {
             "pixels": pixels,
             "visual_observation_shape": [84, 84],
+            "mask_pixels": mask_pixels,
             "env": {
                 "task_name": "reach_target_single",
                 "bodyslam": {"mode": bodyslam_mode},
@@ -550,6 +552,38 @@ def test_pixels_enabled_passes_camera_frames_through(patched_factory):
     # Stub fills cameras with constant 17
     assert ts.rgb_obs.min() == 17
     assert ts.rgb_obs.max() == 17
+
+
+def test_mask_pixels_zeros_rgb_obs_keeping_shape(patched_factory):
+    """G1 CNN-bottleneck diagnostic: mask_pixels=true zeroes the emitted
+    rgb_obs while keeping the encoder shape identical (num_views unchanged).
+    """
+    patched_factory(include_human_pos=False, cameras=("head", "right_wrist"))
+    cfg = _make_cfg(
+        pixels=True,
+        cameras=("head", "right_wrist"),
+        mask_pixels=True,
+    )
+    adapter = SafetyBiGymCQNAdapter(cfg, frame_stack=1)
+    ts_reset = adapter.reset()
+    # Same shape as the un-masked case (architecture invariant)
+    assert ts_reset.rgb_obs.shape == (2, 3, 84, 84)
+    assert ts_reset.rgb_obs.dtype == np.uint8
+    # ...but all zeros instead of the stub's constant 17
+    assert int(ts_reset.rgb_obs.max()) == 0
+    # Step also returns zero rgb when masked
+    ts_step = adapter.step(np.zeros(adapter.action_space.shape, dtype=np.float32))
+    assert ts_step.rgb_obs.shape == (2, 3, 84, 84)
+    assert int(ts_step.rgb_obs.max()) == 0
+
+
+def test_mask_pixels_default_off_passes_camera_frames(patched_factory):
+    """Regression: mask_pixels defaults to false (un-set in cfg)."""
+    patched_factory(include_human_pos=False, cameras=("head",))
+    cfg = _make_cfg(pixels=True, cameras=("head",))  # mask_pixels not set
+    adapter = SafetyBiGymCQNAdapter(cfg, frame_stack=1)
+    ts = adapter.reset()
+    assert int(ts.rgb_obs.max()) == 17  # stub constant survives
 
 
 # ---------------------------------------------------------------------------
