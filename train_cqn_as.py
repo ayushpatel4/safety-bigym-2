@@ -182,29 +182,47 @@ class Workspace:
 
     def _log(self, metrics, step: int, ty: str = "train") -> None:
         # `metrics` may be a TensorDict (returned by agent.update()) or a
-        # plain dict. Two things need handling:
-        #  1. TensorDict refuses bool conversion — check length explicitly.
-        #  2. TensorDict.items() can be a single-use generator (the dict
+        # plain dict. Three things need handling:
+        #  1. TensorDict refuses bool conversion — can't use ``if not metrics``.
+        #  2. ``len(TensorDict)`` returns the first batch-size dim, not the
+        #     number of keys. ``agent.update()`` returns a TD built from 0-d
+        #     ``.detach()`` tensors, so its ``batch_size == torch.Size([])``
+        #     and ``len(td) == 0`` even when 4+ keys are present. Using
+        #     ``len(metrics) == 0`` as an emptiness check silently swallows
+        #     every per-update train log — that's the regression flagged in
+        #     ``docs/IMPLEMENTATION_STATUS.md`` 2026-05-23 notes
+        #     (``grep q_critic_loss`` returning nothing). Check ``items()``.
+        #  3. ``TensorDict.items()`` can be a single-use generator (the dict
         #     comprehension below would exhaust it, leaving the format-
         #     string join silent). Materialise items into a list once.
-        if metrics is None or len(metrics) == 0:
+        if metrics is None:
             return
-        items = []
-        for k, v in metrics.items():
+        try:
+            items = list(metrics.items())
+        except Exception:
+            return
+        if not items:
+            return
+        materialised = []
+        for k, v in items:
             if hasattr(v, "item"):  # 0-d tensor → python scalar
                 try:
                     v = v.item()
                 except (ValueError, RuntimeError):
                     pass  # non-scalar tensor; format() will str() it
-            items.append((k, v))
-        prefixed = {f"{ty}/{k}": v for k, v in items}
+            materialised.append((k, v))
+        prefixed = {f"{ty}/{k}": v for k, v in materialised}
         if self._wandb_run is not None:
             self._wandb_run.log(prefixed, step=step)
-        logger.info(
-            f"[{ty}] step={step} "
-            + " ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
-                       for k, v in items)
-        )
+        parts = []
+        for k, v in materialised:
+            try:
+                parts.append(
+                    f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
+                )
+            except (TypeError, ValueError):
+                parts.append(f"{k}={v!r}")
+        logger.info(f"[{ty}] step={step} " + " ".join(parts))
 
     def _safety_payload(self, info: dict) -> dict:
         """Extract per-step + episode-end safety metrics from env info."""
