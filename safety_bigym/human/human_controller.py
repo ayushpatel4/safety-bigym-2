@@ -1,14 +1,16 @@
 """
-Human Motion Controller
+Coworker Motion Controller
 
-Controls the SMPL-H humanoid using AMASS motion playback with optional
-IK blending for disruption scenarios. Implements the motion blending
-architecture from the implementation plan.
+Drives the Unitree G1 coworker (see assets/g1_human_body.xml). The G1 root
+(``pelvis``) is a mocap body teleported along a scripted trajectory; the body
+joints are PD-held to a fixed standing pose. AMASS playback has been dropped —
+the only disruption type is COWORKER, whose root path is fully scripted by the
+TrajectoryPlanner and whose arm reaches come from an IK callback during loiter.
 
 Integrates with:
-- AMASS motion loader for clip playback
 - PD controller for joint target tracking
 - HumanIK for arm reaching during disruptions
+- TrajectoryPlanner for scripted root motion
 - ScenarioParams from scenario sampler for configuration
 """
 
@@ -17,7 +19,6 @@ import mujoco
 from pathlib import Path
 from typing import Optional, Callable, Dict
 
-from safety_bigym.motion.amass_loader import load_amass_clip, MotionClip
 from safety_bigym.human.pd_controller import PDController, PDGains
 from safety_bigym.human.human_ik import HumanIK
 from safety_bigym.human.trajectory_planner import (
@@ -25,29 +26,22 @@ from safety_bigym.human.trajectory_planner import (
     TrajectoryConfig,
     TrajectoryType,
 )
+from safety_bigym.human import g1_spec
 from safety_bigym.scenarios.scenario_sampler import ScenarioParams
 
 
 class HumanController:
     """
-    Controller for SMPL-H humanoid motion.
-    
-    Manages motion playback from AMASS data and blending to IK targets
-    at scenario trigger times. The controller operates in three phases:
-    
-    1. t < trigger: Pure AMASS motion playback
-    2. trigger <= t < trigger + blend: Interpolate AMASS -> IK targets
-    3. t >= trigger + blend: Pure IK-driven disruption motion
+    Controller for the G1 coworker.
+
+    The root pose comes from the scripted TrajectoryPlanner; body joints are
+    PD-held to a fixed standing pose, except the active arm during loiter,
+    which blends toward an IK reach target supplied by the COWORKER callback.
     """
-    
-    # Joint names from SMPL-H (matching MJCF actuator naming)
-    BODY_JOINT_NAMES = [
-        "L_Hip", "R_Hip", "Torso", "L_Knee", "R_Knee", "Spine",
-        "L_Ankle", "R_Ankle", "Chest", "L_Toe", "R_Toe", "Neck",
-        "L_Thorax", "R_Thorax", "Head", "L_Shoulder", "R_Shoulder",
-        "L_Elbow", "R_Elbow", "L_Wrist", "R_Wrist",
-    ]
-    
+
+    # G1 actuated joint names (single-DoF hinges; no _x/_y/_z sub-joints).
+    BODY_JOINT_NAMES = g1_spec.BODY_JOINT_NAMES
+
     def __init__(
         self,
         model: mujoco.MjModel,
@@ -71,8 +65,9 @@ class HumanController:
         # Initialize IK solver
         self.ik_solver = HumanIK(model, data)
         
-        # Motion clip and playback state
-        self.clip: Optional[MotionClip] = None
+        # No motion clip any more (AMASS dropped). Kept as an always-None
+        # attribute so callers that probe `.clip` degrade gracefully.
+        self.clip = None
         self.scenario: Optional[ScenarioParams] = None
         self.t = 0.0
         
@@ -88,9 +83,11 @@ class HumanController:
         # Build joint name to qpos index mapping
         self._build_joint_mapping()
 
-        # Look up the Pelvis mocap index — root pose is written to
+        # Look up the pelvis mocap index — root pose is written to
         # data.mocap_pos / data.mocap_quat rather than qpos[0:7].
-        pelvis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Pelvis")
+        pelvis_id = mujoco.mj_name2id(
+            self.model, mujoco.mjtObj.mjOBJ_BODY, g1_spec.PELVIS_BODY
+        )
         if pelvis_id >= 0:
             mid = int(self.model.body_mocapid[pelvis_id])
             self._mocap_id = mid if mid >= 0 else -1
@@ -98,12 +95,12 @@ class HumanController:
             self._mocap_id = -1
 
         # Per-step root pose (written to mocap each step). Tracked separately
-        # from qpos because Pelvis is a mocap body and has no qpos entries.
+        # from qpos because the pelvis is a mocap body and has no qpos entries.
         self._root_pose = np.zeros(7)
         self._root_pose[3] = 1.0  # identity quaternion (w,x,y,z)
 
-        # Standing pose for body joints only; matches qpos size.
-        self._standing_pose = np.zeros(self.model.nq)
+        # Fixed G1 standing pose for body joints; matches qpos size.
+        self._standing_pose = g1_spec.standing_qpos(self.model)
 
         # Root position offset (to shift AMASS motion to spawn position)
         self._root_offset = np.zeros(3)
@@ -113,57 +110,17 @@ class HumanController:
         self._clip_origin = np.zeros(3)  # First frame root position
     
     def set_root_offset(self, spawn_pos: np.ndarray, clip_origin: Optional[np.ndarray] = None):
+        """Store the coworker spawn XY (root anchor for the fallback path).
+
+        The scripted TrajectoryPlanner supplies world-frame root XY directly,
+        so this only matters when no planner is set.
         """
-        Set root offset to shift AMASS motion to spawn position.
-        
-        Only offsets X and Y positions - Z is preserved from AMASS motion
-        since it contains the correct pelvis height for standing.
-        
-        Args:
-            spawn_pos: Desired spawn position [x, y, z] (z typically 0 for floor)
-            clip_origin: AMASS clip's first frame root position (auto-detected if None)
-        """
-        if clip_origin is None and self.clip is not None:
-            # Get first frame root position from clip
-            _, root_trans, _ = self.clip.get_frame(0)
-            clip_origin = root_trans
-        
-        if clip_origin is not None:
-            self._clip_origin = clip_origin.copy()
-            # Offset is computed AFTER rotation, so just store spawn XY
-            # The actual offset application happens in _get_amass_targets
-            self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
-        else:
-            self._clip_origin = np.zeros(3)
-            self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
-    
+        self._clip_origin = np.zeros(3)
+        self._root_offset = np.array([spawn_pos[0], spawn_pos[1], 0.0])
+
     def set_root_yaw(self, yaw: float):
-        """
-        Set yaw rotation to apply to AMASS motion direction.
-        
-        This rotates the clip's root trajectory around the clip's origin
-        so the human's movement direction faces toward the robot.
-        
-        Args:
-            yaw: Desired facing direction in radians (toward robot)
-        """
-        if self.clip is not None:
-            # Determine AMASS clip's natural forward direction from first few frames
-            _, start_pos, _ = self.clip.get_frame(0)
-            # Use a frame ~1 second in (or last frame) to find direction
-            end_idx = min(30, self.clip.num_frames - 1)
-            _, end_pos, _ = self.clip.get_frame(end_idx)
-            
-            clip_dir = end_pos[:2] - start_pos[:2]  # XY direction
-            if np.linalg.norm(clip_dir) > 0.01:
-                clip_yaw = np.arctan2(clip_dir[1], clip_dir[0])
-            else:
-                clip_yaw = 0.0  # Clip doesn't move much, assume facing +X
-            
-            # Rotation needed = desired yaw - clip's natural yaw
-            self._root_yaw = yaw - clip_yaw
-        else:
-            self._root_yaw = yaw
+        """Store the desired facing yaw (used only by the fallback path)."""
+        self._root_yaw = yaw
     
     @staticmethod
     def _quat_from_yaw(yaw: float) -> np.ndarray:
@@ -192,16 +149,13 @@ class HumanController:
                 self.joint_to_qpos[name] = self.model.jnt_qposadr[i]
     
     def load_clip(self, clip_path: str, include_hands: bool = False):
+        """No-op: AMASS playback has been dropped for the G1 coworker.
+
+        Retained so the env's reset path (gated on an empty ``clip_path``)
+        and any legacy callers don't break.
         """
-        Load an AMASS motion clip.
-        
-        Args:
-            clip_path: Path to AMASS .npz file
-            include_hands: Whether to include hand joint data
-        """
-        self.clip = load_amass_clip(clip_path, include_hands=include_hands)
         self.t = 0.0
-    
+
     def set_scenario(self, scenario: ScenarioParams):
         """
         Set the current scenario parameters.
@@ -223,92 +177,48 @@ class HumanController:
     
     def set_trajectory_planner(self, planner: TrajectoryPlanner):
         """
-        Set trajectory planner for root motion control.
-        
-        When a planner is set, it overrides the AMASS root trajectory.
-        Body joint angles still come from AMASS clip playback.
-        
-        Args:
-            planner: TrajectoryPlanner instance
+        Set trajectory planner for scripted root (pelvis) motion. Body joints
+        stay at the standing pose; the planner only drives root XY/yaw.
         """
         self._trajectory_planner = planner
-    
+
     def reset(self):
-        """Reset controller state."""
+        """Reset controller state and apply the standing pose."""
         self.t = 0.0
         self._trajectory_planner = None
-        if self.clip is not None:
-            # Set initial pose from clip
-            self._apply_amass_frame(0)
-    
+        self._apply_standing_pose()
+
     def _get_amass_targets(self, t: float):
         """
-        Get joint targets from AMASS motion at time t.
+        Get body-joint targets and the root pose at time t.
 
-        If a TrajectoryPlanner is set, root XY and yaw come from the planner.
-        Body joint angles always come from the AMASS clip.
+        Body joints are the fixed standing pose. Root XY/yaw come from the
+        TrajectoryPlanner when set (Z fixed at the G1 standing height); with no
+        planner, the current mocap pose is held.
+
+        (Name kept for compatibility — there is no AMASS clip any more.)
 
         Returns:
-            Tuple (qpos_targets, root_pose) where qpos_targets is the
-            full-sized qpos buffer with body joint angles set, and
-            root_pose is a (7,) array [x, y, z, qw, qx, qy, qz] meant
-            to be written to data.mocap_pos / data.mocap_quat.
+            Tuple (qpos_targets, root_pose) where qpos_targets is a full-sized
+            qpos buffer with the standing body-joint angles set, and root_pose
+            is a (7,) array [x, y, z, qw, qx, qy, qz] for data.mocap_pos/quat.
         """
-        if self.clip is None:
-            # Standing pose fallback. Read current root pose from mocap.
-            targets = self._standing_pose.copy()
-            root_pose = self._root_pose.copy()
-            if self._mocap_id >= 0:
-                root_pose[0:3] = self.data.mocap_pos[self._mocap_id]
-                root_pose[3:7] = self.data.mocap_quat[self._mocap_id]
-            return targets, root_pose
+        targets = self._standing_pose.copy()
+        root_pose = self._root_pose.copy()
 
-        # Apply speed multiplier
-        speed = self.scenario.speed_multiplier if self.scenario else 1.0
-        frame_idx = self.clip.get_time_frame(t * speed)
-
-        # Get motion data
-        joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
-
-        # Build target qpos for body joints (root not in qpos any more)
-        targets = self.data.qpos.copy()
-        root_pose = np.empty(7)
-
-        # --- Root position and orientation ---
         if self._trajectory_planner is not None:
-            # USE TRAJECTORY PLANNER for root XY and yaw
-            px, py, plan_yaw, phase = self._trajectory_planner.get_pose(t)
+            px, py, plan_yaw, _phase = self._trajectory_planner.get_pose(t)
             root_pose[0] = px
             root_pose[1] = py
-            root_pose[2] = root_trans[2]  # Z from AMASS (pelvis height)
+            root_pose[2] = g1_spec.STANDING_PELVIS_Z
             root_pose[3:7] = self._quat_from_yaw(plan_yaw)
-        else:
-            # Fall back to original AMASS root motion with offset/yaw
-            pos_centered = root_trans - self._clip_origin
-            cos_y = np.cos(self._root_yaw)
-            sin_y = np.sin(self._root_yaw)
-            rotated_x = cos_y * pos_centered[0] - sin_y * pos_centered[1]
-            rotated_y = sin_y * pos_centered[0] + cos_y * pos_centered[1]
-            root_pose[0] = rotated_x + self._root_offset[0]
-            root_pose[1] = rotated_y + self._root_offset[1]
-            root_pose[2] = root_trans[2]
-            if abs(self._root_yaw) > 1e-6:
-                yaw_quat = self._quat_from_yaw(self._root_yaw)
-                root_pose[3:7] = self._quat_multiply(yaw_quat, root_quat)
-            else:
-                root_pose[3:7] = root_quat
-
-        # --- Body joint angles always from AMASS ---
-        for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):
-            for axis_idx, axis in enumerate(["x", "y", "z"]):
-                full_name = f"{joint_name}_{axis}"
-                if full_name in self.joint_to_qpos:
-                    qpos_idx = self.joint_to_qpos[full_name]
-                    # joint_angles[0] is Pelvis (root), skip it
-                    targets[qpos_idx] = joint_angles[joint_idx + 1, axis_idx]
+        elif self._mocap_id >= 0:
+            # No planner: hold the current mocap pose.
+            root_pose[0:3] = self.data.mocap_pos[self._mocap_id]
+            root_pose[3:7] = self.data.mocap_quat[self._mocap_id]
 
         return targets, root_pose
-    
+
     def _get_ik_targets(self, robot_state: dict) -> np.ndarray:
         """Get qpos targets from IK solver (body joints only — IK does not
         modify the root pose).
@@ -336,27 +246,12 @@ class HumanController:
         self.data.mocap_pos[self._mocap_id] = root_pose[0:3]
         self.data.mocap_quat[self._mocap_id] = root_pose[3:7]
 
-    def _apply_amass_frame(self, frame_idx: int):
-        """Directly set qpos from AMASS frame (for initialization)."""
-        if self.clip is None:
-            return
-
-        joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
-
-        # Root pose -> mocap (Pelvis is a mocap body, not in qpos)
-        if self._mocap_id >= 0:
-            self.data.mocap_pos[self._mocap_id] = root_trans
-            self.data.mocap_quat[self._mocap_id] = root_quat
-
-        # Set body joint qpos
-        for joint_idx, joint_name in enumerate(self.BODY_JOINT_NAMES):
-            for axis_idx, axis in enumerate(["x", "y", "z"]):
-                full_name = f"{joint_name}_{axis}"
-                if full_name in self.joint_to_qpos:
-                    qpos_idx = self.joint_to_qpos[full_name]
-                    self.data.qpos[qpos_idx] = joint_angles[joint_idx + 1, axis_idx]
-
-        # Forward kinematics
+    def _apply_standing_pose(self):
+        """Set the body-joint qpos to the fixed G1 standing pose."""
+        for joint_name in self.BODY_JOINT_NAMES:
+            qpos_idx = self.joint_to_qpos.get(joint_name)
+            if qpos_idx is not None:
+                self.data.qpos[qpos_idx] = self._standing_pose[qpos_idx]
         mujoco.mj_kinematics(self.model, self.data)
 
     def step(self, dt: float, robot_state: Optional[dict] = None):

@@ -31,6 +31,7 @@ import mujoco
 import numpy as np
 
 from safety_bigym.human.human_ik import HumanIK
+from safety_bigym.human import g1_spec
 from safety_bigym.scenarios.disruption_types import DisruptionConfig
 from safety_bigym.scenarios.scenario_sampler import ScenarioParams
 
@@ -132,7 +133,7 @@ class CoworkerArmController:
 
         # Cache the active arm's shoulder body id so the reach gate can
         # query world position cheaply each step.
-        shoulder_name = "R_Shoulder" if self._active_arm() == "right_arm" else "L_Shoulder"
+        shoulder_name = g1_spec.ARM_CHAINS[self._active_arm()]["shoulder_body"]
         self._active_shoulder_bid = int(
             mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, shoulder_name)
         )
@@ -299,10 +300,8 @@ class CoworkerArmController:
         # to its maximum-down configuration — wrist ends up near
         # hip/thigh level on the same side, which is what "arm hanging
         # at the side" looks like.
-        for chain, shoulder_name in (
-            ("right_arm", "R_Shoulder"),
-            ("left_arm", "L_Shoulder"),
-        ):
+        for chain in ("right_arm", "left_arm"):
+            shoulder_name = g1_spec.ARM_CHAINS[chain]["shoulder_body"]
             sid = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, shoulder_name
             )
