@@ -341,7 +341,11 @@ class SafetyBiGymEnv(BiGymEnv):
         model = self._mojo.model
         h_emit = self._HUMAN_EMIT_BIT
         r_emit = self._ROBOT_EMIT_BIT
+        skip_floor = bool(getattr(
+            self.safety_config, "disable_human_floor_collision", False
+        ))
         promoted = 0
+        floors_skipped = 0
         humans_repaired = 0
         for gid in range(model.ngeom):
             name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, gid)
@@ -358,6 +362,13 @@ class SafetyBiGymEnv(BiGymEnv):
                 continue
             is_robot = self._is_robot_geom(name)
             is_floor = name == "floor" or name.endswith("/floor") or "ground" in name.lower()
+            if is_floor and skip_floor:
+                # G1 bisection: leave the floor on its default bit-0 channel,
+                # so human <-> floor contacts are filtered out by MuJoCo's
+                # contype/conaffinity intersection. Robot <-> floor is
+                # unaffected (robot's bit-0 channel still overlaps the floor's).
+                floors_skipped += 1
+                continue
             if is_robot or is_floor:
                 # Cross-pair: emit on bit 2 (so human accepts), accept bit 1
                 # (so the human's emit reaches us). OR'd onto existing bits.
@@ -368,6 +379,8 @@ class SafetyBiGymEnv(BiGymEnv):
             f"Promoted {promoted} geoms onto human collision channel "
             f"(human_emit=bit1, robot_emit=bit2); reset {humans_repaired} "
             "human collision geoms onto the cross-paired channel."
+            + (f"; skipped {floors_skipped} floor geoms (disable_human_floor_collision=True)"
+               if floors_skipped else "")
         )
 
     # Backwards-compat alias: old code/tests may still read this constant.

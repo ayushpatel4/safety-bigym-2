@@ -180,3 +180,70 @@ def test_human_bits_exact(env):
         ca = int(model.geom_conaffinity[gid])
         assert ct == expected_ct, f"{name}: contype={ct:b}, expected {expected_ct:b}"
         assert ca == expected_ca, f"{name}: conaffinity={ca:b}, expected {expected_ca:b}"
+
+
+# ---------------------------------------------------------------------------
+# disable_human_floor_collision (2026-05-24 G1 bisection diagnostic)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def env_no_floor():
+    """SafetyBiGymEnv with disable_human_floor_collision=True."""
+    if not HAS_AMASS:
+        pytest.skip("AMASS_DATA_DIR not set")
+    from bigym.action_modes import JointPositionActionMode, PelvisDof
+    from safety_bigym import SafetyBiGymEnv, SafetyConfig, HumanConfig
+
+    action_mode = JointPositionActionMode(
+        floating_base=True,
+        absolute=True,
+        floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ],
+    )
+    human_config = HumanConfig(
+        motion_clip_dir=AMASS_DIR,
+        motion_clip_paths=["74/74_01_poses.npz"],
+    )
+    e = SafetyBiGymEnv(
+        action_mode=action_mode,
+        safety_config=SafetyConfig(
+            log_violations=False,
+            disable_human_floor_collision=True,
+        ),
+        human_config=human_config,
+        inject_human=True,
+    )
+    e.reset(seed=0)
+    yield e
+    e.close()
+
+
+def test_disable_human_floor_collision_filters_floor(env_no_floor):
+    """With disable_human_floor_collision=True, human<->floor pairs must
+    become filtered (contype/conaffinity intersection = 0)."""
+    model, humans, _, _, floors = _enumerate(env_no_floor)
+    assert len(humans) > 0
+    assert len(floors) > 0, "no floor geoms found (test setup issue)"
+    for hg, hn in humans:
+        for fg, fn in floors:
+            assert _collision_enabled(model, hg, fg) == 0, (
+                f"Human<->floor pair {hn} <-> {fn} is still collision-enabled "
+                f"despite disable_human_floor_collision=True"
+            )
+
+
+def test_disable_human_floor_collision_keeps_robot_pairs(env_no_floor):
+    """The flag must only suppress floor contacts, NOT human<->robot. PFL /
+    contact detection on the robot side must still be wired."""
+    model, humans, robots, _, _ = _enumerate(env_no_floor)
+    assert len(humans) > 0
+    assert len(robots) > 0
+    enabled_pairs = 0
+    for hg, _ in humans:
+        for rg, _ in robots:
+            if _collision_enabled(model, hg, rg) != 0:
+                enabled_pairs += 1
+    assert enabled_pairs > 0, (
+        "All human<->robot pairs are filtered when only floor was supposed to "
+        "be skipped. The flag's scope leaked into the robot cross-pair."
+    )

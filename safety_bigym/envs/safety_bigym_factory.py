@@ -173,6 +173,9 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 if safety_cfg_block.get("workspace_excess_cap", 1.0) is None
                 else float(safety_cfg_block.get("workspace_excess_cap", 1.0))
             ),
+            disable_human_floor_collision=bool(
+                safety_cfg_block.get("disable_human_floor_collision", False)
+            ),
         )
 
         # Build a ParameterSpace honouring any cfg.env.disruptions overrides.

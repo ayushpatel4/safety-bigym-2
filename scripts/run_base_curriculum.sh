@@ -106,6 +106,26 @@ else
   )
 fi
 
+# G1 floor-contact bisection toggle (2026-05-24). G1's feet contact the floor
+# every step (SMPL-H's pelvis was welded to world / weldid=0, so its floor
+# contacts were filtered by mjOPT_FILTERPARENT — G1 has no such weld). When
+# DISABLE_FLOOR_COLLISION=1, _configure_collision_bits leaves the floor on
+# its default bit-0 channel so human<->floor pairs become collision-filtered.
+# Tests whether G1 foot-floor contacts inject solver noise that propagates to
+# the robot and causes it to flee the workspace in stage 0.
+# Human<->robot contacts and SSM tracking are unaffected.
+#   DISABLE_FLOOR_COLLISION=0  -> default (G1 feet collide with floor)
+#   DISABLE_FLOOR_COLLISION=1  -> human<->floor contacts filtered out
+if [[ "${DISABLE_FLOOR_COLLISION:-0}" == "1" ]]; then
+  COMMON+=(
+    env.safety.disable_human_floor_collision=true
+  )
+else
+  COMMON+=(
+    env.safety.disable_human_floor_collision=false
+  )
+fi
+
 if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
   STAGE1_FRAMES=0

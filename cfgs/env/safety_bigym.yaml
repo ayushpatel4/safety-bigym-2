@@ -45,6 +45,13 @@ env:
     workspace_radius: 0.4
     workspace_beta: 0.05
     workspace_excess_cap: 1.0
+    # G1 bisection diagnostic (2026-05-24). When true, the env skips the
+    # floor's collision-bit promotion in _configure_collision_bits so
+    # human <-> floor contacts are filtered out. Tests whether G1 foot-floor
+    # contacts are the regression mechanism since the G1 swap (SMPL-H's pelvis
+    # was welded to world / weldid=0, so its floor contacts were already
+    # filtered by mjOPT_FILTERPARENT — G1's feet are not).
+    disable_human_floor_collision: false
 
   # COWORKER is the only disruption type for the G1 coworker. The five
   # continuous COWORKER axes can be widened/narrowed here.
