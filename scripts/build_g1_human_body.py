@@ -42,6 +42,21 @@ MESH_COL_NAME = {
     "head_link": "head",
 }
 
+# Material recolor (2026-05-24). The vendored Unitree mujoco_menagerie model
+# renders the G1 as dark/metallic (`black` rgba 0.2/0.2/0.2, `metal` rgba
+# 0.7/0.7/0.7). On the saucepan_to_hob G1 base-curriculum the high-contrast
+# dark silhouette disrupted the CQN-AS CNN encoder enough to break task
+# learning (robot retreated from workspace); MASK_PIXELS=1 confirmed the CNN
+# was in the failure path. Recoloring to warm skin-tones moves G1 closer to
+# the kitchen-background distribution the CNN learned from coworker-free
+# demos, so it can extract task features without the encoder being dominated
+# by the G1 blob. Keyed by ORIGINAL menagerie material name (the script
+# prefixes ``g1_`` after the recolor map is applied).
+MATERIAL_RECOLOR = {
+    "black": "0.90 0.78 0.65 1",   # warm light skin (was 0.2 0.2 0.2)
+    "metal": "0.78 0.66 0.55 1",   # slightly darker accent (was 0.7 0.7 0.7)
+}
+
 
 def _strip_ns(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
@@ -81,6 +96,10 @@ def main() -> None:
         m.set("name", new)
     for mat in asset.findall("material"):
         name = mat.get("name")
+        # Recolor BEFORE prefixing so the lookup key matches the vendored
+        # menagerie name (see MATERIAL_RECOLOR for the why).
+        if name in MATERIAL_RECOLOR:
+            mat.set("rgba", MATERIAL_RECOLOR[name])
         new = f"g1_{name}"
         mat_rename[name] = new
         mat.set("name", new)

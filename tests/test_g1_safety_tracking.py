@@ -128,6 +128,59 @@ def test_iso_wrapper_picks_up_g1_col_geoms(standalone_model):
     assert len(wrapper.human_geoms) == n_col
 
 
+def test_g1_materials_recolored_to_skin_tone(standalone_model):
+    """G1 must render as skin-tone, not the vendored menagerie dark/metallic.
+
+    Background: the menagerie defaults (`black` rgba 0.2/0.2/0.2 and `metal`
+    rgba 0.7/0.7/0.7) made G1 a high-contrast dark silhouette in the head /
+    wrist cams; on the saucepan_to_hob G1 base curriculum that disrupted the
+    CQN-AS CNN encoder enough that the policy retreated from the workspace
+    (attempts 2-4 all degenerated; MASK_PIXELS=1 confirmed the CNN was in the
+    failure path). Recoloring to warm skin-tone moves the coworker closer to
+    the demo-distribution kitchen background the CNN was trained on.
+
+    If anyone regenerates ``g1_human_body.xml`` via
+    ``scripts/build_g1_human_body.py``, the script's ``MATERIAL_RECOLOR`` dict
+    must keep these in sync.
+    """
+    m = standalone_model
+    black_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "g1_black")
+    metal_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_MATERIAL, "g1_metal")
+    assert black_id >= 0, "g1_black material missing from G1 model"
+    assert metal_id >= 0, "g1_metal material missing from G1 model"
+    black_rgba = m.mat_rgba[black_id]
+    metal_rgba = m.mat_rgba[metal_id]
+    # Must not be the menagerie defaults.
+    assert not np.allclose(black_rgba[:3], [0.2, 0.2, 0.2], atol=1e-3), (
+        f"g1_black still at menagerie default rgba={black_rgba.tolist()} — "
+        f"recolor missing; G1 will render dark/metallic and break CNN training."
+    )
+    assert not np.allclose(metal_rgba[:3], [0.7, 0.7, 0.7], atol=1e-3), (
+        f"g1_metal still at menagerie default rgba={metal_rgba.tolist()} — "
+        f"recolor missing."
+    )
+    # Pin the current skin-tone values so a silent regression on a single
+    # channel is caught.
+    np.testing.assert_allclose(black_rgba[:3], [0.90, 0.78, 0.65], atol=1e-3)
+    np.testing.assert_allclose(metal_rgba[:3], [0.78, 0.66, 0.55], atol=1e-3)
+
+
+def test_merged_world_mjcf_loads_with_recolor(coworker_env):
+    """The merged world (BiGym task + G1) must still load with the recolored
+    G1 materials. ``coworker_env`` constructs ``SafetyBiGymEnv``, which goes
+    through ``_create_merged_world`` and rewrites mesh paths; if the recolor
+    accidentally broke that merge, this fixture would fail before this test
+    body. The body verifies the materials survive the merge.
+    """
+    model = coworker_env.unwrapped._mojo.model
+    black_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, "g1_black")
+    metal_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_MATERIAL, "g1_metal")
+    assert black_id >= 0
+    assert metal_id >= 0
+    np.testing.assert_allclose(model.mat_rgba[black_id][:3], [0.90, 0.78, 0.65], atol=1e-3)
+    np.testing.assert_allclose(model.mat_rgba[metal_id][:3], [0.78, 0.66, 0.55], atol=1e-3)
+
+
 # ---------------------------------------------------------------------------
 # B. SSM — live signal. Must respond to proximity, fire on overlap, and label
 #    the closest joint/link with G1 names.

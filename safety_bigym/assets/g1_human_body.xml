@@ -19,8 +19,8 @@
     </default>
   </default>
   <asset>
-    <material name="g1_black" rgba="0.2 0.2 0.2 1"/>
-    <material name="g1_metal" rgba="0.7 0.7 0.7 1"/>
+    <material name="g1_black" rgba="0.90 0.78 0.65 1"/>
+    <material name="g1_metal" rgba="0.78 0.66 0.55 1"/>
     <mesh file="pelvis.STL" name="g1_pelvis"/>
     <mesh file="pelvis_contour_link.STL" name="g1_pelvis_contour_link"/>
     <mesh file="left_hip_pitch_link.STL" name="g1_left_hip_pitch_link"/>
