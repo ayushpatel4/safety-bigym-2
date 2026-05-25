@@ -119,3 +119,66 @@ def test_empty_dict_is_silent(_log_capture):
     Workspace, stream = _log_capture
     Workspace._log(_StubWorkspace(), {}, step=400, ty="train")
     assert "step=400" not in stream.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# step_marks_task_success — clean task-quality signal under workspace shaping
+# ---------------------------------------------------------------------------
+
+
+def _ts(info):
+    """Build a minimal time_step-like object with .info."""
+    from types import SimpleNamespace
+    return SimpleNamespace(info=info)
+
+
+def test_step_marks_task_success_fires_on_success_info():
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    assert step_marks_task_success(_ts({"task_success": 1.0})) is True
+
+
+def test_step_marks_task_success_false_on_zero():
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    assert step_marks_task_success(_ts({"task_success": 0.0})) is False
+
+
+def test_step_marks_task_success_false_on_missing_key():
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    # info dict present but no task_success entry
+    assert step_marks_task_success(_ts({"safety": {}})) is False
+
+
+def test_step_marks_task_success_false_on_no_info_attr():
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    from types import SimpleNamespace
+    # No `info` attribute at all (e.g. demo TimeSteps in some pre-D paths)
+    assert step_marks_task_success(SimpleNamespace()) is False
+
+
+def test_step_marks_task_success_false_on_non_dict_info():
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    # info is something weird (None, list, etc) — should not raise, just False
+    assert step_marks_task_success(_ts(None)) is False
+    assert step_marks_task_success(_ts([])) is False
+
+
+def test_step_marks_task_success_handles_bad_value_types():
+    """Defensive: a corrupt info["task_success"] (e.g. string) must not crash
+    the train/eval loop with a TypeError."""
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    assert step_marks_task_success(_ts({"task_success": "yes"})) is False
+    assert step_marks_task_success(_ts({"task_success": None})) is False
+
+
+def test_step_marks_task_success_truthy_on_partial_value():
+    """A non-1.0 positive value still counts as success (some envs may emit
+    success as a partial score; we treat >0 as success)."""
+    os.environ.setdefault("MUJOCO_GL", "glfw")
+    from train_cqn_as import step_marks_task_success
+    assert step_marks_task_success(_ts({"task_success": 0.5})) is True

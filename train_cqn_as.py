@@ -56,6 +56,27 @@ def make_agent(rgb_obs_spec, low_dim_obs_spec, action_spec, action_sequence, cfg
     return hydra.utils.instantiate(cfg)
 
 
+def step_marks_task_success(time_step) -> bool:
+    """Did this time_step's env-info dict signal a task-success?
+
+    Reads ``info["task_success"]`` (populated by BiGym's base env at
+    ``bigym_env.py:329`` as ``float(self.success)`` — 1.0 on the success
+    step, 0.0 otherwise; the env terminates immediately after a success
+    fires, so any True observation during an episode means the episode
+    completed the task). Used by both train() and eval() to log a clean,
+    shaping-independent task-quality metric (workspace shaping makes
+    episode_reward strongly negative even for successful eps, so reward is
+    no longer a reliable success indicator).
+    """
+    info = getattr(time_step, "info", None)
+    if not isinstance(info, dict):
+        return False
+    try:
+        return float(info.get("task_success", 0.0)) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 class Workspace:
     def __init__(self, cfg: DictConfig):
         self.work_dir = Path.cwd()
@@ -319,6 +340,13 @@ class Workspace:
 
         episode_step = 0
         episode_reward = 0.0
+        # Per-episode task-success tracker. info["task_success"] = 1.0 only on
+        # the success step; the env terminates immediately after, so any True
+        # observation during the episode means it completed the task. Logged
+        # at episode-end as train/episode_success — read this rather than
+        # train/episode_reward when judging task progress under workspace
+        # shaping (which makes episode_reward negative even for successful eps).
+        episode_success = False
         action = None
         metrics: dict = {}
 
@@ -332,6 +360,7 @@ class Workspace:
                     {
                         "episode_reward": episode_reward,
                         "episode_length": episode_step,
+                        "episode_success": float(episode_success),
                         "episode": self._global_episode,
                         "buffer_size": len(self.replay_storage),
                     },
@@ -350,6 +379,7 @@ class Workspace:
                     self.demo_replay_storage.add(time_step)
                 episode_step = 0
                 episode_reward = 0.0
+                episode_success = False
 
             if (
                 self.global_step >= self.cfg.eval_every_frames
@@ -426,6 +456,8 @@ class Workspace:
             sub_action = self.agent.add_noise_to_action(sub_action, self.global_step)
             time_step = self.train_env.step(sub_action)
             episode_reward += time_step.reward
+            if step_marks_task_success(time_step):
+                episode_success = True
             self.replay_storage.add(time_step)
             if self._demos_enabled:
                 self.demo_replay_storage.add(time_step)
@@ -464,6 +496,14 @@ class Workspace:
 
     def eval(self) -> None:
         step, episode, total_reward = 0, 0, 0.0
+        # Task-success rate is the ground-truth quality metric — eval/episode_reward
+        # is contaminated by the workspace-shaping dense penalty (a fully-successful
+        # episode under shaping can still log a strongly negative episode_reward
+        # because of the accumulated -beta·excess per-step term). BiGym already
+        # emits ``info["task_success"] = float(self.success)`` at each step
+        # (bigym_env.py:329) and the env_adapter forwards it onto time_step.info.
+        # An episode counts as a success if any step had task_success > 0.
+        total_success = 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
 
         # cfg.save_video gates per-eval-cycle video recording. Only the first
@@ -477,6 +517,7 @@ class Workspace:
 
         while eval_until_episode(episode):
             episode_step = 0
+            episode_success = False
             time_step = self.train_env.reset()
             if self.cfg.temporal_ensemble:
                 self.eval_temporal_ensemble.reset()
@@ -508,10 +549,14 @@ class Workspace:
                 total_reward += time_step.reward
                 step += 1
                 episode_step += 1
+                if step_marks_task_success(time_step):
+                    episode_success = True
                 if record_video and episode == 0:
                     frame = render_frame(self.train_env, global_step=self.global_step)
                     if frame is not None:
                         frames.append(frame)
+            if episode_success:
+                total_success += 1
             episode += 1
 
         if record_video and frames:
@@ -526,6 +571,10 @@ class Workspace:
             {
                 "episode_reward": total_reward / max(episode, 1),
                 "episode_length": step / max(episode, 1),
+                # success_rate is the un-shaped task quality signal — read this
+                # one when judging whether a snapshot trained the task.
+                "success_rate": total_success / max(episode, 1),
+                "num_successes": total_success,
                 "episode": self._global_episode,
             },
             self.global_step,
