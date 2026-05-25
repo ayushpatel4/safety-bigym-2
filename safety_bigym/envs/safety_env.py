@@ -759,6 +759,27 @@ class SafetyBiGymEnv(BiGymEnv):
         "cabinet_door_left", "cabinet_door_right", "shelf", "tray",
     )
 
+    def _scene_attrs_for_task(self) -> tuple:
+        """Return the SCENE-attr scan order for workspace shaping.
+
+        The default order in ``_TASK_OBJECT_ATTRS_SCENE`` is fine for most
+        tasks but wrong for ``WallCupboardOpen/Close``: those tasks have
+        BOTH ``cabinet_drawers`` (base counter, unused by the task) AND
+        ``cabinet_wall`` (the wall cupboard, the actual target) attached to
+        the env, and the static list picks ``cabinet_drawers`` first —
+        which would pull the workspace shaping toward the wrong cabinet.
+
+        Look up the task name and override the order for known cases.
+        """
+        name = (getattr(self, "task_name", "") or "").lower()
+        if "wallcupboard" in name:
+            return (
+                "cabinet_wall", "cabinet_drawers", "cabinet_base",
+                "cabinet_door_left", "cabinet_door_right",
+                "dishwasher", "shelf", "tray",
+            )
+        return self._TASK_OBJECT_ATTRS_SCENE
+
     def _lookup_task_object_pos(self) -> Optional[np.ndarray]:
         # ReachTarget-style tasks: a list of TargetSphere objects.
         try:
@@ -788,7 +809,7 @@ class SafetyBiGymEnv(BiGymEnv):
             if pos is not None:
                 return pos
 
-        for attr in self._TASK_OBJECT_ATTRS_SCENE:
+        for attr in self._scene_attrs_for_task():
             obj = getattr(self, attr, None)
             if obj is None:
                 continue

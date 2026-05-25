@@ -56,9 +56,15 @@ RUN_TAG="${RUN_TAG:-base_curriculum_$(date +%Y%m%d_%H%M%S)}"
 OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
 mkdir -p "${OUTDIR}"
 
+# Task selector (2026-05-25). The curriculum has been validated on
+# `saucepan_to_hob` (the anchor task). Use `TASK=<name>` to point at any other
+# yaml under cfgs/env/safety_bigym/ — e.g. `TASK=wall_cupboard_close` to
+# confirm generality of the G1 operating config across tasks.
+TASK="${TASK:-saucepan_to_hob}"
+
 # Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
 COMMON=(
-  env=safety_bigym/saucepan_to_hob
+  env=safety_bigym/${TASK}
   bodyslam=oracle
   num_demos=36
   agent.v_min=-6.0
