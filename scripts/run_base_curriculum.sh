@@ -68,15 +68,30 @@ COMMON=(
   save_video=true
 )
 
-# Workspace shaping toggle (2026-05-23). The bounded penalty was added to fix
-# the SMPL-H demo-less evacuation collapse, but on G1 (PR #10) it fights the
-# CNN's task-feature extraction: the from-scratch G1 stage-0 attempt
-# (`base_curriculum_20260523_162757`) converged to deliberate early
-# termination at the workspace floor (~278-step episodes, reward ~−13). So
-# the toggle is exposed: re-enable per-stage if needed.
-#   WORKSPACE_PENALTY=0  -> add_workspace_penalty=false (default for G1 stage 0)
-#   WORKSPACE_PENALTY=1  -> add_workspace_penalty=true  with beta=0.05, cap=1.0
-if [[ "${WORKSPACE_PENALTY:-0}" == "1" ]]; then
+# G1 OPERATING CONFIG (locked 2026-05-25).
+# The G1 base-curriculum bisection (attempts 1–6 over 2026-05-22 → 2026-05-25)
+# established that:
+#   - G1 RGB in the CNN encoder caused the policy to flee the workspace
+#     under any reward signal (workspace shaping ON -> race-to-fail at the
+#     10m fail() boundary, eps collapse to 300; shaping OFF -> long drift,
+#     no task engagement). Recoloring G1 (skin-tone), disabling G1<->floor
+#     contacts, neither closed the gap to the SMPL-H baseline.
+#   - The one G1 stage-0 config that converges to task-attempting behaviour
+#     with stable 800-1000 step episodes is MASK_PIXELS=1 (rgb_obs zeroed to
+#     the agent) + WORKSPACE_PENALTY=1 (bounded shaping pulls the EE back
+#     toward the task centre). At 30k frames it reached ep_reward -5.8,
+#     beating the SMPL-H baseline's -7.2 best on the same anchor.
+# DEFAULTS BELOW are set for that config. Override to 0 if you ever want to
+# revisit the RGB / shaping-off paths. The visual axis being absent is a
+# documented limitation, not a transient toggle — actor + critic are blind
+# to RGB during G1 training, by design.
+#
+# Toggles:
+#   WORKSPACE_PENALTY=1  (default) add_workspace_penalty=true (beta=0.05, cap=1.0)
+#   WORKSPACE_PENALTY=0           add_workspace_penalty=false
+#   MASK_PIXELS=1        (default) env_adapter zeros rgb_obs (encoder shape unchanged)
+#   MASK_PIXELS=0                 rgb_obs passes through (re-enables CNN on G1; degenerate)
+if [[ "${WORKSPACE_PENALTY:-1}" == "1" ]]; then
   COMMON+=(
     env.safety.add_workspace_penalty=true
     env.safety.workspace_beta=0.05
@@ -88,15 +103,7 @@ else
   )
 fi
 
-# CNN-bottleneck diagnostic toggle (2026-05-24). G1 base-curriculum recovery
-# plan Step 1: if MASK_PIXELS=1, the env_adapter zeros rgb_obs after building
-# it — same architecture (num_views=3), but the CNN gets no task signal in
-# RGB. If stage 0 trains under MASK_PIXELS=1 where vanilla G1 stage 0 fails,
-# the visual encoder is the bottleneck (Step 2 — recolor + RGB aug becomes
-# the durable fix). If it ALSO fails, the cause is elsewhere (Step 4).
-#   MASK_PIXELS=0  -> mask_pixels=false (default)
-#   MASK_PIXELS=1  -> mask_pixels=true  (rgb_obs zeroed)
-if [[ "${MASK_PIXELS:-0}" == "1" ]]; then
+if [[ "${MASK_PIXELS:-1}" == "1" ]]; then
   COMMON+=(
     mask_pixels=true
   )

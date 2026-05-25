@@ -1,7 +1,7 @@
 # Implementation Status — Hybrid Safety Critic
 
-Last updated: 2026-05-23
-Active branch: `safety-critic/phase-3-constrained-rl` (P3.1 + BASE-FIX work; `main` now carries the G1 coworker swap — PR #10 — merged independently while phase-3 ran)
+Last updated: 2026-05-25
+Active branch: `safety-critic/phase-3-constrained-rl` (G1 base-curriculum bisection complete; operating config locked at MASK_PIXELS=1 + WORKSPACE_PENALTY=1; stage 0 unblocked; ready for stages 1+2 + P3.1)
 Plan: [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
 Initial-phase plan: [/Users/ayushpatel/.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md](../../.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md)
 Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
@@ -13,45 +13,55 @@ Phase 2 writeup: [phase2_results.md](phase2_results.md) (implementation + B5 res
 
 ## Next session — start here
 
-**Phase 0/0.5/1/2 done; P3.0 (Phase 3 scaffolding) done and merged. Workstream D (CQN-AS demo pipeline) done. BASE-FIX gate passed; staged curriculum complete (stages 0+1 task-completing; stage 2 under full `coworker_train` ran end-to-end but reward degraded −2.4 → −10.5 — the unconstrained baseline P3.1 will compare against). P3.1 (the Lagrangian glue) is CODE COMPLETE + unit-tested + warm-start partial-load ready, on branch `safety-critic/phase-3-constrained-rl`.**
+**G1 base curriculum stage 0 unblocked (2026-05-25).** After six failed attempts since the G1 swap, the working operating config is **`MASK_PIXELS=1 + WORKSPACE_PENALTY=1`**: the env_adapter zeroes `rgb_obs` after building it (encoder shape unchanged at `num_views=3`, but the CNN sees no task signal in RGB) and the bounded workspace penalty (β=0.05, cap=1.0) pulls the EE back toward the task centre. Stage 0 (30k, `coworker_idle`) reached `episode_reward = -5.8` at step 15871 — **beats** the SMPL-H baseline's -7.2 best on the same anchor — and episode lengths stayed 900–1000 throughout. Videos show consistent task attempts. Working snapshot: `exp_local/cqn_as_base_curriculum/base_curriculum_20260524_232353/stage0_idle/snapshot_30000.pt`.
 
-**🟡 Branch state (2026-05-23):** `main` got the **Unitree G1 coworker swap** (PR #10, commit `8beb0ec`) merged independently while phase-3 was on its own track. Phase-3 is **13 ahead / 2 behind** `origin/main` and **never pushed**. Three files have overlapping edits (`safety_env.py`, `safety_bigym_factory.py`, `cfgs/env/safety_bigym.yaml`). **Merge `origin/main` into the phase-3 branch before any GPU launch** — the workspace shaping path reads the EE, and H1's `link_pos["ee"]` path may have a G1 analogue worth re-verifying.
+**Documented limitation (G1 only):** the CQN-AS actor + critic train **without RGB** on G1. The full bisection (workspace shaping bounded by C51 support, G1 mesh recolor to skin-tone, G1↔floor contact disable) couldn't recover the CNN's task-feature extraction with the G1 humanoid visible in RGB — under shaping ON the policy raced the pelvis past the 10m `fail()` boundary to minimise accrued penalty; under shaping OFF it drifted without task engagement. `MASK_PIXELS=1` is the only config that converged. RGB recovery is deferred (out of scope for the Lagrangian P3.1 comparison; the matched A/B holds under any input config as long as both sides use the same one). See `g1-base-curriculum-degenerate` memory for the bisection log.
 
-### 🔴 Do this first — merge main (G1) into phase-3, then launch P3.1
+### Do this first — chain stage 1 → stage 2 on the new G1 base
 
-1. `git fetch && git merge origin/main` on `safety-critic/phase-3-constrained-rl`. Resolve the 3 overlapping files (G1 wiring on the floor, phase-3 additions on top: `_compute_workspace_penalty`, `workspace_excess_cap` threading, workspace yaml defaults).
-2. Re-run `pytest tests/` + `python scripts/phase3_p30_smoke.py` against the merged tree (sanity-check the EE lookup under G1).
-3. **P3.1 launch — warm-start P3.1 from the stage-1 base snapshot** (matched single-variable comparison vs the stage-2 unconstrained baseline; see decision log 2026-05-23):
-   ```bash
-   export AMASS_DATA_DIR=... MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
-   python train_cqn_as.py +snapshot_path=<stage1_snapshot.pt> \
-     agent=cqn_as_lagrangian env=safety_bigym/saucepan_to_hob \
-     disruption=coworker_train bodyslam=oracle num_demos=36 \
-     num_train_frames=40000 env.safety.add_workspace_penalty=true \
-     agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
-     save_snapshot=true save_video=true \
-     wandb.use=true wandb.name=p31_warmstart_$(date +%s)
-   ```
-   The `LagrangianCQNASAgent.load_state_dict` partial-load (commit `225a2db`) handles the no-cost-keys case: reward side restores from the base, `Q_c`+λ stay at fresh init.
-4. Smoke at 2000 frames first; then queue the full 40k matched to the stage-2 budget.
-5. Commit/branch decisions: ask the user; never `main`. Phase-3 still needs a push + PR.
+`scripts/run_base_curriculum.sh` defaults are now **`MASK_PIXELS=1` / `WORKSPACE_PENALTY=1`** (locked 2026-05-25). Running with no flags chains all three stages with snapshot resume:
 
-**Why D existed:** the C2 (E1.4) re-run came back **degenerate** (31-step episodes, robot fleeing the human, identical off/oracle/noisy curves). Diagnosed as `num_demos=0` (CQN-AS is demo-driven) + no workspace shaping. The demo pipeline is now wired.
+```bash
+export AMASS_DATA_DIR=... MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+cd safety_bigym && source venv/bin/activate
+scripts/run_base_curriculum.sh                # stages 0 → 1 → 2 chained
+```
 
-### 🔴 Do this first — GPU-box smokes for Workstream D, then Phase 3
+Or skip stage 0 (we already have a usable snapshot) and run 1 → 2 only — point the chain at the working snapshot via the `RESUME_*` convention or just rerun stage 0 (~1h on swirl):
 
-`SafetyBiGymCQNAdapter.get_demos()` is implemented; D0/D1/D2/D3a/D3b-smoke are done. The 2000-frame smoke on the GPU box passed cleanly on 2026-05-20 (10 demos loaded, replay filled, train loop clean, ep1 ran the full 1000-step budget — the smoking-gun signal that demos unblock non-degenerate learning). **One run left:**
-- **~30–50k-frame validation** with demos + workspace shaping (single bodyslam mode, oracle):
-  ```bash
-  export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
-  python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
-    bodyslam=oracle num_demos=10 num_train_frames=50000 \
-    env.safety.add_workspace_penalty=true \
-    wandb.use=true wandb.name=cqn_as_demos_validation_$(date +%s)
-  ```
-  Expect: non-trivial `episode_reward > 0` on some episodes, episode lengths staying long (not collapsing back to 31-step evacuation), and `safety/ssm_violation` rate trending down or stable.
+```bash
+# Quickest: rerun the full chain. Stage 0 reproduces in <1.5h, stages 1+2 chain off it.
+scripts/run_base_curriculum.sh
+```
 
-Then **proceed straight to P3.1** (the Lagrangian glue). **We are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
+**Acceptance gates:**
+- **Stage 1 (`coworker_easy`, 30k):** ep_reward should stay roughly in the stage-0 band (-10 to -5) or improve; ep_length 800–1000; videos show task attempts persist with the gentler coworker. If reward drops below -30 or eps collapse to ~300, the curriculum is regressing — stop and reassess.
+- **Stage 2 (`coworker_train`, 40k):** the unconstrained baseline P3.1 must beat. The pre-G1 SMPL-H stage 2 baseline ran -2.4 → -10.5 under full disruption; G1 stage 2 with the new config should reach similar territory.
+
+### Then P3.1 — warm-start from the new G1 stage-1 snapshot
+
+After stage 1 lands, launch P3.1 from its final snapshot (matched comparison vs the eventual G1 stage-2 unconstrained baseline):
+
+```bash
+SNAP1=exp_local/cqn_as_base_curriculum/<run_tag>/stage1_easy/snapshot_30000.pt
+python train_cqn_as.py +snapshot_path=$SNAP1 \
+  agent=cqn_as_lagrangian env=safety_bigym/saucepan_to_hob \
+  disruption=coworker_train bodyslam=oracle num_demos=36 \
+  num_train_frames=40000 mask_pixels=true \
+  env.safety.add_workspace_penalty=true \
+  env.safety.workspace_beta=0.05 env.safety.workspace_excess_cap=1.0 \
+  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
+  save_snapshot=true save_video=true \
+  wandb.use=true wandb.name=p31_warmstart_$(date +%s)
+```
+
+`LagrangianCQNASAgent.load_state_dict` partial-load (commit `225a2db`) handles the no-cost-keys case: reward side restores from the base, `Q_c`+λ stay at fresh init. `mask_pixels=true` is essential — P3.1's encoder must match the base policy's input distribution.
+
+### Stale entries to ignore (superseded by 2026-05-25 result)
+
+- The "merge main (G1) into phase-3" item — done (`9add427`, 2026-05-23).
+- The "30–50k-frame validation with workspace shaping" (Workstream D D3b) — superseded; the G1 base curriculum is the current validation pathway and stage 0 has passed.
+- Anything in Workstreams B/C/D below referencing G1 stage 0 as "blocking" — the gate is now cleared.
 
 ### What to do when the re-run C2 cells finish
 

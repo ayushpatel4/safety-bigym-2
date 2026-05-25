@@ -6,15 +6,34 @@ Generated alongside the updates to `UPDATED_PROJECT_PLAN.md`, `HYBRID_SAFETY_CRI
 
 ---
 
-## TL;DR — three structural changes (status as of 2026-05-20)
+## TL;DR — three structural changes (status as of 2026-05-25)
 
 | Change | Status of corresponding code | Status of corresponding writing |
 |---|---|---|
 | **(1) Single COWORKER disruption** | DONE (3 trajectory modes, 5 param axes, train/eval factories, 19 tests) | Documented |
-| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation (C2) is mid-flight (re-run pending after the snapshot-cadence fix). | Documented as the target architecture; value-based equations |
+| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation deferred to E3.6. | Documented as the target architecture; value-based equations |
 | **(3) Workspace reward shaping** | DONE — `SafetyConfig.add_workspace_penalty` wired through factory + `_reward()` (P3.0a). β-sweep (E3.X.workspace) still pending. | Documented as a method subsection + experiment E3.X.workspace |
 
-All three structural changes are now implemented. The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax_a [Q_r − λ·Q_c]` + Q_c training-loop integration), gated on the C3 obs-config decision from the E1.4 re-run. See IMPLEMENTATION_STATUS "Next session — start here".
+All three structural changes are now implemented. **G1 base-curriculum bisection complete (2026-05-25):** the operating config is `MASK_PIXELS=1 + WORKSPACE_PENALTY=1` (both now defaults in `scripts/run_base_curriculum.sh`). Stage 0 cleared the gate on `saucepan_to_hob` at `ep_reward = -5.8`. Visual axis (RGB encoder feeding the actor + critic) is intentionally muted on G1 — the bisection couldn't recover the CNN's task-feature extraction with the G1 humanoid in frame, and the matched Lagrangian P3.1 A/B holds under any input config as long as both sides use the same one. See [IMPLEMENTATION_STATUS](IMPLEMENTATION_STATUS.md) "Next session" for the stage 1 → stage 2 → P3.1 launch sequence.
+
+### G1 base-curriculum bisection (2026-05-22 → 2026-05-25)
+
+Six failed G1 stage-0 attempts after the G1 merge (`9add427`) revealed that
+the CQN-AS CNN encoder couldn't extract task features from RGB with the G1
+humanoid visible. The bisection ruled out:
+
+- **Visual appearance (color):** G1 mesh recolor to skin-tone (`0.90/0.78/0.65` materials in `g1_human_body.xml`, `MATERIAL_RECOLOR` in `scripts/build_g1_human_body.py`). Didn't help. Tests pin the values: `tests/test_g1_safety_tracking.py::test_g1_materials_recolored_to_skin_tone`.
+- **Floor contacts:** SMPL-H's pelvis was welded to world (weldid=0) so its floor contacts were filtered by `mjOPT_FILTERPARENT`; G1's feet are not. Added `SafetyConfig.disable_human_floor_collision` + threading + `DISABLE_FLOOR_COLLISION=1` toggle on the curriculum script. Tests cover the filter behaviour. Didn't help.
+
+The fix that worked: zero `rgb_obs` at the env_adapter boundary
+(`mask_pixels=true`), keeping the encoder architecture identical
+(`num_views=3`) but feeding the CNN uniform zeros. Confirmed end-to-end:
+`ep_reward = -5.8` beats the pre-G1 SMPL-H baseline's `-7.2` best at the
+same anchor. Side wins from this work:
+
+- **`train_cqn_as.py::_log` regression fix** — per-update metrics (`q_critic_loss`, `bc_fosd_loss`, `bc_margin_loss`, `batch_reward`) were being silently swallowed because `len(TensorDict)` returns the batch-size first dim (0 for our empty-batch metric TDs), not the key count. Replaced with `list(metrics.items())`. Regression test: `tests/test_cqn_as_log_metrics.py` (4 tests).
+- **`scripts/diagnose_g1_camera_visibility.py`** — Renders the policy head/wrist cams (separate from `env.render()`'s third-person view) so we can see what the CNN sees.
+- **`scripts/diagnose_human_pos_channel_mismatch.py`** — Compares demo (AMASS-injected) vs live G1 `human_pos_estimate` distributions side by side. Quantified the demo↔live channel gap (y-mean 3.2m, 22x std ratio) which existed for SMPL-H too — confirming the channel mismatch was not the cause.
 
 ---
 
