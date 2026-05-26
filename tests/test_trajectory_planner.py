@@ -200,7 +200,18 @@ def test_scenario_sampler_trajectory_params():
             assert 4.0 <= scenario.loiter_duration <= 10.0, (
                 f"loiter_duration out of range: {scenario.loiter_duration}"
             )
-        assert 1.0 <= scenario.walk_speed <= 2.0, f"walk_speed out of range: {scenario.walk_speed}"
+        # walk_speed bands depend on disruption type. COWORKER uses
+        # `coworker_walk_speed_range` (train default (0.8, 1.3) after the
+        # 2026-05-26 slowdown); legacy non-COWORKER cells use the broader
+        # `walk_speed_range` default (1.0, 2.0).
+        if scenario.disruption_type == DisruptionType.COWORKER:
+            assert 0.8 <= scenario.walk_speed <= 1.3, (
+                f"COWORKER walk_speed out of range: {scenario.walk_speed}"
+            )
+        else:
+            assert 1.0 <= scenario.walk_speed <= 2.0, (
+                f"walk_speed out of range: {scenario.walk_speed}"
+            )
     
     print(f"  Trajectory types seen: {trajectory_types_seen}")
     assert len(trajectory_types_seen) >= 2, \

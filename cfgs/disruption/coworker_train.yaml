@@ -29,4 +29,8 @@ env:
     coworker_reach_period_range: [4.5, 6.5]
     coworker_target_mix_p_ee_range: [0.4, 0.6]
     coworker_near_loiter_range: [7.0, 11.0]
-    coworker_walk_speed_range: [1.0, 1.6]
+    # walk_speed slowed ~25 % from [1.0, 1.6] on 2026-05-26. Upper bound no
+    # longer touches ISO 15066 v_h_max so worst-case ssm_violation should fire
+    # less; ssm_violation_actual and proximity_violation are the load-bearing
+    # safety axes anyway (docs/safety_metrics.md).
+    coworker_walk_speed_range: [0.8, 1.3]
