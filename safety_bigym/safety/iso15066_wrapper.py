@@ -43,39 +43,51 @@ class ContactInfo:
 
 @dataclass
 class SafetyInfo:
+    """Safety monitoring output. Schema is the per-step ``info["safety"]``
+    contract documented in ``docs/safety_metrics.md`` — three SSM/proximity
+    flavours plus contact / kinematic diagnostics.
     """
-    Safety monitoring output.
-    
-    This is the interface that will be used in Phase 8 for training.
-    """
-    
-    # Binary flags
+
+    # --- Three SSM / proximity flavours (docs/safety_metrics.md) ---
+    # Conservative ISO 15066 SSM using v_h = v_h_max.
     ssm_violation: bool = False
+    # Velocity-adaptive ISO 15066 SSM using observed human velocity.
+    ssm_violation_actual: bool = False
+    # Pure geometric: min_separation < proximity_threshold (thesis primary).
+    proximity_violation: bool = False
+    # PFL contact-force violation (any ratio >= 1.0).
     pfl_violation: bool = False
-    
-    # Proportional signals for reward shaping
-    ssm_margin: float = float('inf')  # d_min - S_p (negative = violation)
-    pfl_force_ratio: float = 0.0      # max(F_actual / F_limit) across regions
-    
-    # Logging and analysis
+
+    # --- Margins / ratios for reward shaping & cost signal ---
+    ssm_margin: float = float('inf')         # d_min - S_p(v_h_max)
+    ssm_margin_actual: float = float('inf')  # d_min - S_p(observed v_h)
+    pfl_force_ratio: float = 0.0             # max(F / F_limit) across regions
+
+    # --- Kinematic diagnostics ---
     min_separation: float = float('inf')
     max_contact_force: float = 0.0
     contact_region: str = ""
     contact_type: str = ""
-    
+    # Observed peak velocities used in this step's SSM math. ``human_vel``
+    # is the value passed to compute_separation_distance for the actual
+    # variant (env caps at v_h_max). ``robot_vel`` is the observed max link
+    # speed used for both worst-case and actual.
+    robot_vel: float = 0.0
+    human_vel: float = 0.0
+    # Echoed for downstream analysis / threshold sweeps.
+    proximity_threshold: float = 0.5
+
     # Detailed contact info
     contacts: List[ContactInfo] = field(default_factory=list)
-    
+
     # Per-region violation counts
     violations_by_region: Dict[str, int] = field(default_factory=dict)
-    
+
     # State info for privileged policies
     robot_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     human_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
-    
+
     # Names of the closest human joint / robot link that drove ssm_margin.
-    # Populated by build_safety_info when pairwise SSM is used. Empty strings
-    # when SSM was skipped or only a single point was passed with no name list.
     closest_human_joint: str = ""
     closest_robot_link: str = ""
 
@@ -84,13 +96,19 @@ class SafetyInfo:
         Python primitives so the dict stays JSON-serialisable (W&B, pickle)."""
         return {
             'ssm_violation': bool(self.ssm_violation),
+            'ssm_violation_actual': bool(self.ssm_violation_actual),
+            'proximity_violation': bool(self.proximity_violation),
             'pfl_violation': bool(self.pfl_violation),
             'ssm_margin': float(self.ssm_margin),
+            'ssm_margin_actual': float(self.ssm_margin_actual),
             'pfl_force_ratio': float(self.pfl_force_ratio),
             'min_separation': float(self.min_separation),
             'max_contact_force': float(self.max_contact_force),
             'contact_region': self.contact_region,
             'contact_type': self.contact_type,
+            'robot_vel': float(self.robot_vel),
+            'human_vel': float(self.human_vel),
+            'proximity_threshold': float(self.proximity_threshold),
             'violations_by_region': self.violations_by_region.copy(),
             'robot_pos': list(self.robot_pos),
             'human_pos': list(self.human_pos),
@@ -434,12 +452,45 @@ class ISO15066Wrapper:
 
     def _ssm_into(self, info, robot_positions, robot_vel,
                   human_positions, human_vel, human_names, robot_names):
-        is_v, margin, d_min = self.compute_ssm(
-            robot_positions, robot_vel, human_positions, human_vel
+        """Compute all three thesis safety flavours (docs/safety_metrics.md).
+
+        - ``ssm_violation`` / ``ssm_margin``: conservative ISO 15066 with
+          ``v_h = v_h_max`` (independent of observed motion).
+        - ``ssm_violation_actual`` / ``ssm_margin_actual``: ISO 15066 with
+          the observed (already capped at ``v_h_max``) human velocity.
+        - ``proximity_violation``: pure geometric
+          ``min_separation < SSMConfig.proximity_threshold``.
+        """
+        # Worst-case (v_h_max): pass human_vel=None to let compute_ssm use
+        # the configured cap. This is the ISO traceability number.
+        is_v_worst, margin_worst, d_min = self.compute_ssm(
+            robot_positions, robot_vel, human_positions, human_vel=None,
         )
-        info.ssm_violation = is_v
-        info.ssm_margin = margin
+        info.ssm_violation = is_v_worst
+        info.ssm_margin = margin_worst
         info.min_separation = d_min
+
+        # Actual (observed human velocity). Caller passes the env-capped
+        # observed value; compute_ssm with an explicit float uses it directly.
+        observed_v_h = float(human_vel) if human_vel is not None else float(
+            self.ssm_config.v_h_max
+        )
+        S_p_actual = self.ssm_config.compute_separation_distance(
+            robot_vel, observed_v_h
+        )
+        margin_actual = d_min - S_p_actual
+        info.ssm_margin_actual = float(margin_actual)
+        info.ssm_violation_actual = bool(margin_actual < 0)
+
+        # Proximity (geometric) — thesis-primary safety axis.
+        proximity_threshold = float(self.ssm_config.proximity_threshold)
+        info.proximity_threshold = proximity_threshold
+        info.proximity_violation = bool(d_min < proximity_threshold)
+
+        # Echo the velocities that were actually used.
+        info.robot_vel = float(robot_vel)
+        info.human_vel = observed_v_h
+
         h_idx = self.last_closest_human_idx
         r_idx = self.last_closest_robot_idx
         if human_names is not None and 0 <= h_idx < len(human_names):

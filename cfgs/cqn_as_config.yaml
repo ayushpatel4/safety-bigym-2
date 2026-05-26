@@ -76,6 +76,10 @@ wandb:
   project: safety-critic
   entity: null
   name: cqn_as_${env.task_name}_${now:%Y%m%d%H%M%S}
+  # Thesis run-tagging scheme (docs/safety_metrics.md): default empty so
+  # nothing's tagged unless a launcher overrides this with
+  # `+wandb.tags=[stage0,method=unconstrained,task=<task>]`.
+  tags: []
 
 hydra:
   run:

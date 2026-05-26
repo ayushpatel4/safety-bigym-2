@@ -49,10 +49,16 @@ class HumanIK:
             "right_arm": {
                 "joints": ["R_Shoulder", "R_Elbow", "R_Wrist"],
                 "end_effector": "R_Wrist",
+                # ``shoulder_body`` is read by CoworkerArmController to
+                # locate the active-arm shoulder for the reach gate. Kept
+                # here so the same field exists on G1HumanIK.chains and
+                # the controller can look it up without dispatch.
+                "shoulder_body": "R_Shoulder",
             },
             "left_arm": {
                 "joints": ["L_Shoulder", "L_Elbow", "L_Wrist"],
                 "end_effector": "L_Wrist",
+                "shoulder_body": "L_Shoulder",
             },
         }
         

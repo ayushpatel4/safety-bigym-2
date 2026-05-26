@@ -178,42 +178,50 @@ PFL_LIMITS: Dict[str, BodyRegionLimits] = {
 }
 
 
-# Mapping from SMPL-H collision geom names to ISO body regions
-# This maps the _col suffix geoms from smplh_human.xml
+# Mapping from collision geom names to ISO body regions. Covers the SMPL-H
+# ``smplh_human_body.xml`` geom names AND the G1 ``g1_human_body.xml`` geom
+# names (produced by ``scripts/build_g1_human_body.py``). Overlapping names
+# (Head/Chest/Pelvis/L_Shoulder/L_Elbow/L_Wrist/...) reuse a single entry.
 GEOM_TO_REGION: Dict[str, str] = {
     # Head
     'Head_col': 'skull',
     'Neck_col': 'neck',
-    
-    # Torso  
+
+    # Torso
     'Spine_col': 'back_shoulders',
     'Chest_col': 'chest',
     'Torso_col': 'abdomen',
     'Pelvis_col': 'pelvis',
     'L_Thorax_col': 'chest',
     'R_Thorax_col': 'chest',
-    
+
     # Left arm
     'L_Shoulder_col': 'upper_arm',
     'L_Elbow_col': 'forearm',
     'L_Wrist_col': 'hand_palm',
-    
+
     # Right arm
     'R_Shoulder_col': 'upper_arm',
     'R_Elbow_col': 'forearm',
     'R_Wrist_col': 'hand_palm',
-    
-    # Left leg
+
+    # Left leg (SMPL-H names use Hip/Knee/Ankle/Toe; G1 uses Thigh/Shin/Foot)
     'L_Hip_col': 'pelvis',
     'L_Knee_col': 'thigh',
     'L_Ankle_col': 'shin',
     'L_Toe_col': 'foot',
-    
+
     # Right leg
     'R_Hip_col': 'pelvis',
     'R_Knee_col': 'thigh',
     'R_Ankle_col': 'shin',
     'R_Toe_col': 'foot',
+
+    # G1-specific anatomical geom names (added 2026-05-27 for G1 coworker).
+    'L_Thigh_col': 'thigh',  'R_Thigh_col': 'thigh',
+    'L_Shin_col': 'shin',    'R_Shin_col': 'shin',
+    'L_Foot_col': 'foot',    'R_Foot_col': 'foot',
+    'L_Hand_col': 'hand_palm', 'R_Hand_col': 'hand_palm',
 }
 
 

@@ -41,6 +41,9 @@ from safety_bigym.human import (
     TrajectoryConfig,
     TrajectoryType,
 )
+from safety_bigym.human import g1_human_spec
+from safety_bigym.human.g1_human_controller import G1HumanController
+from safety_bigym.human.g1_human_ik import G1HumanIK
 from safety_bigym.scenarios import (
     ScenarioSampler,
     ScenarioParams,
@@ -71,9 +74,11 @@ class SafetyBiGymEnv(BiGymEnv):
     - contact_type: str ("transient" or "quasi_static")
     """
     
-    # Path to SMPL-H human asset
+    # Path to SMPL-H human asset (default). The G1 alternative is selected
+    # dynamically based on ``HumanConfig.human_model`` via _human_body_path().
     HUMAN_ASSET_PATH = Path(__file__).parent.parent / "assets" / "smplh_human.xml"
     HUMAN_BODY_PATH = Path(__file__).parent.parent / "assets" / "smplh_human_body.xml"
+    HUMAN_BODY_PATH_G1 = Path(__file__).parent.parent / "assets" / "g1_human_body.xml"
     
     def __init__(
         self,
@@ -108,7 +113,7 @@ class SafetyBiGymEnv(BiGymEnv):
         # If injecting human, we need to do it BEFORE parent __init__ creates robot
         # because robot binds to physics and changing model after breaks bindings.
         # We'll use a temporary custom model path.
-        if inject_human and self.HUMAN_BODY_PATH.exists():
+        if inject_human and self._human_body_path().exists():
             # Create merged world XML
             self._merged_model_path = self._create_merged_world()
             # Temporarily override class model path
@@ -139,8 +144,11 @@ class SafetyBiGymEnv(BiGymEnv):
         self._current_scenario: Optional[ScenarioParams] = None
         self._coworker_controller: Optional[CoworkerArmController] = None
 
-        # Human components (initialized after human injection)
-        self.human_controller: Optional[HumanController] = None
+        # Human components (initialized after human injection). Type is
+        # ``HumanController`` for ``human_model="smplh"`` and
+        # ``G1HumanController`` for ``human_model="g1"`` — both expose the
+        # same step / reset / set_* surface.
+        self.human_controller: Optional[object] = None
         self.safety_wrapper: Optional[ISO15066Wrapper] = None
         
         # Per-step safety tracking
@@ -168,20 +176,38 @@ class SafetyBiGymEnv(BiGymEnv):
             self._init_safety_wrapper()
             self._init_human_controller()
     
+    def _human_body_path(self) -> Path:
+        """Return the human MJCF path for the active model.
+
+        SMPL-H is the default; G1 is selected when
+        ``human_config.human_model == "g1"``. Both assets follow the
+        merge contract (mocap-pelvis body named "Pelvis", collision
+        geoms ending in "_col", actuators in ``class="position_actuator"``).
+        """
+        if self.human_config.human_model == "g1":
+            return self.HUMAN_BODY_PATH_G1
+        return self.HUMAN_BODY_PATH
+
     def _create_merged_world(self) -> str:
         """
         Create a merged world XML that includes the human body.
         Returns path to the temporary merged XML file.
+
+        Note: ``<asset>`` blocks are intentionally NOT merged from the
+        human XML. The SMPL-H asset is self-contained (no mesh refs in
+        the worldbody) and the G1 build script strips all mesh
+        declarations for the same reason — so neither model contributes
+        anything an ``<asset>`` merge would need.
         """
         import tempfile
         from lxml import etree
-        
+
         # Read world XML
         world_xml = etree.parse(str(self._MODEL_PATH))
         world_root = world_xml.getroot()
-        
-        # Read human body XML
-        human_xml = etree.parse(str(self.HUMAN_BODY_PATH))
+
+        # Read human body XML (SMPL-H or G1, per human_config.human_model)
+        human_xml = etree.parse(str(self._human_body_path()))
         human_root = human_xml.getroot()
         
         # Find worldbody in both
@@ -244,19 +270,27 @@ class SafetyBiGymEnv(BiGymEnv):
             f"ssm_bodies={len(self._human_body_ids)}"
         )
 
-    _HUMAN_SSM_BODY_NAMES = [
+    _HUMAN_SSM_BODY_NAMES_SMPLH = [
         "Pelvis", "L_Hip", "R_Hip", "L_Knee", "R_Knee", "L_Ankle", "R_Ankle",
         "Spine1", "Spine2", "Spine3", "Neck", "Head",
         "L_Shoulder", "R_Shoulder", "L_Elbow", "R_Elbow",
         "L_Wrist", "R_Wrist",
     ]
+    # SMPL-H name kept for any external callers that imported the literal.
+    _HUMAN_SSM_BODY_NAMES = _HUMAN_SSM_BODY_NAMES_SMPLH
+
+    def _ssm_body_names(self) -> List[str]:
+        """Return the closest-joint SSM body list for the active human."""
+        if self.human_config.human_model == "g1":
+            return list(g1_human_spec.SSM_BODY_NAMES)
+        return list(self._HUMAN_SSM_BODY_NAMES_SMPLH)
 
     def _setup_human_ssm_bodies(self):
-        """Collect SMPL body IDs used for closest-joint SSM (T0.2)."""
+        """Collect body IDs used for closest-joint SSM."""
         model = self._mojo.model
         self._human_body_ids: List[int] = []
         self._human_body_names: List[str] = []
-        for name in self._HUMAN_SSM_BODY_NAMES:
+        for name in self._ssm_body_names():
             bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
             if bid >= 0:
                 self._human_body_ids.append(bid)
@@ -389,19 +423,27 @@ class SafetyBiGymEnv(BiGymEnv):
         logger.info("Safety wrapper initialized")
     
     def _init_human_controller(self):
-        """Initialize human motion controller."""
+        """Initialize the human motion controller for the active model."""
         gains = PDGains(
             kp=self.human_config.pd_kp,
             kd=self.human_config.pd_kd,
         )
-        
-        self.human_controller = HumanController(
-            model=self._mojo.model,
-            data=self._mojo.data,
-            gains=gains,
-        )
-        
-        logger.info("Human controller initialized")
+
+        if self.human_config.human_model == "g1":
+            self.human_controller = G1HumanController(
+                model=self._mojo.model,
+                data=self._mojo.data,
+                gains=gains,
+                standing_pelvis_z=self.human_config.g1_standing_pelvis_z,
+            )
+            logger.info("G1 human controller initialized")
+        else:
+            self.human_controller = HumanController(
+                model=self._mojo.model,
+                data=self._mojo.data,
+                gains=gains,
+            )
+            logger.info("SMPL-H human controller initialized")
     
     def _position_human(self, spawn_config: Dict[str, Any]):
         """
@@ -416,11 +458,15 @@ class SafetyBiGymEnv(BiGymEnv):
         pos = np.array(spawn_config.get("pos", [2.0, 0.0, 0.0]))
         yaw = spawn_config.get("yaw", 0.0)
 
-        # Get correct Z position from AMASS clip (pelvis height when standing)
-        initial_z = 1.0  # Default standing pelvis height
-        if self.human_controller is not None and self.human_controller.clip is not None:
-            _, root_trans, _ = self.human_controller.clip.get_frame(0)
-            initial_z = root_trans[2]  # Z from AMASS first frame
+        # Get correct Z position from AMASS clip (pelvis height when standing).
+        # G1 has no clip — use the configured standing pelvis Z instead.
+        if self.human_config.human_model == "g1":
+            initial_z = self.human_config.g1_standing_pelvis_z
+        else:
+            initial_z = 1.0  # Default standing pelvis height for SMPL-H
+            if self.human_controller is not None and self.human_controller.clip is not None:
+                _, root_trans, _ = self.human_controller.clip.get_frame(0)
+                initial_z = root_trans[2]  # Z from AMASS first frame
 
         # Set root offset in human controller (shifts AMASS motion to spawn pos)
         if self.human_controller is not None:
@@ -554,11 +600,17 @@ class SafetyBiGymEnv(BiGymEnv):
             self.human_controller is not None
             and self._current_scenario.disruption_type == DisruptionType.COWORKER
         ):
+            ik_solver = (
+                G1HumanIK(self._mojo.model, self._mojo.data)
+                if self.human_config.human_model == "g1"
+                else None  # CoworkerArmController defaults to SMPL-H HumanIK
+            )
             coworker = CoworkerArmController(
                 self._mojo.model,
                 self._mojo.data,
                 self._current_scenario,
                 np.random.default_rng(scenario_seed),
+                ik_solver=ik_solver,
             )
             self.human_controller.set_ik_callback(coworker.make_callback())
             self._coworker_controller = coworker

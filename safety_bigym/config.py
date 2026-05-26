@@ -20,6 +20,13 @@ class SSMConfig:
     C: float = 0.1          # Intrusion distance / uncertainty (meters)
     v_h_max: float = 1.6    # Maximum assumed human velocity (m/s)
 
+    # Geometric proximity bar for the thesis-primary `proximity_violation`
+    # axis (docs/safety_metrics.md). 0.5 m matches the Phase 2 SVF
+    # production label (`filters/labeling.py`). ISO `S_p` over-fires at
+    # kitchen-scale robot velocities; geometric distance is the defensible
+    # "actually too close" number.
+    proximity_threshold: float = 0.5
+
     def compute_separation_distance(
         self,
         v_robot: float,
@@ -112,10 +119,24 @@ class HumanConfig:
     # Controller settings
     pd_kp: float = 200.0  # Position gain
     pd_kd: float = 20.0   # Derivative gain
-    
+
+    # Which humanoid model plays the coworker role. "smplh" (default) loads
+    # the SMPL-H AMASS-driven human; "g1" loads the Unitree G1 standing-pose
+    # mannequin with procedural arm IK. AMASS fields above are ignored when
+    # human_model == "g1".
+    human_model: str = "smplh"
+    # G1 mocap pelvis height (m). Tuned to put the G1 trunk roughly where
+    # SMPL-H's AMASS standing pelvis lands.
+    g1_standing_pelvis_z: float = 0.95
+
     def __post_init__(self):
         if self.motion_clip_dir is not None:
             self.motion_clip_dir = Path(self.motion_clip_dir)
+        if self.human_model not in ("smplh", "g1"):
+            raise ValueError(
+                f"HumanConfig.human_model must be 'smplh' or 'g1', "
+                f"got {self.human_model!r}"
+            )
 
 
 # Default spawn positions for common BiGym tasks

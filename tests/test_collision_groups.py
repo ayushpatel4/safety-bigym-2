@@ -29,7 +29,7 @@ AMASS_DIR = os.environ.get("AMASS_DATA_DIR")
 HAS_AMASS = AMASS_DIR is not None and Path(AMASS_DIR).exists()
 
 
-def _make_env():
+def _make_env(human_model: str = "smplh"):
     from bigym.action_modes import JointPositionActionMode, PelvisDof
     from safety_bigym import SafetyBiGymEnv, SafetyConfig, HumanConfig
 
@@ -38,10 +38,19 @@ def _make_env():
         absolute=True,
         floating_dofs=[PelvisDof.X, PelvisDof.Y, PelvisDof.Z, PelvisDof.RZ],
     )
-    human_config = HumanConfig(
-        motion_clip_dir=AMASS_DIR,
-        motion_clip_paths=["74/74_01_poses.npz"],
-    )
+    if human_model == "g1":
+        human_config = HumanConfig(
+            human_model="g1",
+            # AMASS fields ignored for G1
+            motion_clip_dir=None,
+            motion_clip_paths=[],
+        )
+    else:
+        human_config = HumanConfig(
+            human_model="smplh",
+            motion_clip_dir=AMASS_DIR,
+            motion_clip_paths=["74/74_01_poses.npz"],
+        )
     return SafetyBiGymEnv(
         action_mode=action_mode,
         safety_config=SafetyConfig(log_violations=False),
@@ -68,11 +77,12 @@ def _is_floor(name: str) -> bool:
     return name == "floor" or name.endswith("/floor") or "ground" in name.lower()
 
 
-@pytest.fixture(scope="module")
-def env():
-    if not HAS_AMASS:
-        pytest.skip("AMASS_DATA_DIR not set")
-    e = _make_env()
+@pytest.fixture(scope="module", params=["smplh", "g1"])
+def env(request):
+    human_model = request.param
+    if human_model == "smplh" and not HAS_AMASS:
+        pytest.skip("AMASS_DATA_DIR not set — skipping SMPL-H collision-bit check")
+    e = _make_env(human_model=human_model)
     e.reset(seed=0)
     yield e
     e.close()

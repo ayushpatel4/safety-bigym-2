@@ -20,9 +20,12 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
+import math
 import os
 import warnings
+from collections import defaultdict
 from pathlib import Path
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -80,6 +83,27 @@ class Workspace:
         self._update_step = 0
         self._global_step = 0
         self._global_episode = 0
+
+        # Local JSON dumps (resilient to W&B downtime), per docs/safety_metrics.md.
+        # `metrics.jsonl` streams one row per _log() call; `final_metrics.json`
+        # captures the headline numbers at end of train().
+        self._metrics_jsonl = self.work_dir / "metrics.jsonl"
+        self._final_metrics_path = self.work_dir / "final_metrics.json"
+        # Best-eval tracker — max-prefer for reward/success, min-prefer for safety.
+        self._best_eval: dict = {
+            "success_rate": -math.inf,
+            "episode_reward": -math.inf,
+            "ep_proximity_violation_rate": math.inf,
+            "ep_ssm_violation_actual_rate": math.inf,
+            "ep_min_separation_lowest": math.inf,
+        }
+        # Track last train/episode/eval rows for the final summary.
+        self._last_train_episode_row: dict = {}
+        self._last_episode_safety_row: dict = {}
+        self._last_eval_row: dict = {}
+        # Per-episode cost integral (Σ c_t). Read by _lagrangian_payload at
+        # episode end and reset on env reset.
+        self._episode_cost_integral = 0.0
 
     # ------------------------------------------------------------------
     # Setup
@@ -168,10 +192,15 @@ class Workspace:
         except ImportError:
             logger.warning("wandb requested but not installed; skipping.")
             return
+        # tags pass-through (docs/safety_metrics.md run-tagging scheme):
+        # `+wandb.tags=[stage0,method=unconstrained,task=saucepan_to_hob]`.
+        raw_tags = wb_cfg.get("tags") if hasattr(wb_cfg, "get") else None
+        tags = [str(t) for t in raw_tags] if raw_tags else None
         self._wandb_run = wandb.init(
             project=str(wb_cfg.get("project", "safety-critic")),
             entity=wb_cfg.get("entity"),
             name=str(wb_cfg.get("name", "cqn_as_run")),
+            tags=tags,
             config=OmegaConf.to_container(self.cfg, resolve=True),
             dir=str(self.work_dir),
         )
@@ -200,19 +229,70 @@ class Workspace:
         prefixed = {f"{ty}/{k}": v for k, v in items}
         if self._wandb_run is not None:
             self._wandb_run.log(prefixed, step=step)
+
+        # Streaming local mirror — load with pandas.read_json("metrics.jsonl",
+        # lines=True). Filter on `ty` to isolate train / episode / safety / eval.
+        self._append_jsonl(step, ty, prefixed)
+        # Snapshot the last row of each stream for final_metrics.json.
+        if ty == "train" and "train/episode_reward" in prefixed:
+            self._last_train_episode_row = dict(prefixed)
+        elif ty == "episode":
+            self._last_episode_safety_row = dict(prefixed)
+        elif ty == "eval":
+            self._last_eval_row = dict(prefixed)
+
         logger.info(
             f"[{ty}] step={step} "
             + " ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
                        for k, v in items)
         )
 
+    def _append_jsonl(self, step: int, ty: str, prefixed: dict) -> None:
+        """One JSON object per _log() call. Coerces values to JSON-safe types."""
+        row: dict = {"step": int(step), "ty": ty}
+        for k, v in prefixed.items():
+            if isinstance(v, bool):
+                row[k] = bool(v)
+            elif isinstance(v, (int, float)):
+                # JSON refuses NaN/Inf; coerce to null.
+                fv = float(v)
+                row[k] = fv if math.isfinite(fv) else None
+            else:
+                # Fall back to str — keeps the line writable even if a stray
+                # tensor / object slips through.
+                row[k] = str(v)
+        try:
+            with self._metrics_jsonl.open("a") as f:
+                f.write(json.dumps(row) + "\n")
+        except OSError as e:
+            # Don't take down a training run because the disk is full.
+            logger.warning(f"metrics.jsonl append failed: {e}")
+
     def _safety_payload(self, info: dict) -> dict:
-        """Extract per-step + episode-end safety metrics from env info."""
+        """Extract per-step + episode-end safety metrics from env info.
+
+        Per-step keys forwarded (docs/safety_metrics.md): the three
+        violation flavours + their margins + observed velocities + PFL
+        ratio. Episode-end ``info["episode_safety"]`` is forwarded
+        wholesale so any new ``ep_*`` field added to
+        :class:`EpisodeSafetyMetrics` lands in W&B without a payload
+        change here.
+        """
         out: dict = {}
         step_safety = info.get("safety") if info else None
         if step_safety is not None:
-            for key in ("ssm_margin", "pfl_force_ratio",
-                        "ssm_violation", "pfl_violation"):
+            for key in (
+                "ssm_violation",
+                "ssm_violation_actual",
+                "proximity_violation",
+                "pfl_violation",
+                "ssm_margin",
+                "ssm_margin_actual",
+                "min_separation",
+                "pfl_force_ratio",
+                "robot_vel",
+                "human_vel",
+            ):
                 if key in step_safety:
                     val = step_safety[key]
                     if isinstance(val, bool):
@@ -223,6 +303,23 @@ class Workspace:
             for key, val in ep_safety.items():
                 if isinstance(val, (int, float, bool)):
                     out[f"episode_safety/{key}"] = float(val)
+        return out
+
+    def _lagrangian_payload(self) -> dict:
+        """Two extra W&B keys for Lagrangian (P3.1) runs, no-op otherwise.
+
+        Per docs/safety_metrics.md::Lagrangian-specific episode logging:
+        - ``episode_lambda`` (only on agents exposing a ``_lambda`` field)
+        - ``episode_cost_integral`` (emitted on the unconstrained baseline
+          too — useful for "what would λ have been pushing on")
+        """
+        out: dict = {"episode_cost_integral": float(self._episode_cost_integral)}
+        lam = getattr(self.agent, "_lambda", None)
+        if lam is not None:
+            try:
+                out["episode_lambda"] = float(lam)
+            except (TypeError, ValueError):
+                pass
         return out
 
     # ------------------------------------------------------------------
@@ -308,6 +405,9 @@ class Workspace:
             if time_step.last():
                 self._global_episode += 1
                 ep_safety_metrics = self._safety_payload(time_step.info or {})
+                # Lagrangian payload (and unconstrained cost integral) ride
+                # in the same `episode/*` namespace. See docs/safety_metrics.md.
+                ep_safety_metrics.update(self._lagrangian_payload())
                 if ep_safety_metrics:
                     self._log(ep_safety_metrics, self.global_step, ty="episode")
                 self._log(
@@ -320,6 +420,8 @@ class Workspace:
                     self.global_step,
                     ty="train",
                 )
+                # Per-episode cost integral resets at episode boundary.
+                self._episode_cost_integral = 0.0
                 if do_eval:
                     self.eval()
                     do_eval = False
@@ -408,6 +510,9 @@ class Workspace:
             sub_action = self.agent.add_noise_to_action(sub_action, self.global_step)
             time_step = self.train_env.step(sub_action)
             episode_reward += time_step.reward
+            # Σ c_t for episode_cost_integral. env_adapter populates
+            # time_step.cost from info["safety"] every env-step.
+            self._episode_cost_integral += float(getattr(time_step, "cost", 0.0) or 0.0)
             self.replay_storage.add(time_step)
             if self._demos_enabled:
                 self.demo_replay_storage.add(time_step)
@@ -440,6 +545,9 @@ class Workspace:
         if self.cfg.save_snapshot:
             self.save_snapshot()
 
+        # Headline summary for the thesis writeup (docs/safety_metrics.md).
+        self._write_final_metrics()
+
     # ------------------------------------------------------------------
     # Eval
     # ------------------------------------------------------------------
@@ -456,6 +564,15 @@ class Workspace:
         record_video = bool(self.cfg.get("save_video", False))
         frames: list = []
         video_dir = self.work_dir / "eval_videos"
+
+        # Per-episode aggregates (docs/safety_metrics.md): the eval() loop
+        # collects each rollout's terminal info["episode_safety"] and rolls
+        # them up so `eval/ep_*` lands in W&B paired with reward/success.
+        ep_safety_sums: dict = defaultdict(float)
+        ep_safety_mins: dict = {}
+        ep_safety_maxes: dict = {}
+        success_count = 0
+        terminal_info_seen = 0
 
         while eval_until_episode(episode):
             episode_step = 0
@@ -494,6 +611,34 @@ class Workspace:
                     frame = render_frame(self.train_env, global_step=self.global_step)
                     if frame is not None:
                         frames.append(frame)
+            # Terminal info captured here — EpisodeSafetyMetrics has filled
+            # info["episode_safety"] with the full per-episode aggregate.
+            term_info = getattr(time_step, "info", None) or {}
+            ep_safety = term_info.get("episode_safety") if isinstance(
+                term_info, dict
+            ) else None
+            if isinstance(ep_safety, dict):
+                terminal_info_seen += 1
+                for k, v in ep_safety.items():
+                    if not isinstance(v, (int, float, bool)):
+                        continue
+                    fv = float(v)
+                    if k.startswith("ep_min_"):
+                        ep_safety_mins[k] = (
+                            fv if k not in ep_safety_mins
+                            else min(ep_safety_mins[k], fv)
+                        )
+                    elif k.startswith("ep_max_"):
+                        ep_safety_maxes[k] = (
+                            fv if k not in ep_safety_maxes
+                            else max(ep_safety_maxes[k], fv)
+                        )
+                    else:
+                        ep_safety_sums[k] += fv
+            if isinstance(term_info, dict) and bool(term_info.get(
+                "task_success", False
+            )):
+                success_count += 1
             episode += 1
 
         if record_video and frames:
@@ -504,16 +649,75 @@ class Workspace:
                 wandb_run=self._wandb_run,
             )
 
-        self._log(
-            {
-                "episode_reward": total_reward / max(episode, 1),
-                "episode_length": step / max(episode, 1),
-                "episode": self._global_episode,
-            },
-            self.global_step,
-            ty="eval",
-        )
+        eval_row: dict = {
+            "episode_reward": total_reward / max(episode, 1),
+            "episode_length": step / max(episode, 1),
+            "episode": self._global_episode,
+        }
+        # Average rates / dwell / mean fields across eval rollouts. min/max
+        # fields use min/max instead of mean so the worst-case shows.
+        if terminal_info_seen > 0:
+            for k, v in ep_safety_sums.items():
+                eval_row[k] = v / terminal_info_seen
+            eval_row.update(ep_safety_mins)
+            eval_row.update(ep_safety_maxes)
+            eval_row["success_rate"] = success_count / terminal_info_seen
+        self._log(eval_row, self.global_step, ty="eval")
+        # Update best_eval (max-prefer reward/success, min-prefer safety).
+        self._update_best_eval(eval_row)
 
+
+    # ------------------------------------------------------------------
+    # Best-eval tracking + final-metrics dump (docs/safety_metrics.md)
+    # ------------------------------------------------------------------
+
+    def _update_best_eval(self, eval_row: dict) -> None:
+        """Track best (max-prefer reward/success, min-prefer safety) across eval cycles."""
+        max_prefer = ("success_rate", "episode_reward")
+        for k in max_prefer:
+            v = eval_row.get(k)
+            if isinstance(v, (int, float)) and float(v) > self._best_eval[k]:
+                self._best_eval[k] = float(v)
+        # Safety: lowest violation rate is best; track ep_min_separation
+        # under a distinct key so we don't conflict with the rate accessor.
+        for k in ("ep_proximity_violation_rate", "ep_ssm_violation_actual_rate"):
+            v = eval_row.get(k)
+            if isinstance(v, (int, float)) and float(v) < self._best_eval[k]:
+                self._best_eval[k] = float(v)
+        # Lowest per-eval ep_min_separation is the dangerous-tail anchor.
+        v = eval_row.get("ep_min_separation")
+        if isinstance(v, (int, float)) and float(v) < self._best_eval[
+            "ep_min_separation_lowest"
+        ]:
+            self._best_eval["ep_min_separation_lowest"] = float(v)
+
+    def _write_final_metrics(self) -> None:
+        """Emit final_metrics.json with headline numbers (docs/safety_metrics.md)."""
+        wb_cfg = self.cfg.get("wandb", {}) or {}
+        out: dict = {
+            "config": {
+                "task": str(self.cfg.env.get("env_name", "")),
+                "disruption": str(self.cfg.get("disruption", "")),
+                "num_train_frames": int(self.cfg.num_train_frames),
+                "num_demos": int(self.cfg.num_demos),
+                "agent_v_min": float(self.cfg.agent.get("v_min", float("nan"))),
+                "agent_v_max": float(self.cfg.agent.get("v_max", float("nan"))),
+                "wandb_name": str(wb_cfg.get("name", "")) if wb_cfg else "",
+                "wandb_tags": list(wb_cfg.get("tags", []) or []) if wb_cfg else [],
+            },
+            "last_train_episode": self._last_train_episode_row,
+            "last_episode_safety": self._last_episode_safety_row,
+            "last_eval": self._last_eval_row,
+            "best_eval": {
+                k: (None if v in (math.inf, -math.inf) else v)
+                for k, v in self._best_eval.items()
+            },
+        }
+        try:
+            self._final_metrics_path.write_text(json.dumps(out, indent=2))
+            logger.info(f"final metrics written: {self._final_metrics_path}")
+        except OSError as e:
+            logger.warning(f"final_metrics.json write failed: {e}")
 
     # ------------------------------------------------------------------
     # Snapshot

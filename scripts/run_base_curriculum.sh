@@ -44,8 +44,17 @@
 
 set -euo pipefail
 
-if [[ -z "${AMASS_DATA_DIR:-}" ]]; then
-  echo "ERROR: export AMASS_DATA_DIR before running (see CLAUDE.md)." >&2
+# HUMAN_MODEL selects which humanoid plays the coworker role.
+#   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR).
+#   g1            : Unitree G1 standing-pose mannequin (no AMASS).
+HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
+case "${HUMAN_MODEL}" in
+  smplh|g1) ;;
+  *) echo "ERROR: HUMAN_MODEL must be 'smplh' or 'g1', got '${HUMAN_MODEL}'" >&2; exit 1 ;;
+esac
+
+if [[ "${HUMAN_MODEL}" == "smplh" && -z "${AMASS_DATA_DIR:-}" ]]; then
+  echo "ERROR: export AMASS_DATA_DIR before running smplh curriculum (see CLAUDE.md)." >&2
   exit 1
 fi
 
@@ -59,6 +68,7 @@ mkdir -p "${OUTDIR}"
 # Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
 COMMON=(
   env=safety_bigym/saucepan_to_hob
+  "env.human_model=${HUMAN_MODEL}"
   bodyslam=oracle
   num_demos=36
   env.safety.add_workspace_penalty=true
@@ -102,12 +112,22 @@ run_stage() {
   echo "== ${name}: disruption=${disruption} frames=${frames} -> ${stage_dir} =="
   local extra=()
   [[ -n "${resume_from}" ]] && extra+=("+snapshot_path=${resume_from}")
+  # Thesis run-tagging scheme (docs/safety_metrics.md):
+  #   tags=[stage<n>, method=<unconstrained|lagrangian|hybrid>, task=<name>]
+  # `name` is one of `stage0_idle`, `stage1_easy`, `stage2_full` so the
+  # leading prefix becomes the stage tag. METHOD defaults to
+  # `unconstrained`; the Lagrangian launcher overrides this.
+  local stage_tag="${name%%_*}"  # stage0_idle -> stage0
+  local method_tag="${METHOD:-unconstrained}"
+  local task_tag="${TASK_TAG:-saucepan_to_hob}"
+  local wb_tags="+wandb.tags=[${stage_tag},method=${method_tag},task=${task_tag},human=${HUMAN_MODEL}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
     "disruption=${disruption}" \
     num_train_frames="${frames}" \
     "hydra.run.dir=${stage_dir}" \
     "wandb.name=${RUN_TAG}_${name}" \
+    "${wb_tags}" \
     "${extra[@]}"
 }
 

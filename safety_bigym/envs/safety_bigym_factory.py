@@ -135,21 +135,30 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             )
 
         # Human config from Hydra config
-        motion_clip_dir = cfg.env.get(
-            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
-        )
-        motion_clip_paths = list(cfg.env.get("motion_clip_paths", [
-            "74/74_01_poses.npz",
-            "74/74_02_poses.npz",
-            "09/09_01_poses.npz",
-            "09/09_03_poses.npz",
-            "122/122_04_poses.npz",
-        ]))
+        human_model = cfg.env.get("human_model", "smplh")
+        if human_model == "g1":
+            # G1 is AMASS-free; don't read AMASS_DATA_DIR or clip paths
+            # (clip_paths still passed through ParameterSpace for SMPL-H
+            # default samplers, but for G1 they're unused at runtime).
+            motion_clip_dir = None
+            motion_clip_paths = []
+        else:
+            motion_clip_dir = cfg.env.get(
+                "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+            )
+            motion_clip_paths = list(cfg.env.get("motion_clip_paths", [
+                "74/74_01_poses.npz",
+                "74/74_02_poses.npz",
+                "09/09_01_poses.npz",
+                "09/09_03_poses.npz",
+                "122/122_04_poses.npz",
+            ]))
         inject_human = cfg.env.get("inject_human", True)
 
         human_config = HumanConfig(
             motion_clip_dir=motion_clip_dir,
             motion_clip_paths=motion_clip_paths,
+            human_model=human_model,
         )
 
         # Read reward-shaping fields from cfg.env.safety; defaults preserve
