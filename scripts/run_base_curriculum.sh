@@ -112,15 +112,18 @@ run_stage() {
   echo "== ${name}: disruption=${disruption} frames=${frames} -> ${stage_dir} =="
   local extra=()
   [[ -n "${resume_from}" ]] && extra+=("+snapshot_path=${resume_from}")
-  # Thesis run-tagging scheme (docs/safety_metrics.md):
-  #   tags=[stage<n>, method=<unconstrained|lagrangian|hybrid>, task=<name>]
+  # Thesis run-tagging scheme (docs/safety_metrics.md). Hydra's override
+  # grammar reserves `=` and `,` as syntax, so we use `:` as the key/value
+  # separator inside tag strings (W&B accepts any string as a tag).
+  #   tags=[stage<n>, method:<unconstrained|lagrangian|hybrid>,
+  #         task:<name>, human:<smplh|g1>]
   # `name` is one of `stage0_idle`, `stage1_easy`, `stage2_full` so the
   # leading prefix becomes the stage tag. METHOD defaults to
   # `unconstrained`; the Lagrangian launcher overrides this.
   local stage_tag="${name%%_*}"  # stage0_idle -> stage0
   local method_tag="${METHOD:-unconstrained}"
   local task_tag="${TASK_TAG:-saucepan_to_hob}"
-  local wb_tags="+wandb.tags=[${stage_tag},method=${method_tag},task=${task_tag},human=${HUMAN_MODEL}]"
+  local wb_tags="+wandb.tags=[${stage_tag},method:${method_tag},task:${task_tag},human:${HUMAN_MODEL}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
     "disruption=${disruption}" \
