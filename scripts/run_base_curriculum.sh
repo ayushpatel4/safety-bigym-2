@@ -178,9 +178,13 @@ run_stage() {
   # W&B run tags grouped by (curriculum stage, method, task) so the thesis
   # plots — convergence curves per stage, Pareto frontier per method, etc.
   # — can be filtered with the W&B UI. `stageN` is the canonical stage
-  # axis; `method=unconstrained` is hard-coded here because the base
-  # curriculum trains the vendored CQN-AS reward critic only (P3.1's
-  # Lagrangian launcher is a separate script that sets method=lagrangian).
+  # axis; `unconstrained` is hard-coded here because the base curriculum
+  # trains the vendored CQN-AS reward critic only (P3.1's Lagrangian
+  # launcher is a separate script that uses `lagrangian` / `hybrid`).
+  #
+  # Tags must NOT contain `=` — Hydra's override grammar treats `=` as the
+  # key-value separator and fails to parse `[stage0,method=foo]`. So we
+  # use flat labels (`unconstrained`, `task-${TASK}`) instead.
   local stage_tag
   case "${name}" in
     stage0*) stage_tag="stage0" ;;
@@ -188,7 +192,7 @@ run_stage() {
     stage2*) stage_tag="stage2" ;;
     *)       stage_tag="${name}" ;;
   esac
-  local wandb_tags="+wandb.tags=[${stage_tag},method=unconstrained,task=${TASK}]"
+  local wandb_tags="+wandb.tags=[${stage_tag},unconstrained,task-${TASK}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
     "disruption=${disruption}" \
