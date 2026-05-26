@@ -20,6 +20,7 @@ Usage:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import warnings
@@ -189,10 +190,16 @@ class Workspace:
         except ImportError:
             logger.warning("wandb requested but not installed; skipping.")
             return
+        # Pass through `wandb.tags` when set (Hydra `+wandb.tags=[stage0,...]`
+        # from launchers like scripts/run_base_curriculum.sh). Used to group
+        # thesis plots by (method, task, curriculum_stage, seed) in the UI.
+        tags = wb_cfg.get("tags", None)
+        tags_list = list(tags) if tags else None
         self._wandb_run = wandb.init(
             project=str(wb_cfg.get("project", "safety-critic")),
             entity=wb_cfg.get("entity"),
             name=str(wb_cfg.get("name", "cqn_as_run")),
+            tags=tags_list,
             config=OmegaConf.to_container(self.cfg, resolve=True),
             dir=str(self.work_dir),
         )
@@ -235,6 +242,11 @@ class Workspace:
         prefixed = {f"{ty}/{k}": v for k, v in materialised}
         if self._wandb_run is not None:
             self._wandb_run.log(prefixed, step=step)
+        # Stream to local JSONL for offline analysis. One JSON object per
+        # _log call: {"step": ..., "ty": ..., "<ty>/<k>": v, ...}. Resilient
+        # if W&B is off (eval-only runs) or unreachable; pandas can load
+        # the file with read_json(lines=True).
+        self._append_metrics_jsonl(step, ty, prefixed)
         parts = []
         for k, v in materialised:
             try:
@@ -245,13 +257,50 @@ class Workspace:
                 parts.append(f"{k}={v!r}")
         logger.info(f"[{ty}] step={step} " + " ".join(parts))
 
+    def _append_metrics_jsonl(self, step: int, ty: str, prefixed: dict) -> None:
+        """Append a single JSON row to <work_dir>/metrics.jsonl. Non-JSON
+        values are coerced via repr() so a stray tensor or numpy scalar can't
+        kill the trace."""
+        path = self.work_dir / "metrics.jsonl"
+        try:
+            row: dict = {"step": int(step), "ty": ty}
+            for k, v in prefixed.items():
+                if hasattr(v, "item"):
+                    try:
+                        v = v.item()
+                    except (ValueError, RuntimeError):
+                        pass
+                try:
+                    json.dumps(v)
+                except (TypeError, ValueError):
+                    v = repr(v)
+                row[k] = v
+            with path.open("a") as f:
+                f.write(json.dumps(row) + "\n")
+        except Exception as exc:  # noqa: BLE001 — never let logging kill training
+            logger.warning(f"failed to append metrics.jsonl: {exc}")
+
     def _safety_payload(self, info: dict) -> dict:
         """Extract per-step + episode-end safety metrics from env info."""
         out: dict = {}
         step_safety = info.get("safety") if info else None
         if step_safety is not None:
-            for key in ("ssm_margin", "pfl_force_ratio",
-                        "ssm_violation", "pfl_violation"):
+            # Surface the three violation flavours + diagnostics every step.
+            # See docs/safety_metrics.md for the thesis-reporting role of
+            # ssm_violation (worst-case), ssm_violation_actual (observed-v),
+            # proximity_violation (geometric).
+            for key in (
+                "ssm_margin",
+                "ssm_margin_actual",
+                "pfl_force_ratio",
+                "ssm_violation",
+                "ssm_violation_actual",
+                "proximity_violation",
+                "pfl_violation",
+                "min_separation",
+                "robot_vel",
+                "human_vel",
+            ):
                 if key in step_safety:
                     val = step_safety[key]
                     if isinstance(val, bool):
@@ -262,6 +311,30 @@ class Workspace:
             for key, val in ep_safety.items():
                 if isinstance(val, (int, float, bool)):
                     out[f"episode_safety/{key}"] = float(val)
+        return out
+
+    def _lagrangian_payload(self, episode_cost_integral: float) -> dict:
+        """Episode-end Lagrangian diagnostics. Returns the running ``λ`` at
+        episode close and the per-episode integral ``Σ c_t``. No-ops (returns
+        empty dict) when the active agent isn't the Lagrangian subclass — so
+        the call site can fire unconditionally without method-sniffing.
+
+        The thesis uses these for the success-vs-cost Pareto plot:
+          * x-axis: ``episode_cost_integral`` (or ep_proximity_violation_rate)
+          * y-axis: episode reward / success rate
+          * series: ``episode_lambda`` colour-coded over training.
+        """
+        # ``_lambda`` is the Lagrangian agent's running multiplier; it only
+        # exists on LagrangianCQNASAgent (P3.1). Unconstrained CQN-AS agents
+        # don't have it, in which case we skip the lambda emission but still
+        # log the cost integral (handy on the unconstrained baseline too —
+        # tells you what the cost would be IF λ were active).
+        lam = getattr(self.agent, "_lambda", None)
+        out: dict = {
+            "episode_cost_integral": float(episode_cost_integral),
+        }
+        if lam is not None:
+            out["episode_lambda"] = float(lam)
         return out
 
     # ------------------------------------------------------------------
@@ -340,6 +413,10 @@ class Workspace:
 
         episode_step = 0
         episode_reward = 0.0
+        # Cumulative per-step cost c_t over the episode. Computed by the env
+        # adapter (filters/cost_signal.compute_cost), attached to TimeStep,
+        # and surfaced as `episode/episode_cost_integral` for the Pareto plot.
+        episode_cost_integral = 0.0
         # Per-episode task-success tracker. info["task_success"] = 1.0 only on
         # the success step; the env terminates immediately after, so any True
         # observation during the episode means it completed the task. Logged
@@ -356,6 +433,15 @@ class Workspace:
                 ep_safety_metrics = self._safety_payload(time_step.info or {})
                 if ep_safety_metrics:
                     self._log(ep_safety_metrics, self.global_step, ty="episode")
+                # Lagrangian-specific episode-end logging (no-op when the
+                # active agent isn't the Lagrangian subclass).
+                lagrangian_metrics = self._lagrangian_payload(
+                    episode_cost_integral
+                )
+                if lagrangian_metrics:
+                    self._log(
+                        lagrangian_metrics, self.global_step, ty="episode"
+                    )
                 self._log(
                     {
                         "episode_reward": episode_reward,
@@ -379,6 +465,7 @@ class Workspace:
                     self.demo_replay_storage.add(time_step)
                 episode_step = 0
                 episode_reward = 0.0
+                episode_cost_integral = 0.0
                 episode_success = False
 
             if (
@@ -456,6 +543,11 @@ class Workspace:
             sub_action = self.agent.add_noise_to_action(sub_action, self.global_step)
             time_step = self.train_env.step(sub_action)
             episode_reward += time_step.reward
+            # Per-step cost c_t is attached by the env adapter (filters/
+            # cost_signal.compute_cost from info["safety"]). Reset TimeStep
+            # at episode start carries cost=0.0, so this is safe to sum
+            # over the full episode without double-counting the reset.
+            episode_cost_integral += float(getattr(time_step, "cost", 0.0))
             if step_marks_task_success(time_step):
                 episode_success = True
             self.replay_storage.add(time_step)
@@ -490,6 +582,98 @@ class Workspace:
         if self.cfg.save_snapshot:
             self.save_snapshot()
 
+        # Final summary JSON — aggregates the streaming metrics.jsonl into
+        # a single headline-numbers file for easy post-hoc comparison
+        # across runs (best success rate, mean/last safety axes, etc.).
+        self._write_final_summary()
+
+    def _write_final_summary(self) -> None:
+        """Aggregate metrics.jsonl into <work_dir>/final_metrics.json with
+        the thesis headline numbers: last + best eval reward / success rate
+        / safety axes, and last training-side state (lambda, cost integral)."""
+        jsonl = self.work_dir / "metrics.jsonl"
+        out_path = self.work_dir / "final_metrics.json"
+        if not jsonl.exists():
+            return
+        try:
+            rows: list = []
+            with jsonl.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except (TypeError, ValueError):
+                        continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"failed to read metrics.jsonl for summary: {exc}")
+            return
+
+        def _last_by_ty(ty: str) -> dict:
+            for row in reversed(rows):
+                if row.get("ty") == ty:
+                    return row
+            return {}
+
+        def _best_eval(key: str, prefer: str = "max") -> float | None:
+            vals: list = []
+            for row in rows:
+                if row.get("ty") != "eval":
+                    continue
+                v = row.get(f"eval/{key}")
+                if isinstance(v, (int, float)):
+                    vals.append(float(v))
+            if not vals:
+                return None
+            return max(vals) if prefer == "max" else min(vals)
+
+        summary: dict = {
+            "global_step": self._global_step,
+            "global_episode": self._global_episode,
+            "config": {
+                "task": str(self.cfg.env.get("task_name", "")),
+                "disruption": str(self.cfg.get("disruption", "")),
+                "num_train_frames": int(self.cfg.num_train_frames),
+                "num_demos": int(self.cfg.get("num_demos", 0)),
+                "agent_v_min": float(self.cfg.agent.get("v_min", 0.0)),
+                "agent_v_max": float(self.cfg.agent.get("v_max", 0.0)),
+                "wandb_name": str(self.cfg.wandb.get("name", ""))
+                if "wandb" in self.cfg else "",
+                "wandb_tags": list(self.cfg.wandb.get("tags", []) or [])
+                if "wandb" in self.cfg else [],
+            },
+            "last_train_episode": {
+                k: v for k, v in _last_by_ty("train").items()
+                if k not in ("step", "ty")
+            },
+            "last_episode_safety": {
+                k: v for k, v in _last_by_ty("episode").items()
+                if k not in ("step", "ty")
+            },
+            "last_eval": {
+                k: v for k, v in _last_by_ty("eval").items()
+                if k not in ("step", "ty")
+            },
+            "best_eval": {
+                "success_rate":  _best_eval("success_rate", prefer="max"),
+                "episode_reward": _best_eval("episode_reward", prefer="max"),
+                # Lower is better for the safety axes.
+                "ep_proximity_violation_rate":
+                    _best_eval("ep_proximity_violation_rate", prefer="min"),
+                "ep_ssm_violation_actual_rate":
+                    _best_eval("ep_ssm_violation_actual_rate", prefer="min"),
+                "ep_min_separation_lowest":
+                    _best_eval("ep_min_separation", prefer="min"),
+            },
+        }
+        try:
+            with out_path.open("w") as f:
+                json.dump(summary, f, indent=2, default=repr)
+            logger.info(f"wrote final summary: {out_path}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"failed to write final_metrics.json: {exc}")
+
     # ------------------------------------------------------------------
     # Eval
     # ------------------------------------------------------------------
@@ -505,6 +689,14 @@ class Workspace:
         # An episode counts as a success if any step had task_success > 0.
         total_success = 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+        # Per-eval safety aggregation. EpisodeSafetyMetrics emits
+        # info["episode_safety"] every step (running) and at episode-end
+        # (final). We capture the terminal payload per eval episode and
+        # mean across episodes so eval/* in W&B + metrics.jsonl carries
+        # the safety axis alongside reward/success — the headline pair for
+        # the thesis Pareto plot.
+        ep_safety_sum: dict = {}
+        ep_safety_count = 0
 
         # cfg.save_video gates per-eval-cycle video recording. Only the first
         # eval episode is captured per cycle (disk is cheap but not infinite,
@@ -558,6 +750,15 @@ class Workspace:
             if episode_success:
                 total_success += 1
             episode += 1
+            # Capture terminal-step episode_safety for this eval episode.
+            ep_safety = (time_step.info or {}).get("episode_safety") or {}
+            if ep_safety:
+                ep_safety_count += 1
+                for key, val in ep_safety.items():
+                    if isinstance(val, (int, float, bool)):
+                        ep_safety_sum[key] = (
+                            ep_safety_sum.get(key, 0.0) + float(val)
+                        )
 
         if record_video and frames:
             write_eval_video(
@@ -567,19 +768,23 @@ class Workspace:
                 wandb_run=self._wandb_run,
             )
 
-        self._log(
-            {
-                "episode_reward": total_reward / max(episode, 1),
-                "episode_length": step / max(episode, 1),
-                # success_rate is the un-shaped task quality signal — read this
-                # one when judging whether a snapshot trained the task.
-                "success_rate": total_success / max(episode, 1),
-                "num_successes": total_success,
-                "episode": self._global_episode,
-            },
-            self.global_step,
-            ty="eval",
-        )
+        eval_payload: dict = {
+            "episode_reward": total_reward / max(episode, 1),
+            "episode_length": step / max(episode, 1),
+            # success_rate is the un-shaped task quality signal — read this
+            # one when judging whether a snapshot trained the task.
+            "success_rate": total_success / max(episode, 1),
+            "num_successes": total_success,
+            "episode": self._global_episode,
+        }
+        # Merge per-eval safety means (one key per ep_* field). These land
+        # under eval/<ep_*> in W&B + metrics.jsonl — paired with success_rate
+        # and episode_reward they form the per-eval row of the thesis
+        # Pareto plot.
+        if ep_safety_count > 0:
+            for key, total in ep_safety_sum.items():
+                eval_payload[key] = total / ep_safety_count
+        self._log(eval_payload, self.global_step, ty="eval")
 
 
     # ------------------------------------------------------------------

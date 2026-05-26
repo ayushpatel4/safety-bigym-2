@@ -27,6 +27,7 @@ from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.config import SSMConfig
 from safety_bigym.perception import (
     AMASSDemoPositionProvider,
     BodySLAMWrapper,
@@ -150,7 +151,17 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
         # the pre-Phase-1.4 behaviour (penalty off). Phase 3 P3.0a adds the
         # workspace shaping triple (add_workspace_penalty / radius / beta).
         safety_cfg_block = cfg.env.get("safety", {}) or {}
+        # SSMConfig defaults are the single source of truth for ISO 15066
+        # parameters; we only override proximity_threshold from yaml. Other
+        # fields (T_r, T_s, a_max, C, v_h_max) intentionally stay at their
+        # defaults — they're tied to ISO standards, not per-experiment knobs.
+        ssm_config = SSMConfig(
+            proximity_threshold=float(
+                safety_cfg_block.get("proximity_threshold", 0.5)
+            ),
+        )
         safety_config = SafetyConfig(
+            ssm=ssm_config,
             log_violations=False,
             terminate_on_violation=False,
             add_violation_penalty=bool(

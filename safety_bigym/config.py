@@ -20,6 +20,17 @@ class SSMConfig:
     C: float = 0.1          # Intrusion distance / uncertainty (meters)
     v_h_max: float = 1.6    # Maximum assumed human velocity (m/s)
 
+    # Geometric proximity threshold (meters). Drives the canonical
+    # `proximity_violation` metric: min_separation < proximity_threshold.
+    # ISO 15066's SSM formula computes a velocity-dependent S_p which, at
+    # kitchen-scale robot speeds under the worst-case v_h_max assumption,
+    # demands ~5 m clearance — clinically over-fires the ssm_violation
+    # metric. Phase 2 SVF dataset labelling already worked around this
+    # geometrically (filters/labeling.py uses min_separation < 0.5m); this
+    # field promotes the geometric check to a first-class live metric so
+    # the thesis can report a "robot was too close to the human" rate.
+    proximity_threshold: float = 0.5
+
     def compute_separation_distance(
         self,
         v_robot: float,

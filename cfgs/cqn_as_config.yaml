@@ -35,7 +35,11 @@ use_compile: false
 
 # Eval
 eval_every_frames: 2500
-num_eval_episodes: 10
+# 2026-05-26 bumped from 10 → 20 for finer-grained success_rate metric. At 10
+# episodes the success_rate granularity is 10pp which is hard to read off the
+# noisy stage-0 baseline; 20 episodes give 5pp granularity at the cost of ~2x
+# eval wall-clock per cycle (negligible vs train cost).
+num_eval_episodes: 20
 
 # Snapshot
 save_snapshot: true

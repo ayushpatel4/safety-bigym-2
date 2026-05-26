@@ -1,13 +1,55 @@
 # Implementation Status — Hybrid Safety Critic
 
-Last updated: 2026-05-25
-Active branch: `safety-critic/phase-3-constrained-rl` (G1 base-curriculum bisection complete; operating config locked at MASK_PIXELS=1 + WORKSPACE_PENALTY=1; stage 0 unblocked; ready for stages 1+2 + P3.1)
+Last updated: 2026-05-26
+Active branch: `safety-critic/phase-3-constrained-rl` (G1 base curriculum stage 0 unblocked; thesis safety/task metrics expanded 2026-05-26)
 Plan: [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
 Initial-phase plan: [/Users/ayushpatel/.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md](../../.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md)
 Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
 Phase 3 orientation: [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md) (goal, what's done/left, contingencies, scope)
 P3.1 handoff: [PHASE3_1_HANDOFF.md](PHASE3_1_HANDOFF.md) (paste-ready prompt for the Lagrangian-glue coding session)
 Phase 2 writeup: [phase2_results.md](phase2_results.md) (implementation + B5 results + B5.5 plan)
+Safety metrics reference: [safety_metrics.md](safety_metrics.md) (which number means what, for thesis-reporting)
+
+---
+
+## SSM-semantics change — read before reading old W&B runs (2026-05-26)
+
+**`info["safety"]["ssm_violation"]` is now the conservative ISO 15066
+worst-case bound** (uses `v_h = v_h_max = 1.6 m/s` always). Previously it
+used the observed (capped) human velocity, which is closer to the new
+`ssm_violation_actual`. Two new flags sit alongside:
+
+- `ssm_violation_actual` — ISO 15066 with the **observed** human velocity
+  (typically fires less often than `ssm_violation`).
+- `proximity_violation` — pure geometric `min_separation < proximity_threshold`
+  (default 0.5 m, matches Phase 2 SVF labelling). **The canonical "actually
+  too close" metric — use this as the thesis's primary safety axis.**
+
+Per-episode aggregates also expanded: `ep_proximity_violation_rate`,
+`ep_ssm_violation_actual_rate`, `ep_time_in_proximity_{0p3,0p5,1p0}m`,
+separation quantiles (`p5`, `p25`, mean), and robot-velocity diagnostics
+(`ep_max_robot_vel`, `ep_mean_robot_vel`). W&B run-tag plumbing (per
+curriculum stage / method / task) lives in
+[scripts/run_base_curriculum.sh](../scripts/run_base_curriculum.sh) and
+[train_cqn_as.py](../train_cqn_as.py) (passed through `wandb.init(tags=...)`).
+The Lagrangian episode-end payload adds `episode_lambda` +
+`episode_cost_integral` for the Pareto plot.
+
+Each run now also writes:
+
+- `<hydra.run.dir>/metrics.jsonl` — streaming one-row-per-`_log` trace (all `train`/`episode`/`safety`/`eval` ty's interleaved).
+- `<hydra.run.dir>/final_metrics.json` — headline summary at end-of-training (`config`, `last_*`, `best_eval` of success/reward/safety axes).
+
+`eval()` now also aggregates `info["episode_safety"]` across the eval
+episodes, so `eval/ep_proximity_violation_rate` / `eval/ep_min_separation` /
+`eval/ep_ssm_violation_actual_rate` etc. land in W&B and `metrics.jsonl`
+paired with `eval/success_rate` — the per-eval row of the thesis Pareto plot.
+
+Full reference: [safety_metrics.md](safety_metrics.md). The PFL bug
+remains: `pfl_*` fields are still identically zero (deferred as a thesis
+limitation).
+
+Test baseline: 385 passed / 39 skipped (up from 364 / 20).
 
 ---
 

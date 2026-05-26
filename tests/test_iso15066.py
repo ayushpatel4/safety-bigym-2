@@ -600,3 +600,193 @@ class TestSSMClosestJoint:
         assert info.closest_human_joint == "wrist"
         assert info.closest_robot_link == "ee"
         assert info.min_separation == pytest.approx(0.1, abs=0.01)
+
+
+class TestProximityViolation:
+    """
+    proximity_violation is the canonical "robot was geometrically too close
+    to the human" metric. It MUST fire iff min_separation < threshold, with
+    no velocity dependency.
+    """
+
+    def test_fires_when_inside_threshold(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.3, 0.0, 0.0]]),  # 0.3 m apart
+            human_vel=0.0,
+        )
+        # Default SSMConfig.proximity_threshold = 0.5
+        assert info.proximity_violation is True
+        assert info.proximity_threshold == pytest.approx(0.5)
+        assert info.min_separation == pytest.approx(0.3, abs=1e-6)
+
+    def test_does_not_fire_outside_threshold(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[1.2, 0.0, 0.0]]),  # 1.2 m apart
+            human_vel=0.0,
+        )
+        assert info.proximity_violation is False
+
+    def test_threshold_configurable_from_ssm_config(self):
+        from safety_bigym import SSMConfig
+
+        wrapper = _make_wrapper()
+        wrapper.ssm_config = SSMConfig(proximity_threshold=1.0)
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.8, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        # 0.8 m < 1.0 m → violation under wider threshold
+        assert info.proximity_violation is True
+        assert info.proximity_threshold == pytest.approx(1.0)
+
+    def test_independent_of_velocities(self):
+        """proximity is purely geometric — velocities must not change it."""
+        wrapper = _make_wrapper()
+        slow = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        fast = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=5.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=1.6,
+        )
+        assert slow.proximity_violation is True
+        assert fast.proximity_violation is True
+        assert slow.proximity_threshold == fast.proximity_threshold
+
+
+class TestVelocityAdaptiveSSM:
+    """
+    ssm_violation_actual uses the same compute_separation_distance as
+    ssm_violation but with the OBSERVED human velocity instead of the
+    worst-case cap. It should be at least as lenient — never stricter.
+    """
+
+    def test_actual_equals_conservative_when_actual_velocities_are_at_cap(self):
+        wrapper = _make_wrapper()
+        # Both flavours use v_h_max → identical S_p, identical margins.
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[2.0, 0.0, 0.0]]),
+            human_vel=1.6,  # at v_h_max
+            human_vel_actual=1.6,
+            robot_vel_actual=0.5,
+        )
+        assert info.ssm_margin == pytest.approx(info.ssm_margin_actual, abs=1e-9)
+        assert info.ssm_violation == info.ssm_violation_actual
+
+    def test_actual_more_lenient_when_observed_is_below_cap(self):
+        wrapper = _make_wrapper()
+        # Conservative: v_h = 1.6 → S_h = 1.6 * 0.15 = 0.24
+        # Robot v = 1.0 → S_r = 0.1 + 0.1 = 0.2 → S_p = 0.24+0.2+0.1 = 0.54
+        # Actual:       v_h = 0.0 → S_h = 0       → S_p = 0+0.2+0.1 = 0.3
+        # At d = 0.4 m: conservative margin = -0.14 (violation),
+        #               actual margin = +0.1 (no violation).
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=1.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.0,
+            robot_vel_actual=1.0,
+        )
+        assert info.ssm_violation is True
+        assert info.ssm_violation_actual is False
+        assert info.ssm_margin < 0
+        assert info.ssm_margin_actual > 0
+        assert info.ssm_margin_actual > info.ssm_margin
+
+    def test_actual_defaults_to_conservative_when_not_provided(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[2.0, 0.0, 0.0]]),
+            human_vel=1.0,
+            # no *_actual kwargs → defaults to the conservative values.
+        )
+        assert info.ssm_margin == pytest.approx(info.ssm_margin_actual, abs=1e-9)
+        assert info.ssm_violation == info.ssm_violation_actual
+
+    def test_min_separation_unchanged_by_velocity_choice(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=2.0,
+            human_positions=np.array([[0.7, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.1,
+            robot_vel_actual=2.0,
+        )
+        # min_separation is a pure geometric quantity — the two SSM compute
+        # paths must agree on it.
+        assert info.min_separation == pytest.approx(0.7, abs=1e-6)
+
+
+class TestSafetyInfoNewFieldsRoundtrip:
+    """to_dict must export the new fields with the right types."""
+
+    def test_new_keys_present_in_to_dict(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[0.3, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.2,
+            robot_vel_actual=0.5,
+        )
+        d = info.to_dict()
+        # Keys
+        for key in (
+            "proximity_violation",
+            "ssm_violation_actual",
+            "ssm_margin_actual",
+            "proximity_threshold",
+            "robot_vel",
+            "human_vel",
+        ):
+            assert key in d, f"missing key {key} in to_dict()"
+        # Types
+        assert isinstance(d["proximity_violation"], bool)
+        assert isinstance(d["ssm_violation_actual"], bool)
+        assert isinstance(d["ssm_margin_actual"], float)
+        assert isinstance(d["proximity_threshold"], float)
+        assert isinstance(d["robot_vel"], float)
+        assert isinstance(d["human_vel"], float)
+        # Sanity: the observed velocities should be the *_actual ones we
+        # passed in, not the worst-case caps.
+        assert d["human_vel"] == pytest.approx(0.2)
+        assert d["robot_vel"] == pytest.approx(0.5)
+
+    def test_default_values(self):
+        info = SafetyInfo()
+        assert info.proximity_violation is False
+        assert info.ssm_violation_actual is False
+        assert info.ssm_margin_actual == float("inf")
+        assert info.proximity_threshold == 0.0
+        assert info.robot_vel == 0.0
+        assert info.human_vel == 0.0

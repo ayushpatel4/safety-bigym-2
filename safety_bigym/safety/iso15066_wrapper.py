@@ -45,34 +45,64 @@ class ContactInfo:
 class SafetyInfo:
     """
     Safety monitoring output.
-    
+
     This is the interface that will be used in Phase 8 for training.
+
+    Three flavours of "safety violation" are surfaced — see
+    docs/safety_metrics.md for the thesis-reporting role of each:
+      - ``ssm_violation``         : ISO 15066 SSM under conservative caps
+                                     (``v_h_max`` for human; robot uses the
+                                     value passed by the caller, which for
+                                     the env is the observed speed).
+      - ``ssm_violation_actual``  : ISO 15066 SSM under fully observed
+                                     velocities. Use this for "ISO compliance
+                                     under realized motion" reports.
+      - ``proximity_violation``   : Pure geometric
+                                     ``min_separation < proximity_threshold``.
+                                     The canonical "robot was too close to
+                                     the human" metric.
     """
-    
+
     # Binary flags
     ssm_violation: bool = False
     pfl_violation: bool = False
-    
+    # Velocity-adaptive (observed) ISO 15066 SSM violation. Computed with the
+    # observed human velocity instead of the worst-case v_h_max — typically
+    # smaller required-separation S_p, so fires less often than ssm_violation.
+    ssm_violation_actual: bool = False
+    # Geometric "robot was too close to human": min_separation < threshold.
+    proximity_violation: bool = False
+
     # Proportional signals for reward shaping
     ssm_margin: float = float('inf')  # d_min - S_p (negative = violation)
+    # Margin under observed velocities (paired with ssm_violation_actual).
+    ssm_margin_actual: float = float('inf')
     pfl_force_ratio: float = 0.0      # max(F_actual / F_limit) across regions
-    
+
     # Logging and analysis
     min_separation: float = float('inf')
     max_contact_force: float = 0.0
     contact_region: str = ""
     contact_type: str = ""
-    
+    # Threshold used for proximity_violation this step (echoes the SSMConfig
+    # value at compute time — handy for downstream analysis without needing
+    # to re-load the config).
+    proximity_threshold: float = 0.0
+    # Observed robot / human linear speed (m/s) used in the velocity-adaptive
+    # SSM compute. Surfaced so EpisodeSafetyMetrics can aggregate ep_*_robot_vel.
+    robot_vel: float = 0.0
+    human_vel: float = 0.0
+
     # Detailed contact info
     contacts: List[ContactInfo] = field(default_factory=list)
-    
+
     # Per-region violation counts
     violations_by_region: Dict[str, int] = field(default_factory=dict)
-    
+
     # State info for privileged policies
     robot_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     human_pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
-    
+
     # Names of the closest human joint / robot link that drove ssm_margin.
     # Populated by build_safety_info when pairwise SSM is used. Empty strings
     # when SSM was skipped or only a single point was passed with no name list.
@@ -84,13 +114,19 @@ class SafetyInfo:
         Python primitives so the dict stays JSON-serialisable (W&B, pickle)."""
         return {
             'ssm_violation': bool(self.ssm_violation),
+            'ssm_violation_actual': bool(self.ssm_violation_actual),
+            'proximity_violation': bool(self.proximity_violation),
             'pfl_violation': bool(self.pfl_violation),
             'ssm_margin': float(self.ssm_margin),
+            'ssm_margin_actual': float(self.ssm_margin_actual),
             'pfl_force_ratio': float(self.pfl_force_ratio),
             'min_separation': float(self.min_separation),
             'max_contact_force': float(self.max_contact_force),
             'contact_region': self.contact_region,
             'contact_type': self.contact_type,
+            'proximity_threshold': float(self.proximity_threshold),
+            'robot_vel': float(self.robot_vel),
+            'human_vel': float(self.human_vel),
             'violations_by_region': self.violations_by_region.copy(),
             'robot_pos': list(self.robot_pos),
             'human_pos': list(self.human_pos),
@@ -421,19 +457,33 @@ class ISO15066Wrapper:
         human_vel=None,
         human_names=None,
         robot_names=None,
+        human_vel_actual=None,
+        robot_vel_actual=None,
     ):
         """Aggregate contacts + SSM state into one SafetyInfo. Shared by
-        step(), check_safety_no_step(), and env._aggregate_safety_info."""
+        step(), check_safety_no_step(), and env._aggregate_safety_info.
+
+        ``human_vel`` / ``robot_vel`` drive the conservative ssm_violation
+        (worst-case caps). ``human_vel_actual`` / ``robot_vel_actual`` drive
+        the velocity-adaptive ssm_violation_actual. When the *_actual values
+        are None they default to the conservative ones, so the two metrics
+        are identical for legacy call sites that don't plumb observed v.
+        """
         info = SafetyInfo()
         if robot_positions is not None and human_positions is not None:
             self._ssm_into(info, robot_positions, robot_vel,
                            human_positions, human_vel,
-                           human_names, robot_names)
+                           human_names, robot_names,
+                           human_vel_actual=human_vel_actual,
+                           robot_vel_actual=robot_vel_actual)
         self._pfl_into(info, contacts)
         return info
 
     def _ssm_into(self, info, robot_positions, robot_vel,
-                  human_positions, human_vel, human_names, robot_names):
+                  human_positions, human_vel, human_names, robot_names,
+                  human_vel_actual=None, robot_vel_actual=None):
+        # Conservative ISO 15066 SSM (uses caller-passed velocities; for the
+        # env this is the worst-case v_h_max for human + observed robot).
         is_v, margin, d_min = self.compute_ssm(
             robot_positions, robot_vel, human_positions, human_vel
         )
@@ -442,6 +492,28 @@ class ISO15066Wrapper:
         info.min_separation = d_min
         h_idx = self.last_closest_human_idx
         r_idx = self.last_closest_robot_idx
+
+        # Velocity-adaptive SSM under the observed velocities. compute_ssm
+        # also resets last_closest_* indices, but the geometry is identical
+        # (same positions) so the closest pair is unchanged.
+        rv_actual = robot_vel if robot_vel_actual is None else robot_vel_actual
+        hv_actual = human_vel if human_vel_actual is None else human_vel_actual
+        is_v_actual, margin_actual, _ = self.compute_ssm(
+            robot_positions, rv_actual, human_positions, hv_actual
+        )
+        info.ssm_violation_actual = is_v_actual
+        info.ssm_margin_actual = margin_actual
+
+        # Geometric proximity violation. SSMConfig.proximity_threshold is the
+        # canonical 0.5m bar (matches the Phase 2 SVF production label).
+        threshold = float(self.ssm_config.proximity_threshold)
+        info.proximity_threshold = threshold
+        info.proximity_violation = bool(d_min < threshold)
+
+        # Observed velocities echoed for downstream aggregation.
+        info.robot_vel = float(rv_actual)
+        info.human_vel = float(hv_actual)
+
         if human_names is not None and 0 <= h_idx < len(human_names):
             info.closest_human_joint = human_names[h_idx]
         if robot_names is not None and 0 <= r_idx < len(robot_names):

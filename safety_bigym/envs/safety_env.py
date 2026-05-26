@@ -850,14 +850,22 @@ class SafetyBiGymEnv(BiGymEnv):
         robot_positions, robot_names, robot_vel = self._robot_ssm_state()
         human_positions, human_names, human_vel = self._human_ssm_state()
 
+        # ssm_violation uses the worst-case ISO assumption (v_h = v_h_max);
+        # ssm_violation_actual uses the observed human velocity. The robot
+        # side passes its observed speed for both — SSMConfig has no v_r_max
+        # so there is no "worst-case" robot value to substitute. See
+        # docs/safety_metrics.md for the thesis-reporting roles.
+        v_h_max = float(self.safety_config.ssm.v_h_max)
         self._step_safety_info = self.safety_wrapper.build_safety_info(
             contacts=self._step_contacts,
             robot_positions=robot_positions,
             robot_vel=robot_vel,
             human_positions=human_positions,
-            human_vel=human_vel,
+            human_vel=v_h_max,
             human_names=human_names,
             robot_names=robot_names,
+            human_vel_actual=human_vel,
+            robot_vel_actual=robot_vel,
         )
         return
 

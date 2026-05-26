@@ -69,6 +69,12 @@ class _FakeEmptyBatchTD:
 class _StubWorkspace:
     _wandb_run = None
 
+    # _log now also appends to a per-run metrics.jsonl via this helper. The
+    # stub doesn't have a work_dir, so a no-op keeps the unbound-method call
+    # contract intact.
+    def _append_metrics_jsonl(self, *_args, **_kwargs):
+        return None
+
 
 def test_empty_batch_tensordict_metrics_are_logged(_log_capture):
     """Regression: per-update train metrics with empty TD batch_size must log."""

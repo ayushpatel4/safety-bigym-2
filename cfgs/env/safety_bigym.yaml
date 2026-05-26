@@ -31,6 +31,13 @@ env:
   safety:
     add_violation_penalty: false
     violation_penalty: 0.05
+    # Geometric proximity threshold (meters) for the canonical
+    # `proximity_violation` metric. ISO 15066's S_p formula at kitchen-
+    # scale robot speeds requires ~5m clearance which over-fires the
+    # ssm_violation metric; the thesis reports proximity_violation_rate
+    # as the load-bearing "robot was too close to the human" number.
+    # Mirrors the Phase 2 SVF production label bar (filters/labeling.py).
+    proximity_threshold: 0.5
     # P3.0a workspace reward shaping. Penalises the EE for drifting outside a
     # radius around the task-relevant object — counters the C2 evacuation mode
     # where the agent learns to flee the human because the violation penalty

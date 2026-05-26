@@ -6,6 +6,78 @@ Generated alongside the updates to `UPDATED_PROJECT_PLAN.md`, `HYBRID_SAFETY_CRI
 
 ---
 
+## 2026-05-26 — Thesis-grade safety + task metrics (Workstreams A/B/C)
+
+Three coordinated additions to the safety-metric surface, motivated by the
+thesis evaluation needing per-task headline tables, success-vs-safety Pareto
+plots, per-curriculum-stage convergence curves, and Lagrangian-specific
+diagnostics. Full reference: [safety_metrics.md](safety_metrics.md). PFL
+fix deferred (separate session — documented as a thesis limitation).
+
+### A. SSM/proximity metric expansion
+
+`info["safety"]` now emits three flavours of "safety violation":
+
+| flavour                 | velocity used                  | meaning                                                                            |
+| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------- |
+| `ssm_violation`         | worst-case (`v_h = v_h_max`)   | conservative ISO 15066 bound (semantics changed from the prior "observed-capped")  |
+| `ssm_violation_actual`  | observed human velocity        | velocity-adaptive ISO 15066; typically fires less often                            |
+| `proximity_violation`   | (no velocity)                  | `min_separation < proximity_threshold` (default 0.5 m, matches Phase 2 SVF label)  |
+
+Wiring: `SSMConfig.proximity_threshold` (new field), `SafetyInfo` gets
+`proximity_violation` / `ssm_violation_actual` / `ssm_margin_actual` /
+`proximity_threshold` / `robot_vel` / `human_vel` + `to_dict` exports;
+`build_safety_info` accepts new `human_vel_actual` / `robot_vel_actual`
+kwargs (default to the conservative values). Env passes `human_vel=v_h_max`
++ `human_vel_actual=observed_capped`. Yaml: `env.safety.proximity_threshold:
+0.5` declared in `cfgs/env/safety_bigym.yaml`; factory plumbs through to
+`SSMConfig`. 12 new unit tests in `tests/test_iso15066.py`.
+
+### B. Per-episode aggregates
+
+`EpisodeSafetyMetrics` now emits, alongside existing `ep_steps` /
+`ep_*_violation_rate` / `ep_min_ssm_margin` / `ep_max_pfl_force_ratio` /
+`ep_max_contact_force` / `ep_time_to_first_violation` / `ep_region_*`:
+
+- `ep_proximity_violation_rate`, `ep_ssm_violation_actual_rate`
+- `ep_time_in_proximity_{0p3,0p5,1p0}m` (fraction of episode steps under each threshold — the thesis's risk-integral metrics)
+- `ep_min_separation` (existing), `ep_mean_separation`, `ep_p5_separation`, `ep_p25_separation`
+- `ep_min_ssm_margin_actual`
+- `ep_max_robot_vel`, `ep_mean_robot_vel`
+
+7 new unit tests in `tests/test_episode_safety_metrics.py`.
+
+### C. W&B tagging + Lagrangian episode logging
+
+- `scripts/run_base_curriculum.sh` emits `+wandb.tags=[stage{0,1,2},method=unconstrained,task=${TASK}]` per stage.
+- `train_cqn_as.py::_setup_wandb` forwards `wandb.tags` to `wandb.init(tags=...)`.
+- New `train_cqn_as.py::_lagrangian_payload` emits at episode-end: `episode_lambda` (running λ; only on the Lagrangian agent) + `episode_cost_integral` (Σ c_t — emitted on the unconstrained baseline too).
+- Per-step `_safety_payload` extended to also surface `ssm_margin_actual`, `ssm_violation_actual`, `proximity_violation`, `min_separation`, `robot_vel`, `human_vel`.
+
+### D. Local JSON dumps + per-eval safety aggregation (added 2026-05-26)
+
+Two additions for offline analysis + W&B-downtime resilience:
+
+- **`<run_dir>/metrics.jsonl`** — streaming, one JSON object per `_log` call. All four ty's (`train`, `episode`, `safety`, `eval`) interleave. Load with `pandas.read_json(..., lines=True)`.
+- **`<run_dir>/final_metrics.json`** — written at end of `train()`. Carries the headline numbers: `config`, `last_train_episode`, `last_episode_safety`, `last_eval`, and `best_eval` (max-prefer for success / reward; min-prefer for safety axes).
+- **Per-eval safety aggregation** — `eval()` now collects `info["episode_safety"]` per eval episode and emits the means (`eval/ep_proximity_violation_rate`, `eval/ep_ssm_violation_actual_rate`, `eval/ep_min_separation`, …) alongside `eval/success_rate` and `eval/episode_reward`. Previously only the reward/success axes landed in `eval/*`.
+
+4 new unit tests in `tests/test_metrics_dump.py` (385 passed total).
+
+### Test/baseline shifts
+
+Full suite now 385 passed / 39 skipped (was 364 / 20). Hydra compose check
+confirms `env.safety.proximity_threshold` reaches `SSMConfig` end-to-end.
+
+### Deliberately deferred
+
+- PFL contact-detection bug — still open; `pfl_*` fields stay zero in practice. Schema is forward-compatible so a future fix retrofits for free.
+- `Q_c` calibration scatter plot — post-training one-off, no live-logging change needed.
+- W&B dashboard / panel UI work.
+- Velocity-adaptive PFL force limits — ISO table is tabulated; only the contact-force measurement is broken.
+
+---
+
 ## TL;DR — three structural changes (status as of 2026-05-25)
 
 | Change | Status of corresponding code | Status of corresponding writing |

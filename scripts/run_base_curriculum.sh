@@ -30,7 +30,7 @@
 # Usage:
 #   scripts/run_base_curriculum.sh                 # full run (stages 0->1->2)
 #   SMOKE=1 scripts/run_base_curriculum.sh         # ≤2000-frame stage-0 smoke only
-#   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
+#   STAGE0_FRAMES=60000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
 #
 #   # Resume ONLY stage 2 (e.g. after a machine crash) — skips stages 0/1 and
@@ -148,7 +148,12 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   # (smoke is short; the slowdown is irrelevant here).
   export CUDA_LAUNCH_BLOCKING=1
 else
-  STAGE0_FRAMES="${STAGE0_FRAMES:-30000}"
+  # Stage budgets (2026-05-26 bump): the 2026-05-25 saucepan_to_hob run with
+  # stage0=30k plateaued at success_rate≈0.1-0.2 throughout stage 0 — base
+  # policy wasn't task-competent before stage 1 ramped the disruption.
+  # Doubling stage 0 to 60k gives the policy time to lock in the grasp/place
+  # sequence under the easy distribution before the human approaches.
+  STAGE0_FRAMES="${STAGE0_FRAMES:-60000}"
   STAGE1_FRAMES="${STAGE1_FRAMES:-30000}"
   STAGE2_FRAMES="${STAGE2_FRAMES:-40000}"
   WANDB=(wandb.use=true)
@@ -170,12 +175,27 @@ run_stage() {
   echo "== ${name}: disruption=${disruption} frames=${frames} -> ${stage_dir} =="
   local extra=()
   [[ -n "${resume_from}" ]] && extra+=("+snapshot_path=${resume_from}")
+  # W&B run tags grouped by (curriculum stage, method, task) so the thesis
+  # plots — convergence curves per stage, Pareto frontier per method, etc.
+  # — can be filtered with the W&B UI. `stageN` is the canonical stage
+  # axis; `method=unconstrained` is hard-coded here because the base
+  # curriculum trains the vendored CQN-AS reward critic only (P3.1's
+  # Lagrangian launcher is a separate script that sets method=lagrangian).
+  local stage_tag
+  case "${name}" in
+    stage0*) stage_tag="stage0" ;;
+    stage1*) stage_tag="stage1" ;;
+    stage2*) stage_tag="stage2" ;;
+    *)       stage_tag="${name}" ;;
+  esac
+  local wandb_tags="+wandb.tags=[${stage_tag},method=unconstrained,task=${TASK}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
     "disruption=${disruption}" \
     num_train_frames="${frames}" \
     "hydra.run.dir=${stage_dir}" \
     "wandb.name=${RUN_TAG}_${name}" \
+    "${wandb_tags}" \
     "${extra[@]}"
 }
 
