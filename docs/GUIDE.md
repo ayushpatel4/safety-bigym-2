@@ -1,5 +1,12 @@
 # Safety BiGym — User Guide
 
+> **Legacy user guide.** This page predates the COWORKER-only training focus,
+> G1 human-model selector, three-flavour safety metrics, and current Hydra
+> training pipeline. Use [CLAUDE.md](CLAUDE.md), [safety_metrics.md](safety_metrics.md),
+> [coworker_disruption.md](coworker_disruption.md), and
+> [g1_coworker_swap.md](g1_coworker_swap.md) for current project-specific
+> guidance.
+
 ## Overview
 
 **Safety BiGym** wraps [BiGym](https://github.com/chernyadev/bigym) environments with ISO 15066 safety monitoring. It adds:

@@ -5,10 +5,10 @@
 > §Phase 2: build a CQL-trained `Q_safe(s, a)` that vetoes unsafe proposed
 > actions through a `gym.Wrapper`, independent of the task policy.
 
-Status: **closed end-to-end as of 2026-05-18.** v1 critic deployed as a hard
+Status: **closed end-to-end as of 2026-05-20.** v1 critic deployed as a hard
 safety gate at operating point R≈4.0. B5.5 (v2 with snapshot action
-denormalization) re-opened 2026-05-20 because in-distribution eval flagged
-critic narrowness.
+denormalization) is also closed: the patch was correct, but the residual
+violation floor was structural rather than caused by action-subspace narrowness.
 
 Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md),
 [CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md), [phase2_status.md](phase2_status.md)
@@ -135,17 +135,6 @@ random baseline. Functional as a **hard safety gate**.
 
 ### 5.2 In-distribution — `coworker_train`, random policy
 
-> **TODO (user-to-paste):** numbers from the in-dist eval that triggered the
-> B5.5 decision go here. Expected fields per task: intervention rate, residual
-> violation rate, fallback-action share, episodes, max steps, R, seed.
->
-> ```
-> task,R,episodes,intervention,residual,fallback_share
-> dishwasher_close, ...
-> drawers_open_all, ...
-> saucepan_to_hob,  ...
-> ```
-
 Results: `results/svf_eval_v1_indist.csv` (date: 2026-05-18).
 
 Headline (current text — will be tightened once the table lands):
@@ -188,7 +177,7 @@ were uniformly intervention=1.0 because the trained Q distribution lives in
 
 ---
 
-## 7. B5.5 — v2 dataset with snapshot action denormalization (active)
+## 7. B5.5 — v2 dataset with snapshot action denormalization (closed negative)
 
 ### Why
 

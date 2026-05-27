@@ -17,8 +17,8 @@ The project builds a **Hybrid Safety Critic** for a manipulation robot sharing s
 | 1 | Observation ablation under BC (ACT) — does a human-state channel help? | ✅ done (channel alone didn't clear the bar) |
 | 1.4 (C2) | Same question under RL (CQN-AS) | ⚠️ degenerate w/ `num_demos=0`; **folded into Phase 3 E3.6** |
 | 2 | Offline **Safety Value Function** (SVF) filter — a runtime gate trained on collected transitions | ✅ done (`checkpoints/svf_coworker_train_v1.pt`, operating point R≈4.0) |
-| Workstream D | CQN-AS **demo pipeline** (`get_demos`) — unblocks demo-driven training | ✅ code+tests+2k smoke; 50k validation in flight |
-| **3** | **Constrained RL** — a policy that *internalises* safety via a Lagrangian cost constraint | 🔵 **scaffolding (P3.0) done; the glue (P3.1) not started** |
+| Workstream D / BASE-FIX | CQN-AS demos + bounded workspace curriculum — unblocks non-degenerate training | ✅ SMPL-H base curriculum finished; G1/tightened-stage verification pending |
+| **3** | **Constrained RL** — a policy that *internalises* safety via a Lagrangian cost constraint | 🔵 **P3.0 done; P3.1 code complete/unit-tested; GPU smoke pending** |
 | 4 | Hybrid deployment — Phase 3 policy + frozen Phase 2 filter, improved fallback | ⬜ not started |
 | 5 | Evaluation — tail-risk metrics, baselines (incl. WCSAC) | ⬜ not started |
 
@@ -70,7 +70,8 @@ c_pfl = max(0, pfl_force_ratio − 0.8)          # 0 until 80% of the force limi
 c_t   = min(1, max(c_ssm, c_pfl))              # worst-case across both ISO 15066 criteria
 
 # 2. Workspace shaping (keeps the policy engaged — counters evacuation)
-r_workspace = −β · max(0, ‖p_ee − p_task‖ − r_ws)   # 0 inside radius r_ws=0.4 m, penalty outside
+r_workspace = −β · min(max(0, ‖p_ee − p_task‖ − r_ws), cap)
+r_ws=0.4 m, β=0.05, cap=1.0                         # bounded to fit C51 support
 r_task'     = r_task + r_workspace
 
 # 3. PID-controlled Lagrangian multiplier λ (the "how hard to enforce safety" knob)
@@ -92,16 +93,18 @@ All bodyslam-agnostic scaffolding is merged (PR #9 + follow-ups on `main`). Smok
 
 | Component | File(s) | State |
 |---|---|---|
-| **Workspace reward shaping** (P3.0a) | [`SafetyConfig`](../safety_bigym/config.py) (`add_workspace_penalty`/`workspace_radius=0.4`/`workspace_beta=0.2`); `SafetyBiGymEnv._compute_workspace_penalty()` in [`safety_env.py`](../safety_bigym/envs/safety_env.py); threaded via [`safety_bigym_factory._create_env`](../safety_bigym/envs/safety_bigym_factory.py); CLI-overridable via `cfgs/env/safety_bigym.yaml` (added 2026-05-20) | ✅ off by default; tested (`tests/test_workspace_shaping.py`) |
+| **Workspace reward shaping** (P3.0a) | [`SafetyConfig`](../safety_bigym/config.py) (`add_workspace_penalty`/`workspace_radius=0.4`/`workspace_beta=0.05`/`workspace_excess_cap=1.0`); `SafetyBiGymEnv._compute_workspace_penalty()` in [`safety_env.py`](../safety_bigym/envs/safety_env.py); threaded via [`safety_bigym_factory._create_env`](../safety_bigym/envs/safety_bigym_factory.py); CLI-overridable via `cfgs/env/safety_bigym.yaml` | ✅ off by default; tested (`tests/test_workspace_shaping.py`) |
 | **Per-step continuous cost `c_t`** (P3.0c) | [`filters/cost_signal.py`](../safety_bigym/filters/cost_signal.py) `compute_cost()`; attached to TimeStep in [`agents/cqn_as/env_adapter.py`](../safety_bigym/agents/cqn_as/env_adapter.py); n-step discounted `cost` + `max_cost` in [`replay_buffer.py`](../safety_bigym/agents/cqn_as/replay_buffer.py); `cost` data_spec in [`train_cqn_as.py`](../train_cqn_as.py) | ✅ flows end-to-end into the batch dict |
-| **Cost critic `Q_c`** (P3.0b) | [`filters/cost_critic.py`](../safety_bigym/filters/cost_critic.py) — twin of the Phase 2 `SafetyCritic`; `warm_start_from_svf()` refuses without `force_sign_flip=True` | ✅ module + tests (`tests/test_cost_critic.py`); **not yet wired into training** |
+| **Cost critic scaffolding** (P3.0b) | [`filters/cost_critic.py`](../safety_bigym/filters/cost_critic.py) — MLP twin of the Phase 2 `SafetyCritic`; `warm_start_from_svf()` refuses without `force_sign_flip=True` | ✅ module + tests (`tests/test_cost_critic.py`); retained for future warm-start variants |
+| **Lagrangian CQN-AS agent** (P3.1) | [`agents/cqn_as/lagrangian_agent.py`](../safety_bigym/agents/cqn_as/lagrangian_agent.py), [`agents/cqn_as/lagrangian.py`](../safety_bigym/agents/cqn_as/lagrangian.py), `cfgs/agent/cqn_as_lagrangian.yaml` | ✅ code complete + unit-tested; GPU smoke pending |
 | **Demo pipeline** (Workstream D) | `SafetyBiGymCQNAdapter.get_demos()` in [`env_adapter.py`](../safety_bigym/agents/cqn_as/env_adapter.py) | ✅ tests green; 2k smoke passed; demos carry safe-side `cost=0.0` |
 | **CQN-AS vendor + train entrypoint** | [`agents/cqn_as/`](../safety_bigym/agents/cqn_as/), [`train_cqn_as.py`](../train_cqn_as.py) | ✅ snapshot/eval-video cadence fixed; demo replay buffer wired |
 | **Phase 2 SVF (warm-start source)** | `checkpoints/svf_coworker_train_v1.pt` | ✅ trained/eval'd/swept |
 
-**The single most important "done-but-inert" fact:** the per-step cost `c_t` is in the training batch
-(`batch["cost"]`, `batch["max_cost"]`) **but `agent.update()` ignores it today.** Everything is staged
-for `Q_c` to consume it — that consumption is P3.1.
+**Current P3.1 status:** the per-step cost `c_t` is in the training batch
+(`batch["cost"]`, `batch["max_cost"]`) and the Lagrangian agent consumes it
+through a CQN-AS-shaped cost critic. The remaining gate is a 2000-frame GPU
+smoke on a usable base snapshot, then E3.* sweeps.
 
 > ⚠️ **`c_pfl` is identically zero** under the open PFL contact-detection bug (see CLAUDE.md). So in
 > practice `c_t == c_ssm` right now. Phase 3 proceeds on the SSM-driven cost; PFL is a later retrofit.
@@ -110,20 +113,16 @@ for `Q_c` to consume it — that consumption is P3.1.
 
 ## 5. What is TO BE DONE
 
-### P3.1 — the Lagrangian glue (next coding milestone)
+### P3.1 — the Lagrangian glue (code complete; GPU smoke pending)
 
-This is the actual constrained-RL machinery. Four concrete pieces, all in
-[`agents/cqn_as/agent.py`](../safety_bigym/agents/cqn_as/agent.py) + [`train_cqn_as.py`](../train_cqn_as.py):
+The constrained-RL machinery is implemented in a sibling Lagrangian agent rather
+than by editing the vendored `agent.py`: CQN-AS-shaped `Q_c` + target network,
+λ PID on rolling cost, dual-Q selection `argmax_a [Q_r − λ·Q_c]` at each
+coarse-to-fine level, and logging for λ / rolling cost / `q_c_loss`.
 
-1. **`Q_c` training-loop integration.** Add a cost Q-network to `CQNASAgent`, regress it on the
-   per-step `cost` already in the batch (Bellman, max-of-twins pessimism, **per-env-step backup**).
-   Decide warm-start: A/B `CostCritic.warm_start_from_svf(..., force_sign_flip=True)` vs fresh init
-   (deferred from P3.0b — SVF and `Q_c` heads point opposite ways, hence the sign-flip guard).
-2. **λ PID updater.** Track rolling-mean cost, update λ per the PID rule, clamp to `[0, λ_max]`.
-   Start `K_I=1e-3, K_P=1e-2, K_D=0, λ_max=100, d=0.01`.
-3. **Dual-Q action selection.** Replace `argmax_a Q_r` with `argmax_a [Q_r − λ·Q_c]` at **each
-   coarse-to-fine level** of the CQN-AS bin refinement (not just the final level).
-4. **Logging.** λ, rolling cost, `Q_c` loss, intervention proxy → W&B.
+Remaining: run the 2000-frame GPU smoke with `agent=cqn_as_lagrangian` on the
+usable base snapshot, confirm λ moves and `q_c_loss` logs, then hand full E3.*
+sweeps to the GPU box.
 
 ### P3.2+ — experiments (GPU sweeps, after P3.1 lands and smokes)
 
@@ -153,10 +152,9 @@ This is the actual constrained-RL machinery. Four concrete pieces, all in
   isn't the dominant lever, the cost-signal Lagrangian is the thesis lever, and `Q_c`/the filter
   consume the channel regardless. → Start the actor with `bodyslam=oracle` (or noisy) and run the
   off/oracle/noisy ablation inside **E3.6** on the constrained policy.
-- **Demo pipeline (Workstream D): unblocks non-degenerate training.** Without demos, CQN-AS never
-  discovers the sparse task reward (the C2 collapse). The 50k validation run (in flight) is the gate
-  that says "demos + workspace shaping → the policy attempts the task." **P3.1 should not start its
-  GPU sweeps until that validation is green.**
+- **Demo pipeline and BASE-FIX curriculum: unblocks non-degenerate training.** Without demos, CQN-AS never
+  discovers the sparse task reward (the C2 collapse). The bounded SMPL-H base curriculum has passed;
+  the current next gate is the G1/tightened-stage curriculum run before trusting G1-constrained sweeps.
 - **Phase 2 SVF: optional warm-start + training-time filter.** `Q_c` can warm-start from the SVF
   (`force_sign_flip=True`); the SVF can also act as a training veto (E3.4).
 
@@ -177,8 +175,8 @@ This is the actual constrained-RL machinery. Four concrete pieces, all in
 - **PFL bug → `c_pfl ≡ 0`.** Cost is SSM-only today. If PFL contact detection gets fixed, a *new*
   dataset collection + relabel is needed (the schema is forward-compatible; the values aren't). Phase 3
   is defensible on the proximity/SSM cost alone (anticipatory, fires before contact).
-- **Evacuation local optimum.** The whole reason workspace shaping exists. If E3.X.workspace shows
-  evacuation persists at the default β=0.2, raise β; if task success drops, lower it — pick the knee.
+- **Evacuation local optimum.** The whole reason bounded workspace shaping exists. Keep the support invariant
+  `β·workspace_excess_cap/(1−γ) ≤ |v_min|`; the unbounded β=0.2 setting already failed by saturating the critic.
 - **Per-chunk vs per-step cost.** The seductive bug: averaging cost over the K-step action sequence
   hides intra-chunk spikes. Backup must stay per-env-step. The pipeline already preserves this; P3.1
   must not regress it.
@@ -208,5 +206,5 @@ less conservative R than Phase 2's calibration).
 - **Run a constrained-RL train (once P3.1 lands):** `python train_cqn_as.py env=safety_bigym/<task> disruption=coworker_train bodyslam=oracle num_demos=10 env.safety.add_workspace_penalty=true save_video=true wandb.use=true ...` (+ P3.1 flags for λ/d/option).
 - **P3.0 smoke:** `python scripts/phase3_p30_smoke.py` (`+phase3_p30_smoke.dry_run=true` skips MuJoCo).
 - **Headless GPU box:** `export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0`; **AMASS:** `export AMASS_DATA_DIR=.../CMU/CMU`.
-- **Key constants:** `d_buffer=0.3 m`, `r_ws=0.4 m`, `β=0.2`, PID `K_I=1e-3/K_P=1e-2/K_D=0`, `λ_max=100`, `d=0.01`.
+- **Key constants:** `d_buffer=0.3 m`, `r_ws=0.4 m`, `β=0.05`, `workspace_excess_cap=1.0`, PID `K_I=1e-3/K_P=1e-2/K_D=0`, `λ_max=100`, `d=0.01`.
 - **Branch:** `safety-critic/phase-3-constrained-rl` (per branch strategy); recent urgent fixes went direct to `main` by explicit override.

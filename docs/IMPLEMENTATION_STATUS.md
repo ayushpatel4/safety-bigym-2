@@ -57,9 +57,9 @@ P3.1 code (Lagrangian glue) was code-complete + unit-tested on `safety-critic/ph
 
 **Why D existed:** the C2 (E1.4) re-run came back **degenerate** (31-step episodes, robot fleeing the human, identical off/oracle/noisy curves). Diagnosed as `num_demos=0` (CQN-AS is demo-driven) + no workspace shaping. The demo pipeline is now wired.
 
-### 🔴 Do this first — GPU-box smokes for Workstream D, then Phase 3
+### Historical — Workstream D GPU smokes (superseded by BASE-FIX + 2026-05-27 curriculum)
 
-`SafetyBiGymCQNAdapter.get_demos()` is implemented; D0/D1/D2/D3a/D3b-smoke are done. The 2000-frame smoke on the GPU box passed cleanly on 2026-05-20 (10 demos loaded, replay filled, train loop clean, ep1 ran the full 1000-step budget — the smoking-gun signal that demos unblock non-degenerate learning). **One run left:**
+`SafetyBiGymCQNAdapter.get_demos()` is implemented; D0/D1/D2/D3a/D3b-smoke are done. The 2000-frame smoke on the GPU box passed cleanly on 2026-05-20 (10 demos loaded, replay filled, train loop clean, ep1 ran the full 1000-step budget — the smoking-gun signal that demos unblock non-degenerate learning). The original 50k validation failed under unbounded β=0.2 and was superseded by the BASE-FIX curriculum below; do not use this block as the next action.
 - **~30–50k-frame validation** with demos + workspace shaping (single bodyslam mode, oracle):
   ```bash
   export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
@@ -70,9 +70,11 @@ P3.1 code (Lagrangian glue) was code-complete + unit-tested on `safety-critic/ph
   ```
   Expect: non-trivial `episode_reward > 0` on some episodes, episode lengths staying long (not collapsing back to 31-step evacuation), and `safety/ssm_violation` rate trending down or stable.
 
-Then **proceed straight to P3.1** (the Lagrangian glue). **We are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
+Historical note: **we are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
 
-### What to do when the re-run C2 cells finish
+### Historical — abandoned C2 re-run path
+
+This path is kept only to explain the old plan. C2/E1.4 is no longer a standalone gate; the observation-channel ablation now lives in Phase 3 E3.6. Do not wait for these cells before P3.1.
 
 1. **Harvest snapshot paths** from the 3 hydra run dirs:
    ```bash
@@ -177,21 +179,17 @@ Task selection (2026-05-15, user): `reach_target_single` excluded from training/
   - [x] B5.4 **Threshold sweep** — green 2026-05-18 (v2 results in `results/svf_sweep_{task}_v2.csv`). Q distribution centred at ~3.4 with a narrow safe/unsafe gap; cliff between R=3 (10–22% intervention, residual ≈ 0.93) and R=4 (97–99% intervention, residual 3–8%). **Operating point R≈4.0** trades aggressive intervention for a 30× drop in residual violations vs random. Functional as a hard safety gate; tight for an actor-coupled filter.
   - [x] B5.5 **DONE — negative (2026-05-20).** Ran the full v2 pipeline ([`scripts/run_phase2_b55.sh`](../scripts/run_phase2_b55.sh)): snapshot action-denormalization patch landed (in `bed92f7`; tests `tests/test_svf_collect_snapshot_denorm.py`), v2 collected + trained (`checkpoints/svf_coworker_train_v2.pt`, train `q_mean≈2.96`), eval + sweep complete (`results/svf_{eval,sweep}_v2_*.csv`). **Result:** the patch is a correct fix but is NOT the residual lever. At a partial operating point (~30% intervention) v2 residual is ~87% — unchanged from v1's 74–87%. The intervention/residual tradeoff is ~linear up to the ~90% cliff → residual is dominated by the **structural proximity floor** (human-approach-driven; the robot can't prevent it), not snapshot action-subspace narrowness. Hard-gate residual *did* improve (<1% @ R≈3.5 vs v1's 3–8% @ R=4.0). **Next: change the label, not the data** — tighter-τ relabel and/or robot-controllability-aware label, both offline from the v2 shards. Full analysis: [phase2_results.md §7 + §8](phase2_results.md#results-2026-05-20--patch-fired-hypothesis-not-confirmed).
 
-## Workstream C — E1.4 CQN-AS Observation Ablation
+## Workstream C — E1.4 CQN-AS Observation Ablation (folded into Phase 3 E3.6)
 
-**Anchor task: `saucepan_to_hob`** (user decision 2026-05-15). Chosen because the legacy E1.1 side-finding showed oracle improved task success 0.22 → 0.58 while *worsening* SSM violations — the most informative cell to probe whether an RL reward signal redirects the policy to use the human-state channel for safety rather than progress.
+**Current status:** no standalone C2/E1.4 re-run. The demo-free CQN-AS attempt degenerated, and the user decided on 2026-05-20 to fold the off/oracle/noisy observation-channel ablation into Phase 3 eval as E3.6. Keep the notes below as historical context only.
+
+**Anchor task was `saucepan_to_hob`** (user decision 2026-05-15). Chosen because the legacy E1.1 side-finding showed oracle improved task success 0.22 → 0.58 while *worsening* SSM violations — the most informative cell to probe whether an RL reward signal redirects the policy to use the human-state channel for safety rather than progress.
 
 - [x] C1. Sweep script [`scripts/phase1_reward_pilot_cqn_as.py`](../scripts/phase1_reward_pilot_cqn_as.py) — modelled on `phase1_reward_pilot.py` but invokes `train_cqn_as.py`. 3 train cells (`bodyslam=off|oracle|noisy`) × `saucepan_to_hob` × `disruption=coworker_train`, `env.safety.add_violation_penalty=true env.safety.violation_penalty=0.05`, `num_train_frames=200000`, `num_demos=0`. `--smoke` runs a 2000-frame validation on a single cell. `--eval` prints eval commands against `disruption=coworker_eval` (20 episodes × 3 seeds × 3 modes) once SNAPSHOTS at the top of the script are filled in post-train. Blocks on A6 green (smoke gate validates the same composition path).
 - C2 unblocked 2026-05-18 by replay-buffer collate fix + CQNASAgent state_dict + train_cqn_as `+snapshot_path` eager-load. Eval half also unblocked (snapshot loader now functional).
 - ⚠️ **C2's first run (2026-05-18) is DEAD — must be re-run.** All 3 cells trained to ~190k+ but saved **zero snapshots** due to the snapshot-cadence bug (`6e7fdc1`, see notes 2026-05-19). The run dirs have `buffer/` + `train_cqn_as.log` only, no `snapshot_*.pt`. Kill + restart with current `main` (see "Next session — start here"). The restart also picks up `save_video=true` (eval mp4s).
-- [ ] C2.1 Cell `bodyslam=off` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.2 Cell `bodyslam=oracle` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.3 Cell `bodyslam=noisy` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.4 Eval on COWORKER eval space (20 episodes × 3 seeds × 3 cells)
-- [ ] C3. Decision recorded → Phase 3 obs config locked
-  - [ ] If channel helps: `bodyslam=noisy` for Phase 3 actor
-  - [ ] If channel doesn't help: `bodyslam=off` for actor (filter consumes channel only)
-  - [ ] If oracle helps, noisy doesn't: `bodyslam=oracle` + noise-model investigation
+- [x] C2/C3 standalone gate cancelled by user decision (2026-05-20).
+- [ ] E3.6 Phase 3 observation-channel ablation remains downstream: `bodyslam=off|oracle|noisy` under the constrained policy.
 
 ## Workstream P3.0 — Phase 3 Scaffolding (DONE, merged PR #9)
 
@@ -334,7 +332,7 @@ Body knobs flow through the same `ScenarioSampler` → `TrajectoryPlanner` → `
 | 2026-05-20 | **P3.1 `Q_c` Bellman backup evaluates the dual policy `a'=argmax[Q_r−λ·Q_c]` (target nets); reward critic untouched** | `Q_c` should estimate cost of the action the deployed constrained policy actually takes. The vendored reward critic keeps its greedy `argmax Q_r` backup (honors the no-edit-`agent.py` rule). λ stays out of every regression target — it only picks the next action — so both Q-nets keep stationary targets. User-confirmed. |
 | 2026-05-20 | **P3.1 `Q_c` gets its own CNN encoder** (not shared with the reward critic) | Cost gradients never corrupt reward features and vice versa; clean decoupled critic. Costs extra memory/compute, accepted. User-confirmed. |
 | 2026-05-20 | **D3b-validation FAILED; fix the reward/critic-support incompatibility + re-validate with a human curriculum before P3.1** | The 50k base run was degenerate (reward −78→−775, robot parks away from task). Diagnosed: the dense workspace penalty's discounted return (`−β(d−r_ws)/(1−γ)` ≈ −20·(d−0.4)) saturates the C51 critic support [−2,+2] — the Bellman-target clamp kills the pull-back gradient. User decision: apply 4 levers — bound the penalty (β 0.2→0.05, `workspace_excess_cap=1.0`), widen support (v_min −6 / v_max +2 / atoms 101), demos 10→36, staged human curriculum (`run_base_curriculum.sh`). Writeup: [phase3_base_validation_findings.md](phase3_base_validation_findings.md). Durable lesson now in CLAUDE.md. |
-| 2026-05-20 | Open B5.5 (v2 SVF dataset with snapshot tanh-denormalization) | B5.3 in-dist eval confirmed v1 critic narrowness even on `coworker_train` (residual 74–87% at 28–34% intervention). B4.2's snapshot-action denormalization caveat (raw tanh output, env silently clips, body-joint actions stay in [-1, 1]) is the most plausible cause. Pipeline scripted at `scripts/run_phase2_b55.sh`; full plan in [phase2_results.md §B5.5](phase2_results.md#7--b55--v2-dataset-with-snapshot-action-denormalization-active). |
+| 2026-05-20 | Open B5.5 (v2 SVF dataset with snapshot tanh-denormalization) | B5.3 in-dist eval confirmed v1 critic narrowness even on `coworker_train` (residual 74–87% at 28–34% intervention). B4.2's snapshot-action denormalization caveat (raw tanh output, env silently clips, body-joint actions stay in [-1, 1]) was the most plausible cause. It later closed negative; see [phase2_results.md §7](phase2_results.md#7-b55--v2-dataset-with-snapshot-action-denormalization-closed-negative). |
 | 2026-05-20 | Phase 2 implementation + experiment writeup lives at `docs/phase2_results.md` | Single canonical Phase 2 doc to land alongside Phase 3 work — captures B1–B5 design decisions, v1 numbers, B5.5 plan, and a B5.3 in-dist table slot the user fills post-collection. Supersedes the partial `docs/phase2_status.md` (kept for the sub-branch/commit table). |
 | 2026-05-20 | B5.5 closed negative — stop chasing the SVF residual with data, change the label | v2 (denormalized snapshot actions) reproduced v1's residual at a partial operating point (~87% @ ~30% intervention). The intervention/residual curve is ~linear to the ~90% cliff → the critic is a clamp-fraction dial, not a discriminative classifier; residual is set by the structural proximity floor (human-approach-driven). Denormalization was still worth landing (hard-gate residual <1% @ R≈3.5). Next lever is offline label work (tighter-τ relabel / robot-controllability-aware label), not a v3 collection. |
 | 2026-05-27 | **Fresh G1 coworker swap on `retryg1`, NOT a port of `safety-critic/g1-coworker`** | Previous attempt (commit `8beb0ec`) trained stably only with `MASK_PIXELS=1`, capping task-success vs RGB-enabled SMPL-H. User instructed clean retry — implementation error in the prior version, don't carry it forward. SMPL-H code path is byte-untouched; G1 lives in parallel classes selected by `env.human_model`. Default stays `smplh` so existing runs are unaffected. |

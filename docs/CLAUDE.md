@@ -2,7 +2,7 @@
 
 ## What this is
 
-A multi-project workspace for a safety-aware manipulation robot. The active project is [safety_bigym/](../) — a BiGym extension that injects a live SMPL-H human (driven by AMASS CMU motion clips) into manipulation scenes and adds ISO 15066 safety monitoring (Speed and Separation Monitoring + Power and Force Limiting). Policies are trained through RoboBase ([robobase/](robobase/)), which is a local clone rather than a pip-installed dep.
+A multi-project workspace for a safety-aware manipulation robot. The active project is [safety_bigym/](../) — a BiGym extension that injects a live coworker into manipulation scenes (SMPL-H driven by AMASS CMU clips by default, or Unitree G1 via `env.human_model=g1`) and adds ISO 15066 safety monitoring (Speed and Separation Monitoring + Power and Force Limiting). Policies are trained through RoboBase ([robobase/](robobase/)), which is a local clone rather than a pip-installed dep.
 
 The goal of this workspace: implement the Hybrid Safety Critic described in [.claude/UPDATED_PROJECT_PLAN.md](../../.claude/UPDATED_PROJECT_PLAN.md) — a constrained-RL policy plus a decoupled Safety Value Function filter at runtime.
 
@@ -129,7 +129,7 @@ The goal of this workspace: implement the Hybrid Safety Critic described in [.cl
 
 ## Conventions for new code
 
-- Safety filters → `safety_bigym/safety_bigym/filters/` (new subpackage per the main plan; doesn't exist yet)
+- Safety filters → `safety_bigym/safety_bigym/filters/` (SVF, cost critic, cost signal, CQL trainer, runtime wrapper)
 - New wrappers → `safety_bigym/safety_bigym/safety/` alongside `iso15066_wrapper.py`, or a dedicated `wrappers/` subpackage if they're task-agnostic
 - Training/experiment scripts → `safety_bigym/scripts/` (existing convention; 24 scripts already there)
 - Tests → `safety_bigym/tests/` mirroring the package layout

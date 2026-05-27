@@ -1,6 +1,6 @@
 # Thesis-grade safety metrics
 
-Last updated: 2026-05-26
+Last updated: 2026-05-27
 Code: [safety/iso15066_wrapper.py](../safety_bigym/safety/iso15066_wrapper.py), [safety/episode_metrics_wrapper.py](../safety_bigym/safety/episode_metrics_wrapper.py)
 
 This page is the load-bearing reference for which safety number to report
@@ -108,13 +108,15 @@ Per-update Lagrangian metrics (`lambda`, `rolling_cost`, `cost_violation`,
 ## W&B run tagging
 
 [`scripts/run_base_curriculum.sh`](../scripts/run_base_curriculum.sh) emits
-`+wandb.tags=[stage{0,1,2},method=unconstrained,task=${TASK}]` per stage.
+`+wandb.tags=[stage{0,1,2},method:unconstrained,task:${TASK},human:${HUMAN_MODEL}]` per stage.
 [`train_cqn_as.py._setup_wandb`](../train_cqn_as.py) forwards the list to
 `wandb.init(tags=...)`. The thesis Pareto / convergence plots filter on
 these tags in the W&B UI.
 
-P3.1 launchers should append `method=lagrangian` (or `method=hybrid` for
-the eventual SVF + Lagrangian combination) instead of `method=unconstrained`.
+Hydra reserves `=` and `,` inside override values, so use `:` as the
+key/value separator inside tag strings. P3.1 launchers should append
+`method:lagrangian` (or `method:hybrid` for
+the eventual SVF + Lagrangian combination) instead of `method:unconstrained`.
 
 ## Local JSON dumps (resilient to W&B downtime)
 

@@ -1,5 +1,10 @@
 # Phase 1 — Mock BodySLAM++ Observation Wrapper
 
+> **Historical/reference doc.** The wrapper remains active, but the Phase 1
+> experiment gates described here are closed or folded into Phase 3. For current
+> observation-channel experiments, see Phase 3 E3.6 in
+> [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md).
+
 Branch: `safety-critic/phase-1-bodyslam-wrapper` (off `main` once the
 Phase-0 retrain merges).
 

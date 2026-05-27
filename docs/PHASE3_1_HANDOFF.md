@@ -1,5 +1,11 @@
 # Handoff — P3.1: the Lagrangian glue (constrained RL)
 
+> **Historical handoff.** P3.1 is now code-complete and unit-tested; the live
+> remaining gate is the GPU smoke / experiment handoff described in
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
+> [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md). This prompt is preserved for
+> implementation context and should not be used as the current task list.
+
 Created 2026-05-20. Single coding milestone. Read this top-to-bottom before touching code.
 
 Companion docs (all in `safety_bigym/docs/`): [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md) (scope + status),
@@ -81,7 +87,7 @@ Companion docs (all in `safety_bigym/docs/`): [PHASE3_OVERVIEW.md](PHASE3_OVERVI
 >
 > **HYPERPARAMETERS (from the plan, start here):**
 > - cost: `d_buffer=0.3`
-> - workspace: `r_ws=0.4`, `β=0.2` (`env.safety.add_workspace_penalty=true` is now CLI-overridable)
+> - workspace: current bounded default is `r_ws=0.4`, `β=0.05`, `workspace_excess_cap=1.0` (`env.safety.add_workspace_penalty=true` is CLI-overridable)
 > - λ PID: `K_I=1e-3, K_P=1e-2, K_D=0, λ_max=100`, cost budget `d=0.01`
 > - λ update: `cost_violation = rolling_mean_cost − d`; `λ = clip(λ + K_I·cv + K_P·cv + K_D·Δcv, 0, λ_max)`
 >

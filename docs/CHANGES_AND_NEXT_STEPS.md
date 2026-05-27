@@ -101,7 +101,12 @@ The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax
 
 ---
 
-## Things you may need to redo
+## Historical redo list from 2026-05-15
+
+The table below is preserved as the plan-rewrite snapshot. It is **not** the
+current action list: Phase 2 dataset regen is complete, the standalone Phase
+1.4 gate was folded into Phase 3 E3.6, and the ACT snapshot refresh has already
+fed the SVF/CQN-AS workstreams.
 
 | Item | Why | Priority |
 |---|---|---|
@@ -118,7 +123,11 @@ The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax
 
 ---
 
-## Things to do next (ordered)
+## Historical "things to do next" from 2026-05-15
+
+Use [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the live next
+action. The sequence below records the original rewrite plan and is retained
+only for traceability.
 
 ### P0 — Gate everything else
 
@@ -184,13 +193,15 @@ The old `A` / `B-mean` / `B-CVaR` names refer to the actor-critic variants that 
 
 | Axis | Train | Eval | Hydra key |
 |---|---|---|---|
-| Closest-approach distance | 0.9–1.4 m | 0.6–1.8 m | `coworker_closest_approach_range` |
-| Reach period | 4.5–6.5 s | 3.0–9.0 s | `coworker_reach_period_range` |
-| P(reach EE) | 0.4–0.6 | 0.1–0.9 | `coworker_target_mix_p_ee_range` |
-| NEAR dwell | 7–11 s | 4–16 s | `coworker_near_loiter_range` |
+| Closest-approach distance | 0.55–0.85 m | 0.6–1.8 m | `coworker_closest_approach_range` |
+| Reach period | 3.0–5.0 s | 3.0–9.0 s | `coworker_reach_period_range` |
+| P(reach EE) | 0.55–0.85 | 0.1–0.9 | `coworker_target_mix_p_ee_range` |
+| NEAR dwell | 12–18 s | 4–16 s | `coworker_near_loiter_range` |
 | Walk speed | 1.0–1.6 m/s | 0.6–2.2 m/s | `coworker_walk_speed_range` |
 
-Factories: `make_coworker_train_space()` / `make_coworker_eval_space()`. Hydra presets: `cfgs/disruptions/coworker_{train,eval}.yaml`.
+The train band above is the tightened 2026-05-27 stage-2 distribution. It is intentionally more aggressive than the original moderate band, so the eval band is no longer a clean strict superset on every endpoint. Report OOD by parameter bins when needed.
+
+Factories: `make_coworker_train_space()` / `make_coworker_eval_space()`. Hydra presets: `cfgs/disruption/coworker_{train,eval}.yaml`.
 
 Trajectory modes (sampled uniformly per episode): `STATIONARY`, `APPROACH_LOITER_DEPART`, `COWORKER_PATROL`.
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan supersedes the original `HYBRID_SAFETY_CRITIC_PLAN.md`. It incorporates all completed work through Phase 2 code completion, actual experimental results, revised interpretations, and the forward path through Phases 3–5.
+This plan supersedes the original `HYBRID_SAFETY_CRITIC_PLAN.md`. It is a design plan, not the live status ledger. For the current next action and run state, read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) first.
 
 The hybrid approach combines two mechanisms: a constrained-RL-trained policy that internalises safety through training, and a decoupled SVF safety filter that provides a runtime backup. The policy handles smooth safe behaviour in normal operation; the filter catches edge cases and provides the hard guarantees needed for ISO 15066 compliance.
 
@@ -16,17 +16,17 @@ This revision incorporates three load-bearing changes. They cascade through ever
 
 The original plan trained and evaluated across five disruption types (`static`, `cross`, `reach`, `approach`, `occlude`). The revised plan trains and evaluates on a single `DisruptionType.COWORKER` (implemented and tested — see `safety_bigym/scenarios/coworker_behavior.py` and `test_coworker_disruption.py`). COWORKER itself contains internal variation via three trajectory modes (`STATIONARY`, `APPROACH_LOITER_DEPART`, `COWORKER_PATROL`) and an arm state machine with extend/hold/retract/idle phases.
 
-Breadth of evaluation comes from **five continuous parameter axes** with strict superset eval-vs-train ranges (`make_coworker_train_space` / `make_coworker_eval_space`):
+Breadth of evaluation comes from **five continuous parameter axes** (`make_coworker_train_space` / `make_coworker_eval_space`). The train band was tightened on 2026-05-27 so stage 2 reliably puts the coworker arm into the robot workspace:
 
 | Axis | Train (moderate) | Eval (wider) |
 |---|---|---|
-| `closest_approach` | 0.9–1.4 m | 0.6–1.8 m |
-| `reach_period` | 4.5–6.5 s | 3.0–9.0 s |
-| `target_mix_p_ee` | 0.4–0.6 | 0.1–0.9 |
-| `near_loiter` | 7–11 s | 4–16 s |
+| `closest_approach` | 0.55–0.85 m | 0.6–1.8 m |
+| `reach_period` | 3.0–5.0 s | 3.0–9.0 s |
+| `target_mix_p_ee` | 0.55–0.85 | 0.1–0.9 |
+| `near_loiter` | 12–18 s | 4–16 s |
 | `walk_speed` | 1.0–1.6 m/s | 0.6–2.2 m/s |
 
-The eval range is a strict superset of train on every axis (test-enforced); ≥10% of eval samples land OOD per axis. The "OOD robustness" story in Phase 5 is now parameter-axis-based, not disruption-type-based.
+The old train/eval pair was a strict superset split. After the 2026-05-27 tightening, the eval distribution is still the held-out stress distribution, but it is not a clean strict superset on every endpoint. Report OOD robustness by parameter bins rather than relying on the old invariant.
 
 ### Change 2 — Switch from DrQ-V2+ to CQN-AS
 
@@ -65,9 +65,9 @@ Zero penalty inside radius `r_ws` so the policy can still dodge; quadratic outsi
 | Phase 0 | **COMPLETE** | Human collision fix, SSM velocity fix, eval regression fix, ACT retrain done |
 | Phase 0.5 (NEW) | **COMPLETE** | `DisruptionType.COWORKER` + 3 trajectory modes + 5 parameter axes + train/eval factories |
 | Phase 1 E1.1 | **COMPLETE** (legacy, multi-disruption) | BC obs-ablation negative — kept as historical; new coworker-only re-run needed only if used as report evidence |
-| Phase 1.4 | **REWRITE REQUIRED** | Was DrQ-V2+ on 5 disruptions; redo as CQN-AS on COWORKER train space |
-| Phase 2 | **CODE COMPLETE, DATASET REGEN REQUIRED** | SVF filter pipeline ready; existing dataset is multi-disruption, must re-collect on COWORKER train space |
-| Phase 3 | **NOT STARTED, REFORMULATED** | Value-based constrained RL on CQN-AS + workspace reward shaping |
+| Phase 1.4 | **FOLDED INTO PHASE 3** | The standalone E1.4 gate was abandoned after the demo-less CQN-AS run degenerated; the observation-channel question now lives in Phase 3 E3.6 |
+| Phase 2 | **CLOSED** | SVF filter trained/eval'd/swept on COWORKER data; v2 denormalization follow-up closed negative |
+| Phase 3 | **P3.0 DONE; P3.1 CODE COMPLETE, GPU SMOKE PENDING** | Value-based constrained RL on CQN-AS + bounded workspace reward shaping |
 | Phase 4 | **NOT STARTED** | Full hybrid deployment + fallback upgrade |
 | Phase 5 | **NOT STARTED, REFRAMED** | OOD axes are now coworker parameter ranges, not held-out disruption types |
 
@@ -112,13 +112,13 @@ Single sustained-coworker disruption replaces the previous six-type catalogue as
 
 | Axis | Train | Eval |
 |---|---|---|
-| `coworker_closest_approach_range` | 0.9–1.4 m | 0.6–1.8 m |
-| `coworker_reach_period_range` | 4.5–6.5 s | 3.0–9.0 s |
-| `coworker_target_mix_p_ee_range` | 0.4–0.6 | 0.1–0.9 |
-| `coworker_near_loiter_range` | 7–11 s | 4–16 s |
+| `coworker_closest_approach_range` | 0.55–0.85 m | 0.6–1.8 m |
+| `coworker_reach_period_range` | 3.0–5.0 s | 3.0–9.0 s |
+| `coworker_target_mix_p_ee_range` | 0.55–0.85 | 0.1–0.9 |
+| `coworker_near_loiter_range` | 12–18 s | 4–16 s |
 | `coworker_walk_speed_range` | 1.0–1.6 m/s | 0.6–2.2 m/s |
 
-`make_coworker_train_space()` / `make_coworker_eval_space()` factories force `disruption_weights = {COWORKER: 1.0}`. Hydra presets ship at `cfgs/disruptions/coworker_{train,eval}.yaml`.
+`make_coworker_train_space()` / `make_coworker_eval_space()` factories force `disruption_weights = {COWORKER: 1.0}`. Hydra presets ship at `cfgs/disruption/coworker_{train,eval}.yaml`.
 
 ### Implications downstream
 
@@ -172,13 +172,13 @@ A single, parameterised, sustained-coworker disruption with verified train/eval 
 
 **Interpretation caveat:** E1.1 ran without any violation penalty. BC has no reward gradient, and the demos were collected without a human, so `human_pos_estimate` and demo actions are statistically uncorrelated. BC marginalises the channel away. E1.1 cannot distinguish "the channel is useless" from "BC cannot learn to use it without a reward signal." This ambiguity motivates E1.4.
 
-### E1.4: RL Reward-On Pilot — REWRITE REQUIRED (CQN-AS + COWORKER)
+### E1.4: RL Reward-On Pilot — FOLDED INTO PHASE 3 E3.6
 
-**Status note.** The DrQ-V2+ launch config (`drqv2plus_pixel_safety_bigym.yaml`), violation-penalty wiring, and sweep script (`phase1_reward_pilot.py`) remain useful as templates. The core experimental setup transfers; only the backbone algorithm and disruption sampler change. Existing DrQ-V2+ code is not deleted — kept as a fallback if CQN-AS integration encounters blockers.
+**Status note.** The original DrQ-V2+ reward-on pilot is historical. The CQN-AS replacement was attempted as Workstream C/E1.4 and degenerated when run demo-free (`num_demos=0`): the robot learned to evacuate rather than solve the task. The user decision on 2026-05-20 was to stop treating E1.4 as a standalone gate and fold the off/oracle/noisy observation-channel ablation into Phase 3 as E3.6, after demos + workspace shaping make the base CQN-AS policy non-degenerate.
 
 **Question:** Does the `human_pos_estimate` channel help when the training algorithm has access to a safety reward signal? (Unchanged from original framing.)
 
-**Setup (revised):** CQN-AS (critic-only, coarse-to-fine discrete-action RL with K-step action sequences), `reach_target_single`, 3 obs modes (off / oracle / noisy), `violation_penalty=0.05` active for all cells, COWORKER train ParameterSpace, ~200k env frames per cell.
+**Current placement:** CQN-AS (critic-only, coarse-to-fine discrete-action RL with K-step action sequences), 3 obs modes (off / oracle / noisy), COWORKER train/eval spaces, evaluated as Phase 3 E3.6 under the constrained policy. The actor can start from `bodyslam=oracle`/`noisy`; the SVF filter and cost critic consume human state regardless of the actor ablation.
 
 **Pre-port checklist (do these before any full training run):**
 
@@ -187,9 +187,7 @@ A single, parameterised, sustained-coworker disruption with verified train/eval 
 3. **Action-sequence vs SSM cost.** Verify the cost signal `c_t` is logged per-step inside the K-step chunk, not only at chunk boundaries. If only chunk-level, the policy will optimise mean-over-chunk cost and miss spikes — adjust the cost aggregator to use max-over-chunk or per-step.
 4. **Action space.** CQN-AS discretises each of the 76 joint-position dimensions into B bins per coarse-to-fine level. Confirm `B`, the number of levels, and the resulting per-step action vocabulary are tractable for the H1 setup. Default CQN-AS values from the BiGym experiments should work directly.
 
-Only after the smoke run passes (steps 1–3 above) commit to the full 3-cell GPU sweep.
-
-**Decision rule:** unchanged from the original plan — channel helps under RL with reward signal, or doesn't; treat the answer as gating Phase 3's observation configuration.
+The old decision rule no longer gates Phase 3. Phase 3 proceeds on the continuous-cost Lagrangian; E3.6 is retained as a reporting ablation rather than a blocker.
 
 ### E1.2 and E1.3 — PARKED
 
@@ -204,7 +202,7 @@ Unchanged: predicated on a strong (method, task) cell, which E1.1 didn't produce
 
 ---
 
-## Phase 2: Offline SVF Safety Filter — CODE COMPLETE, GPU PENDING
+## Phase 2: Offline SVF Safety Filter — CLOSED
 
 ### What was built
 
@@ -254,11 +252,7 @@ CQL pushes down Q-values for out-of-distribution actions so the critic never fal
 
 ### GPU Work Required (revised for COWORKER)
 
-1. **Populate SNAPSHOTS dict** — pick W&B peak-by-eval-success checkpoints from Phase 0 ACT retrain (unchanged)
-2. **Dataset regen on COWORKER train space** — previous 5-disruption dataset is stale. New collection: ~310k transitions across 2 tasks × COWORKER train ParameterSpace × 3 sources (random / BiGym demos / Phase 0 ACT snapshots) (~2–3 hours). Sampler-side change is small: drop the multi-disruption mix, swap in `make_coworker_train_space()` factory.
-3. **CQL training** — unchanged: 200k gradient steps, batch size 512, α=5.0 (~30–60 min single GPU)
-4. **Evaluation against ACT policy** — evaluate on COWORKER eval ParameterSpace (wider ranges) so the filter is stress-tested on OOD parameter values from its first measurement
-5. **Threshold Pareto sweep** — R ∈ {5, 10, 25, 50, 75, 90, 95}, plot intervention rate vs residual violation rate; report both in-distribution (train ranges) and OOD (eval-only ranges) cells
+Phase 2 GPU work is complete. The canonical result is [phase2_results.md](phase2_results.md): v1 produced a functional hard gate, and B5.5's v2 denormalized-snapshot follow-up closed negative. Remaining ideas are offline relabels from existing shards (tighter `proximity_threshold`, robot-controllability-aware labels), not a required collection before Phase 3.
 
 ### Experiments
 
@@ -285,19 +279,15 @@ A frozen safety filter module + runtime wrapper + measured Pareto frontier showi
 
 ---
 
-## Phase 3: Constrained RL Integration — NOT STARTED
+## Phase 3: Constrained RL Integration — P3.0 DONE; P3.1 CODE COMPLETE, GPU SMOKE PENDING
 
 ### Goal
 
 Train a task policy that internalises safety via a Lagrangian cost constraint, using continuous cost signals and (optionally) the Phase 2 filter to prevent unsafe exploration during training.
 
-### Design decisions gated on E1.4
+### Observation-channel ablation moved from E1.4 to E3.6
 
-| E1.4 outcome | Phase 3 obs configuration | Rationale |
-|---|---|---|
-| Channel helps under RL | `bodyslam=noisy` for actor | Policy can exploit human state with reward gradient |
-| Channel doesn't help | `bodyslam=off` for actor | Channel is consumed only by Phase 2 filter, not the policy |
-| Oracle helps but noisy doesn't | `bodyslam=oracle` during training, investigate noise model | Noise model may be too aggressive |
+The standalone E1.4 observation gate is no longer on the critical path. The cost-signal Lagrangian is the thesis lever, and the Phase 2 filter / Phase 3 cost critic consume human state regardless of the actor's observation mode. Keep `bodyslam=off|oracle|noisy` as E3.6 under the constrained policy, not as a prerequisite for starting Phase 3.
 
 ### Integration strategy (rewritten for CQN-AS — value-based)
 
@@ -311,7 +301,7 @@ CQN-AS is critic-only. There is no actor network; the policy is implicit as `arg
 - Action selection at each coarse-to-fine level: `argmax_a [Q_r(s, a) − λ · Q_c(s, a)]`
 - λ updates via PID on rolling mean cost (unchanged)
 
-`Q_c` is architecturally identical to the Phase 2 offline safety value function (same input shape: proprio + BodySLAM++ estimate + action; same MLP backbone); weight transfer from Phase 2 at Phase 3 initialisation is supported by construction. Each Q-network faces a stationary prediction target (its own scalar). This is the value-based analogue of the original B-mean option.
+P3.1 implements `Q_c` as a second CQN-AS coarse-to-fine critic so it can score the same action bins as `Q_r` at every refinement level. The earlier MLP/SVF-warm-start variant remains a future B-value-CVaR or warm-start experiment; the initial B-value-mean glue prioritises clean dual-Q action selection over direct SVF weight transfer. Each Q-network still faces a stationary prediction target (its own scalar).
 
 **Option B-value-CVaR — Distributional cost Q-network on tail cost (recommended final headline).**
 Same as B-value-mean, but `Q_c` is distributional — either a Gaussian (WCSAC-style) or a quantile (QR-DQN-style) head. At each level, action selection is `argmax_a [Q_r(s, a) − λ · CVaR_α(Z_c(s, a))]` with α ∈ {0.95, 0.99}, and the cost budget `d` is now a target on rolling CVaR rather than rolling mean. Same justification as before: aligns training objective with the Phase 5 tail-risk metric, and answers the standard critique of mean-cost safe RL.
@@ -334,7 +324,7 @@ r_workspace = -β * max(0, ‖p_ee − p_task‖ − r_ws)
 r_task' = r_task + r_workspace
 ```
 
-Defaults: `r_ws = 0.4 m`, `β` swept in {0.0, 0.05, 0.2, 0.5, 1.0} as part of E3.X.workspace below. `r_ws` chosen so the policy can still dodge the human up to ~30 cm without paying workspace tax; β calibrated against the cost weight to ensure that "small workspace tax to dodge a violation" beats "large workspace tax to permanently evacuate."
+Current bounded defaults: `r_ws = 0.4 m`, `β = 0.05`, `workspace_excess_cap = 1.0`. The cap is load-bearing for CQN-AS: keep `β·workspace_excess_cap/(1−γ) ≤ |v_min|` so the dense shaping return fits the C51 value support. The older unbounded `β=0.2` setting caused critic-support saturation and a degenerate evacuation policy; see [phase3_base_validation_findings.md](phase3_base_validation_findings.md).
 
 ### Continuous cost signal design (unchanged)
 
@@ -494,30 +484,27 @@ Final evaluation report with tables, Pareto curves, and stress-test results. Rea
 ## Critical Path and Dependencies (Updated)
 
 ```
-Phase 0 (DONE) ──► Phase 1 wrapper (DONE) ──► E1.1 BC ablation (DONE, negative)
-                                              │
-                                              ├──► E1.4 RL reward-on (GPU PENDING)
-                                              │         │
-                                              │         ▼
-                                              │    Decision: does obs channel help under RL?
-                                              │         │
-                   Phase 2 code (DONE) ───────┤         ├── yes → Phase 3 uses bodyslam=noisy
-                        │                     │         └── no  → Phase 3 uses bodyslam=off
-                        ▼                     │                   (channel feeds filter only)
-                   Phase 2 GPU work ──────────┤
-                        │                     │
-                        ▼                     ▼
-                   Pareto curve          Phase 3 (constrained RL)
-                        │                     │
-                        └──────────┬──────────┘
-                                   ▼
-                              Phase 4 (hybrid)
-                                   │
-                                   ▼
-                              Phase 5 (eval)
+Phase 0/0.5 (DONE) ──► Phase 1 wrapper + E1.1 (DONE, negative)
+                              │
+                              ▼
+                       Phase 2 SVF (DONE)
+                              │
+                              ▼
+           CQN-AS demos + bounded workspace curriculum (DONE for SMPL-H;
+           G1 verification run pending on retryg1)
+                              │
+                              ▼
+           Phase 3 P3.1 Lagrangian smoke and E3.* sweeps
+                              │
+                              ├──► E3.6 obs-channel ablation (old E1.4 question)
+                              ▼
+                         Phase 4 hybrid
+                              │
+                              ▼
+                         Phase 5 eval
 ```
 
-**E1.4 and Phase 2 GPU work can run in parallel** — they are independent. Phase 3 depends on both: E1.4 determines the obs configuration, Phase 2 provides the training-time safety filter.
+The old E1.4 gate is no longer separate. Phase 3 depends on the non-degenerate CQN-AS base curriculum and the Phase 2 SVF; the observation-channel question is reported later as E3.6.
 
 ---
 
@@ -587,14 +574,10 @@ Occasional `ep_min_ssm_margin` values of -16m or -25m appear in evaluation data.
 
 ## Summary
 
-The project has cleared the infrastructure phase (Phase 0 + Phase 0.5) and now has a single sustained-coworker disruption with verified train/eval parameter splits, a working ACT baseline, and a code-complete safety-filter pipeline. Three architectural changes are now baked into the plan: COWORKER as the only disruption, CQN-AS as the RL backbone, and workspace reward shaping as an addition to the task reward.
+The project has cleared the infrastructure and Phase 2 filter work, has a working CQN-AS training path with demos and bounded workspace shaping, and now also supports a G1 humanoid coworker via `env.human_model=g1`. Three architectural changes are baked into the plan: COWORKER as the main disruption family, CQN-AS as the RL backbone, and bounded workspace reward shaping as an addition to the task reward.
 
-The immediate critical path:
+The immediate critical path now lives in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md): verify the G1/tightened-stage curriculum, then run the P3.1 Lagrangian smoke on a usable base snapshot. The old standalone E1.4 observation ablation is folded into Phase 3 as E3.6.
 
-1. **CQN-AS pre-port smoke (this week).** Pull the reference implementation, run it on stock `reach_target_single`, then confirm composition with `BodySLAMWrapper` + COWORKER sampler. Gate every Phase 1.4 / Phase 3 commitment on this passing.
-2. **Phase 2 dataset regen on COWORKER train space.** ~310k transitions × 2 tasks × 3 sources. Replaces the stale 5-disruption dataset.
-3. **In parallel:** E1.4 CQN-AS observation ablation (3 cells × `reach_target_single`) once the smoke gate is clear.
-
-Phase 3 begins after both. The Phase 3 structure is unchanged at the level of experimental questions (A vs B-mean vs B-CVaR; budget sweep; PID vs gradient; filter on/off) but re-expressed in value-based form, with a new workspace-β sweep (E3.X.workspace) added to defend the reward-shaping choice.
+The Phase 3 experimental structure is unchanged at the level of questions (A vs B-mean vs B-CVaR; budget sweep; PID vs gradient; filter on/off), but it is now value-based and built on the bounded CQN-AS curriculum.
 
 The key architectural insight from the original plan remains: the hybrid (constrained RL training + runtime safety filter) is the right design regardless of any single phase's outcome. What CQN-AS changes is *how* constrained RL is implemented, not whether the hybrid story holds. Each phase continues to produce a standalone deliverable.
