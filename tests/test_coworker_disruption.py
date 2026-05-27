@@ -30,6 +30,7 @@ from safety_bigym.scenarios.scenario_sampler import (
     make_coworker_eval_space,
     _COWORKER_TRAIN_RANGES,
     _COWORKER_EVAL_RANGES,
+    _COWORKER_TRAIN_TRAJECTORY_WEIGHTS,
 )
 
 
@@ -403,3 +404,36 @@ def test_make_coworker_train_space_forces_only_coworker():
     so other disruption types don't pollute the experiment."""
     for space in (make_coworker_train_space(), make_coworker_eval_space()):
         assert space.disruption_weights == {DisruptionType.COWORKER: 1.0}
+
+
+def test_coworker_train_space_favors_patrol():
+    """Train distribution should heavily weight COWORKER_PATROL."""
+    space = make_coworker_train_space()
+    assert space.coworker_trajectory_weights == _COWORKER_TRAIN_TRAJECTORY_WEIGHTS
+    sampler = ScenarioSampler(
+        parameter_space=make_coworker_train_space(clip_paths=["dummy.npz"]),
+    )
+    counts = {"COWORKER_PATROL": 0, "APPROACH_LOITER_DEPART": 0, "STATIONARY": 0}
+    total = 300
+    for seed in range(total):
+        counts[sampler.sample_scenario(seed).trajectory_type] += 1
+    patrol_frac = counts["COWORKER_PATROL"] / total
+    # 8:1:1 weights → expected 0.8; allow sampling variance.
+    assert patrol_frac >= 0.65, (
+        f"expected patrol-heavy train mix, got {counts} ({patrol_frac:.2%} patrol)"
+    )
+    assert counts["COWORKER_PATROL"] > 0
+    assert counts["APPROACH_LOITER_DEPART"] > 0 or counts["STATIONARY"] > 0
+
+
+def test_coworker_trajectory_weighted_choice():
+    """Explicit weights must be honoured (patrol-only smoke)."""
+    sampler = ScenarioSampler(
+        parameter_space=ParameterSpace(
+            clip_paths=["dummy.npz"],
+            disruption_weights={DisruptionType.COWORKER: 1.0},
+            coworker_trajectory_weights={"COWORKER_PATROL": 1.0},
+        ),
+    )
+    for seed in range(20):
+        assert sampler.sample_scenario(seed).trajectory_type == "COWORKER_PATROL"

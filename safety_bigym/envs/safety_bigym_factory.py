@@ -228,6 +228,11 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 value = disruptions_cfg.get(range_field, None)
                 if value is not None:
                     param_space_kwargs[range_field] = tuple(value)
+            traj_weights = disruptions_cfg.get("coworker_trajectory_weights", None)
+            if traj_weights is not None:
+                param_space_kwargs["coworker_trajectory_weights"] = {
+                    str(k): float(v) for k, v in traj_weights.items()
+                }
 
         # Optional eval knob: force every episode to use one disruption type.
         # Used by baseline_sweep.py to evaluate a trained DP against each

@@ -18,8 +18,10 @@ primary training/evaluation distribution for the Hybrid Safety Critic.
 
 ## Three spawn / trajectory modes
 
-For COWORKER scenarios the sampler picks uniformly among three trajectory
-types ([scenario_sampler.py:_select_trajectory_type](../safety_bigym/scenarios/scenario_sampler.py)):
+For COWORKER scenarios the sampler picks among three trajectory types
+([scenario_sampler.py:_select_trajectory_type](../safety_bigym/scenarios/scenario_sampler.py)).
+**Training** (`coworker_train`) weights patrol heavily (~80%); **eval**
+and the generic `ParameterSpace` default remain uniform unless overridden:
 
 | Trajectory | What the human does | When the arm reaches |
 | --- | --- | --- |
@@ -112,6 +114,7 @@ generalisation experiments:
 | P(reach EE) *(vs task obj)* | `coworker_target_mix_p_ee_range` | `0.55 – 0.85` | `0.1 – 0.9` |
 | Dwell time at NEAR | `coworker_near_loiter_range` | `12 – 18 s` | `4 – 16 s` |
 | Walk speed | `coworker_walk_speed_range` | `1.0 – 1.6 m/s` | `0.6 – 2.2 m/s` |
+| Patrol trajectory weight | `coworker_trajectory_weights.COWORKER_PATROL` | **8** (vs 1 each for other modes → ~80 % patrol) | uniform (1:1:1) |
 
 The train band was tightened on 2026-05-27 so stage 2 reliably brings the
 human's active arm into the robot workspace. The 0.55 m closest-approach floor
