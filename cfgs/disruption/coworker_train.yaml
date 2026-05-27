@@ -54,6 +54,6 @@ env:
     # Patrol dominates (~80%) so training mostly sees depart/return cycles
     # (robot gets windows to work when the human walks AWAY).
     coworker_trajectory_weights:
-      COWORKER_PATROL: 8
-      APPROACH_LOITER_DEPART: 1
-      STATIONARY: 1
+      COWORKER_PATROL: 10
+      APPROACH_LOITER_DEPART: 0
+      STATIONARY: 0
