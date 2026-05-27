@@ -96,10 +96,12 @@ else
   WANDB=(wandb.use=true)
 fi
 
-# Latest snapshot (by mtime) in a stage dir; the final-state save at loop exit
-# is the newest snapshot_<step>.pt.
-latest_snapshot() {
-  ls -t "$1"/snapshot_*.pt 2>/dev/null | head -1
+# Best snapshot for curriculum resume: peak eval success_rate (written by
+# train_cqn_as as snapshot_best.pt). Falls back for legacy runs via
+# scripts/pick_best_snapshot.py (metrics.jsonl / nearest step / latest).
+best_snapshot() {
+  local stage_dir="$1"
+  python scripts/pick_best_snapshot.py "${stage_dir}" 2>/dev/null || true
 }
 
 run_stage() {
@@ -142,13 +144,17 @@ if [[ "${RESUME_STAGE2:-0}" == "1" ]]; then
   fi
   OUTDIR="${RESUME_DIR}"
   RUN_TAG="${RUN_TAG:-$(basename "${OUTDIR}")}"
-  # Explicit snapshot wins; else newest from a prior stage-2 (resume or not),
-  # else fall back to stage 1's final snapshot.
+  # Explicit snapshot wins; else best from a prior stage-2 dir (crash resume),
+  # else best from stage 1.
   SNAP="${RESUME_SNAPSHOT:-}"
   if [[ -z "${SNAP}" ]]; then
-    SNAP="$(ls -t "${OUTDIR}"/stage2_full*/snapshot_*.pt 2>/dev/null | head -1)"
+    for d in "${OUTDIR}"/stage2_full*; do
+      [[ -d "${d}" ]] || continue
+      SNAP="$(best_snapshot "${d}")"
+      [[ -n "${SNAP}" ]] && break
+    done
   fi
-  [[ -z "${SNAP}" ]] && SNAP="$(latest_snapshot "${OUTDIR}/stage1_easy")"
+  [[ -z "${SNAP}" ]] && SNAP="$(best_snapshot "${OUTDIR}/stage1_easy")"
   if [[ -z "${SNAP}" ]]; then
     echo "ERROR: no snapshot found under ${OUTDIR} (stage2_full*/ or stage1_easy/)." >&2
     exit 1
@@ -164,10 +170,20 @@ fi
 # is the GATE — episode_reward must climb >0 on some episodes with returns inside
 # [-6, 2]. If it fails, the problem is demos/CQN-AS, not safety: stop and reassess.
 run_stage stage0_idle coworker_idle "${STAGE0_FRAMES}"
-SNAP0="$(latest_snapshot "${OUTDIR}/stage0_idle")"
+SNAP0="$(best_snapshot "${OUTDIR}/stage0_idle")"
+if [[ -z "${SNAP0}" ]]; then
+  echo "ERROR: no snapshot found under ${OUTDIR}/stage0_idle" >&2
+  exit 1
+fi
+echo "== stage 1 resumes from best stage-0 snapshot: ${SNAP0} =="
 
 run_stage stage1_easy coworker_easy "${STAGE1_FRAMES}" "${SNAP0}"
-SNAP1="$(latest_snapshot "${OUTDIR}/stage1_easy")"
+SNAP1="$(best_snapshot "${OUTDIR}/stage1_easy")"
+if [[ -z "${SNAP1}" ]]; then
+  echo "ERROR: no snapshot found under ${OUTDIR}/stage1_easy" >&2
+  exit 1
+fi
+echo "== stage 2 resumes from best stage-1 snapshot: ${SNAP1} =="
 
 run_stage stage2_full coworker_train "${STAGE2_FRAMES}" "${SNAP1}"
 

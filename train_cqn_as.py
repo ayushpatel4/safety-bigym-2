@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import warnings
 from collections import defaultdict
 from pathlib import Path
@@ -97,6 +98,12 @@ class Workspace:
             "ep_ssm_violation_actual_rate": math.inf,
             "ep_min_separation_lowest": math.inf,
         }
+        # Best eval-aligned snapshot for curriculum resume (success_rate max,
+        # episode_reward tie-break). Written to snapshot_best.pt at train end.
+        self._best_success_rate: float = -math.inf
+        self._best_success_reward: float = -math.inf
+        self._best_success_step: int | None = None
+        self._best_snapshot_path: Path | None = None
         # Track last train/episode/eval rows for the final summary.
         self._last_train_episode_row: dict = {}
         self._last_episode_safety_row: dict = {}
@@ -384,9 +391,6 @@ class Workspace:
         eval_every_step = utils.Every(
             self.cfg.eval_every_frames, self.cfg.action_repeat
         )
-        snapshot_every_step = utils.Every(
-            self.cfg.snapshot_every_frames, self.cfg.action_repeat
-        )
         do_eval = False
 
         time_step = self.train_env.reset()
@@ -526,24 +530,17 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
 
-            # Snapshot cadence: fire every snapshot_every_frames steps,
-            # independent of episode boundaries. Previously this check lived
-            # inside `if time_step.last():` which only triggered when an
-            # episode end coincidentally aligned with a multiple of
-            # snapshot_every_frames — for COWORKER train rollouts on
-            # saucepan_to_hob (episodes ~150 steps, terminated stochastically
-            # by violations), that alignment essentially never happens and
-            # 200k-step runs landed zero snapshots on disk.
-            if self.cfg.save_snapshot and snapshot_every_step(self.global_step):
-                self.save_snapshot()
-
-        # Final-state snapshot when the loop exits at num_train_frames.
-        # Without this, the trailing partial period (last snapshot landed at
-        # 190000, train_until_step exits at 200000) is unrecoverable —
-        # the eval-curve peak is usually near the end, so this is the most
-        # load-bearing single checkpoint of the run.
-        if self.cfg.save_snapshot:
+        # If no eval completed (e.g. SMOKE=1 with num_train_frames <
+        # eval_every_frames), fall back to a final-state snapshot so the
+        # stage still has a resume checkpoint.
+        if self.cfg.save_snapshot and self._best_snapshot_path is None:
             self.save_snapshot()
+            self._best_snapshot_path = (
+                self.work_dir / f"snapshot_{self._global_step}.pt"
+            )
+
+        if self.cfg.save_snapshot:
+            self._finalize_best_snapshot()
 
         # Headline summary for the thesis writeup (docs/safety_metrics.md).
         self._write_final_metrics()
@@ -665,11 +662,51 @@ class Workspace:
         self._log(eval_row, self.global_step, ty="eval")
         # Update best_eval (max-prefer reward/success, min-prefer safety).
         self._update_best_eval(eval_row)
-
+        # Snapshots align with eval cycles so curriculum resume can pick the
+        # peak-by-success checkpoint (see scripts/pick_best_snapshot.py).
+        if self.cfg.save_snapshot:
+            self.save_snapshot()
+            self._mark_best_snapshot(eval_row)
 
     # ------------------------------------------------------------------
     # Best-eval tracking + final-metrics dump (docs/safety_metrics.md)
     # ------------------------------------------------------------------
+
+    def _mark_best_snapshot(self, eval_row: dict) -> None:
+        """Track the snapshot with the highest eval success_rate."""
+        sr = eval_row.get("success_rate")
+        if not isinstance(sr, (int, float)) or not math.isfinite(float(sr)):
+            return
+        er_raw = eval_row.get("episode_reward")
+        er = (
+            float(er_raw)
+            if isinstance(er_raw, (int, float)) and math.isfinite(float(er_raw))
+            else -math.inf
+        )
+        sr = float(sr)
+        if sr > self._best_success_rate or (
+            sr == self._best_success_rate and er > self._best_success_reward
+        ):
+            self._best_success_rate = sr
+            self._best_success_reward = er
+            self._best_success_step = int(self._global_step)
+            self._best_snapshot_path = (
+                self.work_dir / f"snapshot_{self._global_step}.pt"
+            )
+
+    def _finalize_best_snapshot(self) -> None:
+        """Copy the best eval-aligned snapshot to snapshot_best.pt."""
+        if self._best_snapshot_path is None or not self._best_snapshot_path.is_file():
+            logger.warning("no best snapshot to finalize")
+            return
+        dest = self.work_dir / "snapshot_best.pt"
+        shutil.copy2(self._best_snapshot_path, dest)
+        logger.info(
+            f"best snapshot: {dest} "
+            f"(step={self._best_success_step}, "
+            f"success_rate={self._best_success_rate:.4f}, "
+            f"episode_reward={self._best_success_reward:.4f})"
+        )
 
     def _update_best_eval(self, eval_row: dict) -> None:
         """Track best (max-prefer reward/success, min-prefer safety) across eval cycles."""
@@ -712,6 +749,25 @@ class Workspace:
                 k: (None if v in (math.inf, -math.inf) else v)
                 for k, v in self._best_eval.items()
             },
+            "best_snapshot": (
+                None
+                if self._best_snapshot_path is None
+                else {
+                    "path": "snapshot_best.pt",
+                    "source": self._best_snapshot_path.name,
+                    "step": self._best_success_step,
+                    "success_rate": (
+                        None
+                        if self._best_success_rate == -math.inf
+                        else self._best_success_rate
+                    ),
+                    "episode_reward": (
+                        None
+                        if self._best_success_reward == -math.inf
+                        else self._best_success_reward
+                    ),
+                }
+            ),
         }
         try:
             self._final_metrics_path.write_text(json.dumps(out, indent=2))
