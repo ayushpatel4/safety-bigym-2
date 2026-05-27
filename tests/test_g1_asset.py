@@ -125,14 +125,16 @@ def test_arm_chains_resolve(model):
         )
 
 
-def test_no_mesh_references(model):
-    # The build script strips every <mesh> declaration. `_create_merged_world`
-    # does not propagate <asset> blocks, so leaving meshes in the human XML
-    # would silently break the merged-into-world load.
-    assert model.nmesh == 0, (
-        f"g1_human_body.xml still references {model.nmesh} meshes; the build "
-        "script must strip all <mesh> and visual mesh geoms."
-    )
+def test_visual_meshes_present(model):
+    """G1 keeps its upstream visual STL meshes so renders show a real G1.
+    ``_create_merged_world`` absolutises the relative file paths at merge
+    time. Collision is still supplied by hand-authored ``_col`` capsules.
+    """
+    assert model.nmesh > 0, "expected G1 to retain its upstream visual meshes"
+    # There should be at least one geom tagged group=2 (visual) — the
+    # default class="visual" puts mesh geoms in group 2.
+    visual_groups = [int(model.geom_group[i]) for i in range(model.ngeom)]
+    assert 2 in visual_groups, "expected at least one visual (group=2) geom"
 
 
 def test_standing_pose_is_stable(model):

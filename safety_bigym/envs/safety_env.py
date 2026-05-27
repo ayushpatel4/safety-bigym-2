@@ -193,11 +193,11 @@ class SafetyBiGymEnv(BiGymEnv):
         Create a merged world XML that includes the human body.
         Returns path to the temporary merged XML file.
 
-        Note: ``<asset>`` blocks are intentionally NOT merged from the
-        human XML. The SMPL-H asset is self-contained (no mesh refs in
-        the worldbody) and the G1 build script strips all mesh
-        declarations for the same reason — so neither model contributes
-        anything an ``<asset>`` merge would need.
+        ``<asset>`` blocks ARE merged (the G1 human XML carries mesh
+        declarations for its visual robot meshes — paths are already
+        absolute, written by ``scripts/build_g1_human_body.py``). The
+        SMPL-H asset has an empty ``<asset>`` block, so the merge is a
+        no-op there.
         """
         import tempfile
         from lxml import etree
@@ -236,6 +236,25 @@ class SafetyBiGymEnv(BiGymEnv):
                 world_actuator = etree.SubElement(world_root, "actuator")
             for act in human_actuators:
                 world_actuator.append(copy.deepcopy(act))
+
+        # Copy human asset declarations (G1 visual meshes). Mesh ``file``
+        # paths in the human XML are relative to the human XML's directory
+        # (portable across machines); absolutise them here so MuJoCo can
+        # find the STLs after the merged XML lands in a temp dir.
+        # SMPL-H has an empty / absent <asset> so this is a no-op there.
+        human_asset = human_root.find("asset")
+        if human_asset is not None and len(human_asset) > 0:
+            world_asset = world_root.find("asset")
+            if world_asset is None:
+                world_asset = etree.SubElement(world_root, "asset")
+            human_xml_dir = self._human_body_path().resolve().parent
+            for child in human_asset:
+                clone = copy.deepcopy(child)
+                if clone.tag == "mesh":
+                    file_attr = clone.get("file")
+                    if file_attr is not None and not Path(file_attr).is_absolute():
+                        clone.set("file", str(human_xml_dir / file_attr))
+                world_asset.append(clone)
         
         # Note: BiGym attaches the H1 robot programmatically after model
         # load (via mojo), so the merged XML never contains robot geoms
