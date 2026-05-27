@@ -9,15 +9,17 @@ Transformations applied:
 1. Rename root body ``pelvis`` → ``Pelvis``, drop the ``childclass="g1"``
    attribute, replace ``<freejoint>`` with ``mocap="true"``, set
    ``pos="0 0 0"`` (the controller writes runtime position to mocap_pos).
-2. **Keep** every ``class="visual"`` geom so the rendered robot looks like
-   a real G1 (the user requested this — supervisor felt the prior
-   skin-tone capsule blob looked unconvincing). Strip the upstream
-   ``class="collision"`` mesh geoms and ``class="foot"`` proxies — they
-   are replaced by the hand-authored ``_col`` capsule primitives.
+2. **Keep** every ``class="visual"`` geom so the silhouette remains a
+   real G1, but remap all visual geoms to one matte skin-toned material.
+   This preserves the robot shape while reducing the high-contrast
+   black/metal visual shift that can destabilise the pixel encoder. Strip
+   the upstream ``class="collision"`` mesh geoms and ``class="foot"``
+   proxies — they are replaced by the hand-authored ``_col`` capsule
+   primitives.
 3. **Keep** the ``<asset>`` block (mesh refs are needed by the visual
-   geoms). Rewrite each ``<mesh file="...">`` to an **absolute path** so
-   the mesh resolves correctly after the world merger drops the human
-   asset block into a temp XML in a different directory.
+   geoms). Rewrite each ``<mesh file="...">`` to a path relative to the
+   output XML; ``SafetyBiGymEnv._create_merged_world`` absolutises those
+   paths when copying the asset block into the temp merged XML.
 4. Strip the upstream ``<keyframe>`` (it referenced the now-removed
    freejoint) and the upstream ``<actuator>`` / ``<sensor>`` blocks.
    Regenerate ``<actuator>`` with one ``class="position_actuator"``
@@ -25,20 +27,17 @@ Transformations applied:
 5. Insert ``<default>`` blocks for ``human`` / ``human_collision`` /
    ``position_actuator`` matching ``assets/smplh_human_body.xml`` so the
    existing env wrappers (collision-bits, PFL geom suffix) work unchanged.
-   Also re-declare materials referenced by the upstream visual geoms
-   (``black`` / ``metal``) so the mesh visuals render with their stock
-   appearance.
+   Also declare ``g1_matte_skin``, a low-specular material used by every
+   visual mesh geom.
 6. Stamp ``class="human"`` on every joint so they inherit human damping /
    armature defaults.
 7. Insert hand-authored collision capsules on the chosen carrier bodies,
    each named ``<Region>_col`` so ``ISO15066Wrapper`` and
    ``_configure_collision_bits`` find them by suffix.
 
-Trade-off: keeping the G1 visuals re-introduces the visual delta the
-previous attempt's CNN encoder regression was caused by (see auto-memory
-``g1-base-curriculum-degenerate``). Acceptable per the user's instruction;
-fall back to the all-capsule strategy α (commit history) if stage-0
-curriculum re-collapses.
+Trade-off: mesh shape still introduces more visual detail than the all-capsule
+strategy α, but the material is deliberately low-contrast to keep the pixel
+distribution closer to the SMPL-H baseline.
 
 Run from the repo root:
     cd safety_bigym && python scripts/build_g1_human_body.py
@@ -64,6 +63,7 @@ _spec = importlib.util.spec_from_file_location("g1_human_spec", _SPEC_PATH)
 g1_human_spec = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(g1_human_spec)
 BODY_JOINT_NAMES = g1_human_spec.BODY_JOINT_NAMES
+VISUAL_MATERIAL_NAME = "g1_matte_skin"
 
 
 # (carrier_body, geom_name, geom_attrs) — appended in document order on the
@@ -141,14 +141,14 @@ def build_defaults() -> etree._Element:
     pos = etree.SubElement(defaults, "default", {"class": "position_actuator"})
     etree.SubElement(pos, "position", {"kp": "200", "kv": "20"})
 
-    # Upstream G1 visual class (copied verbatim from g1.xml so the mesh
-    # geoms keep their rendering attributes after we drop the upstream
-    # ``<default class="g1">`` parent).
+    # Keep the real G1 mesh silhouette but make the render closer to the
+    # SMPL-H training distribution: low-contrast, matte, skin-toned, and no
+    # black/metal material split for the CNN encoder to latch onto.
     vis = etree.SubElement(defaults, "default", {"class": "visual"})
     etree.SubElement(vis, "geom", {
         "group": "2", "type": "mesh",
         "contype": "0", "conaffinity": "0",
-        "density": "0", "material": "metal",
+        "density": "0", "material": VISUAL_MATERIAL_NAME,
     })
 
     return defaults
@@ -171,6 +171,14 @@ def build_asset_block(upstream_root: etree._Element) -> etree._Element:
         return etree.Element("asset")
 
     out = etree.Element("asset")
+    etree.SubElement(out, "material", {
+        "name": VISUAL_MATERIAL_NAME,
+        "rgba": "0.75 0.58 0.50 1",
+        "specular": "0.05",
+        "shininess": "0.05",
+        "reflectance": "0",
+    })
+
     for child in upstream_asset:
         clone = etree.fromstring(etree.tostring(child))
         if clone.tag == "mesh":
@@ -183,6 +191,15 @@ def build_asset_block(upstream_root: etree._Element) -> etree._Element:
                 clone.set("file", f"g1/assets/{file_attr}")
         out.append(clone)
     return out
+
+
+def normalize_visual_materials(body: etree._Element) -> None:
+    """Assign every kept visual mesh the same low-contrast matte material."""
+    for geom in body.findall("geom"):
+        if geom.get("class") == "visual":
+            geom.set("material", VISUAL_MATERIAL_NAME)
+    for child in body.findall("body"):
+        normalize_visual_materials(child)
 
 
 def transform_pelvis(pelvis: etree._Element) -> None:
@@ -287,6 +304,7 @@ def build() -> str:
 
     transform_pelvis(pelvis)
     strip_collision_geoms_and_sites(pelvis)
+    normalize_visual_materials(pelvis)
     stamp_joint_class(pelvis)
     insert_collision_capsules(pelvis)
 

@@ -31,14 +31,14 @@ Override via Hydra (`env.human_model=g1`) or the curriculum env-var (`HUMAN_MODE
 Transformations the build script applies to the upstream MJCF:
 
 1. **Rename root** `pelvis` → `Pelvis`, drop `childclass="g1"`, replace `<freejoint>` with `mocap="true"`, set `pos="0 0 0"`. This matches the SMPL-H integration contract (`_setup_human_indices` looks up the body named `"Pelvis"` with `body_mocapid >= 0`).
-2. **Keep visual mesh geoms** (`class="visual"`) so the rendered robot looks like a real G1.
+2. **Keep visual mesh geoms** (`class="visual"`) so the silhouette remains a real G1, but remap every visual geom to one matte skin-toned material (`g1_matte_skin`) to reduce the high-contrast black/metal visual shift seen by the pixel encoder.
 3. **Strip collision mesh geoms** (`class="collision"`) and **foot proxies** (`class="foot"`). Replaced by hand-authored capsule primitives in step 7.
 4. **Keep the `<asset>` block** with mesh declarations; rewrite each `<mesh file="...">` to a **path relative to the output XML's directory** (`g1/assets/<file>.STL`). `_create_merged_world` absolutises these at load time so the checked-in XML is portable across machines.
 5. **Strip the upstream `<keyframe>`** (it referenced the now-removed freejoint) and the upstream `<actuator>` + `<sensor>` blocks.
 6. **Regenerate `<actuator>`** with one `position` actuator per body joint in `g1_human_spec.BODY_JOINT_NAMES`, `class="position_actuator"` (kp=200 kv=20 — matches SMPL-H PD gains).
 7. **Insert hand-authored collision capsules** (`class="human_collision"`, named `<Region>_col`) — one per anatomical region. Used for SSM / PFL / collision-channel wiring; rendered invisible (`group=3`, `alpha=0`) since the upstream visual meshes carry the appearance.
 8. **Stamp `class="human"`** on every joint so they inherit human damping / armature defaults.
-9. **Add `<default>` blocks** for `human` / `human_collision` / `position_actuator` (mirrors `smplh_human_body.xml`) plus a `visual` class (copied from upstream g1) so the kept mesh geoms keep their rendering attributes.
+9. **Add `<default>` blocks** for `human` / `human_collision` / `position_actuator` (mirrors `smplh_human_body.xml`) plus a `visual` class using the matte `g1_matte_skin` material.
 
 The 18 `_col` capsules placed by the build script:
 
@@ -81,12 +81,12 @@ Modified existing modules:
 
 ### Visual strategy
 
-**Current: real Unitree STL meshes** (per supervisor preference). The render shows G1's actual industrial-robot appearance. The 18 collision capsules are present for SSM / PFL / collision-bit wiring but rendered invisible (`group=3`, `alpha=0`).
+**Current: real Unitree STL meshes with low-contrast material.** The render preserves the G1 silhouette/mesh shape, but all visual geoms use a single matte skin-toned material instead of the upstream black/metal split. The 18 collision capsules are present for SSM / PFL / collision-bit wiring but rendered invisible (`group=3`, `alpha=0`).
 
-This re-introduces the visual delta vs the SMPL-H baseline. The previous G1 attempt (`8beb0ec`) hit a CNN-encoder regression at this point and needed `MASK_PIXELS=1` to recover. **Tripwire** for the next curriculum run: if stage 0 best `ep_reward` is worse than -10 by step 15k, fall back to:
+This is the compromise between the supervisor-facing real-G1 appearance and the training-facing SMPL-H visual distribution. The previous G1 attempt (`8beb0ec`) hit a CNN-encoder regression with high-contrast robot-like visuals and needed `MASK_PIXELS=1` to recover. **Tripwire** for the next curriculum run: if stage 0 best `ep_reward` is worse than -10 by step 15k, fall back to:
 
-- **Fallback A** — recolor the visual meshes to a neutral skin tone (one-line edit in `build_defaults` — change `material="metal"` to a `<material rgba="0.8 0.6 0.5 1"/>`).
-- **Fallback B (strategy α)** — strip visuals entirely; render via skin-toned collision-proxy capsules. Recoverable from the commit before today's visual switch on this branch (the all-capsule asset is what shipped first).
+- **Fallback A** — tune `g1_matte_skin` further (lower contrast / slightly more SMPL-H-like).
+- **Fallback B (strategy α)** — strip visuals entirely; render via skin-toned collision-proxy capsules. Recoverable from the earlier all-capsule commit on this branch.
 
 ## Verification
 
