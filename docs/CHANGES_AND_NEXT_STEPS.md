@@ -6,15 +6,18 @@ Generated alongside the updates to `UPDATED_PROJECT_PLAN.md`, `HYBRID_SAFETY_CRI
 
 ---
 
-## TL;DR — three structural changes (status as of 2026-05-20)
+## TL;DR — six structural changes (status as of 2026-05-27)
 
 | Change | Status of corresponding code | Status of corresponding writing |
 |---|---|---|
 | **(1) Single COWORKER disruption** | DONE (3 trajectory modes, 5 param axes, train/eval factories, 19 tests) | Documented |
-| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation (C2) is mid-flight (re-run pending after the snapshot-cadence fix). | Documented as the target architecture; value-based equations |
+| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation folded into Phase 3 eval (E3.6). | Documented as the target architecture; value-based equations |
 | **(3) Workspace reward shaping** | DONE — `SafetyConfig.add_workspace_penalty` wired through factory + `_reward()` (P3.0a). β-sweep (E3.X.workspace) still pending. | Documented as a method subsection + experiment E3.X.workspace |
+| **(4) G1 humanoid as COWORKER stand-in** | DONE 2026-05-27 (on `retryg1`) — `env.human_model=g1` dispatch, parallel `G1HumanController` / `G1HumanIK` / `g1_human_spec.py`, generated `g1_human_body.xml`, real Unitree STL visuals. Verification curriculum run pending. | New writeup at [g1_coworker_swap.md](g1_coworker_swap.md) |
+| **(5) Three-flavour safety metrics** | DONE 2026-05-27 — `info["safety"]` emits `ssm_violation` / `ssm_violation_actual` / `proximity_violation` plus margins, observed velocities, threshold echo. `EpisodeSafetyMetrics` emits the full thesis `ep_*` schema. `train_cqn_as` writes `metrics.jsonl` + `final_metrics.json`, forwards W&B tags, aggregates eval `info["episode_safety"]`. | [safety_metrics.md](safety_metrics.md) is the schema spec; now load-bearing in code. |
+| **(6) Stage 2 disruption tighten** | DONE 2026-05-27 — `coworker_train.yaml` knobs reset so the arm reliably reaches into the robot's workspace (~87 % proximity-violation rate in smoke vs 13-24 % previously). | Documented in [g1_coworker_swap.md](g1_coworker_swap.md) and the Workstream S2 entry in IMPLEMENTATION_STATUS. |
 
-All three structural changes are now implemented. The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax_a [Q_r − λ·Q_c]` + Q_c training-loop integration), gated on the C3 obs-config decision from the E1.4 re-run. See IMPLEMENTATION_STATUS "Next session — start here".
+The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax_a [Q_r − λ·Q_c]` + Q_c training-loop integration); the immediate gate is the next G1 base curriculum run (see IMPLEMENTATION_STATUS "Next session — start here").
 
 ---
 
