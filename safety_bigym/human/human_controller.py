@@ -255,12 +255,21 @@ class HumanController:
             to be written to data.mocap_pos / data.mocap_quat.
         """
         if self.clip is None:
-            # Standing pose fallback. Read current root pose from mocap.
+            # Standing pose fallback. If a trajectory planner is set,
+            # still drive the pelvis from the planner (XY/yaw) so the
+            # human visits the loiter waypoint even without an AMASS
+            # clip — matches G1HumanController behaviour. Z stays at
+            # the current mocap Z (no clip to source it from).
             targets = self._standing_pose.copy()
             root_pose = self._root_pose.copy()
             if self._mocap_id >= 0:
                 root_pose[0:3] = self.data.mocap_pos[self._mocap_id]
                 root_pose[3:7] = self.data.mocap_quat[self._mocap_id]
+            if self._trajectory_planner is not None:
+                px, py, plan_yaw, _phase = self._trajectory_planner.get_pose(t)
+                root_pose[0] = px
+                root_pose[1] = py
+                root_pose[3:7] = self._quat_from_yaw(plan_yaw)
             return targets, root_pose
 
         # Apply speed multiplier

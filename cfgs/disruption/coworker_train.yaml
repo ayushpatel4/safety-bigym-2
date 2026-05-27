@@ -25,8 +25,29 @@
 env:
   disruption_type: COWORKER
   disruptions:
-    coworker_closest_approach_range: [0.9, 1.4]
-    coworker_reach_period_range: [4.5, 6.5]
-    coworker_target_mix_p_ee_range: [0.4, 0.6]
-    coworker_near_loiter_range: [7.0, 11.0]
+    # Tightened 2026-05-27: human body within 0.55–0.85 m of the robot
+    # base so the active arm's reach phase reliably puts the wrist inside
+    # the robot's manipulation envelope (forces ssm/proximity violations
+    # and arm-to-robot contacts during HOLD).
+    #
+    # Reach geometry. ``CoworkerArmController._max_reach_dist = 0.75 m``
+    # is the shoulder→target gate. Shoulder lateral offset from pelvis
+    # is ~0.15 m (SMPL-H) and ~0.1 m (G1); robot EE typically sits
+    # ~0.5 m forward of the robot pelvis. So body distance ≲ 0.85 m is
+    # required for shoulder→EE to clear 0.75 m from most approach angles,
+    # and ≲ 0.65 m puts the wrist reliably <0.5 m from EE during HOLD
+    # (proximity_violation at τ=0.5 m, frequent ssm_violation_actual).
+    # The 0.55 m floor keeps the mocap-driven human pelvis capsule clear
+    # of the robot's pelvis collision geom (~0.25 m of body-surface
+    # clearance) so it doesn't geometrically penetrate the robot — the
+    # mocap can't be pushed back, penetration produces enormous spurious
+    # forces. These knobs apply identically to SMPL-H and G1 (both go
+    # through the same CoworkerArmController + ScenarioSampler).
+    coworker_closest_approach_range: [0.55, 0.85]
+    # More frequent reach cycles (was 4.5–6.5 s).
+    coworker_reach_period_range: [3.0, 5.0]
+    # Mostly target the robot EE (was 0.4–0.6).
+    coworker_target_mix_p_ee_range: [0.55, 0.85]
+    # Longer dwell at closest_approach (was 7–11 s).
+    coworker_near_loiter_range: [12.0, 18.0]
     coworker_walk_speed_range: [1.0, 1.6]
