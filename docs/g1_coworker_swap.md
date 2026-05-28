@@ -31,27 +31,25 @@ Override via Hydra (`env.human_model=g1`) or the curriculum env-var (`HUMAN_MODE
 Transformations the build script applies to the upstream MJCF:
 
 1. **Rename root** `pelvis` → `Pelvis`, drop `childclass="g1"`, replace `<freejoint>` with `mocap="true"`, set `pos="0 0 0"`. This matches the SMPL-H integration contract (`_setup_human_indices` looks up the body named `"Pelvis"` with `body_mocapid >= 0`).
-2. **Keep visual mesh geoms** (`class="visual"`) so the silhouette remains a real G1, but remap every visual geom to one matte skin-toned material (`g1_matte_skin`) to reduce the high-contrast black/metal visual shift seen by the pixel encoder.
-3. **Strip collision mesh geoms** (`class="collision"`) and **foot proxies** (`class="foot"`). Replaced by hand-authored capsule primitives in step 7.
-4. **Keep the `<asset>` block** with mesh declarations; rewrite each `<mesh file="...">` to a **path relative to the output XML's directory** (`g1/assets/<file>.STL`). `_create_merged_world` absolutises these at load time so the checked-in XML is portable across machines.
-5. **Strip the upstream `<keyframe>`** (it referenced the now-removed freejoint) and the upstream `<actuator>` + `<sensor>` blocks.
-6. **Regenerate `<actuator>`** with one `position` actuator per body joint in `g1_human_spec.BODY_JOINT_NAMES`, `class="position_actuator"` (kp=200 kv=20 — matches SMPL-H PD gains).
-7. **Insert hand-authored collision capsules** (`class="human_collision"`, named `<Region>_col`) — one per anatomical region. Used for SSM / PFL / collision-channel wiring; rendered invisible (`group=3`, `alpha=0`) since the upstream visual meshes carry the appearance.
-8. **Stamp `class="human"`** on every joint so they inherit human damping / armature defaults.
-9. **Add `<default>` blocks** for `human` / `human_collision` / `position_actuator` (mirrors `smplh_human_body.xml`) plus a `visual` class using the matte `g1_matte_skin` material.
+2. **Strip every original `<geom>`** (visual / collision / foot) and **`<site>`** from every body.
+3. **Strip the `<asset>` block** (no meshes after step 2) and the upstream `<keyframe>`.
+4. **Strip the upstream `<actuator>` + `<sensor>` blocks**; regenerate `<actuator>` with one `position` entry per body joint in `g1_human_spec.BODY_JOINT_NAMES`, `class="position_actuator"` (kp=200 kv=20 — matches SMPL-H PD gains).
+5. **Insert hand-authored collision capsules** (`class="human_collision"`, named `<Region>_col`, rgba `0.8 0.6 0.5 1`) — these capsules **are** the render (strategy α; same pixel distribution as SMPL-H). Used for SSM / PFL / collision-channel wiring.
+6. **Stamp `class="human"`** on every joint so they inherit human damping / armature defaults.
+7. **Add `<default>` blocks** for `human` / `human_collision` / `position_actuator` (mirrors `smplh_human_body.xml`).
 
-The 18 `_col` capsules placed by the build script:
+The 22 `_col` capsules placed by the build script (bridge geoms connect limbs to trunk):
 
 | Body in g1.xml | Geom name | PFL region |
 |---|---|---|
 | `Pelvis` | `Pelvis_col` | pelvis |
-| `torso_link` | `Chest_col` | chest |
-| `torso_link` (offset) | `Head_col` (sphere) | skull |
+| `left/right_hip_pitch_link` | `L/R_Hip_col` | pelvis (hip bridge) |
+| `torso_link` | `Chest_col`, `L/R_Thorax_col`, `Head_col` | chest / skull |
 | `waist_yaw_link` | `Spine_col` | back_shoulders |
 | `left_hip_yaw_link` | `L_Thigh_col` | thigh |
 | `left_knee_link` | `L_Shin_col` | shin |
 | `left_ankle_roll_link` | `L_Foot_col` | foot |
-| `left_shoulder_pitch_link` | `L_Shoulder_col` | upper_arm |
+| `left_shoulder_yaw_link` | `L_Shoulder_col` | upper_arm |
 | `left_elbow_link` | `L_Elbow_col` | upper_arm |
 | `left_wrist_roll_link` | `L_Wrist_col` | forearm |
 | `left_wrist_yaw_link` | `L_Hand_col` | hand_palm |
@@ -81,12 +79,9 @@ Modified existing modules:
 
 ### Visual strategy
 
-**Current: real Unitree STL meshes with low-contrast material.** The render preserves the G1 silhouette/mesh shape, but all visual geoms use a single matte skin-toned material instead of the upstream black/metal split. The 18 collision capsules are present for SSM / PFL / collision-bit wiring but rendered invisible (`group=3`, `alpha=0`).
+**Current (2026-05-28): strategy α — skin-toned collision capsules only** (commit `2683b67`, CQN-AS base curriculum at 100 % success). No STL meshes; `_col` geoms are visible with SMPL-H skin rgba. `_create_merged_world` still merges `<asset>` when present (no-op for this XML).
 
-This is the compromise between the supervisor-facing real-G1 appearance and the training-facing SMPL-H visual distribution. The previous G1 attempt (`8beb0ec`) hit a CNN-encoder regression with high-contrast robot-like visuals and needed `MASK_PIXELS=1` to recover. **Tripwire** for the next curriculum run: if stage 0 best `ep_reward` is worse than -10 by step 15k, fall back to:
-
-- **Fallback A** — tune `g1_matte_skin` further (lower contrast / slightly more SMPL-H-like).
-- **Fallback B (strategy α)** — strip visuals entirely; render via skin-toned collision-proxy capsules. Recoverable from the earlier all-capsule commit on this branch.
+**Alternate (branch history `387748f`+):** real Unitree STL meshes with matte `g1_matte_skin`, capsules hidden. Use only if you need supervisor-facing G1 silhouette and accept CNN encoder re-adaptation risk.
 
 ## Verification
 
@@ -94,7 +89,7 @@ This is the compromise between the supervisor-facing real-G1 appearance and the 
 
 | File | Coverage | Count |
 |---|---|---|
-| `tests/test_g1_asset.py` | XML loads; 29 hinge joints + 1 mocap Pelvis; every collision geom ends in `_col`; visual meshes present; SSM bodies resolve; arm chains resolve; standing pose physically stable for 100 mj_steps | 10 |
+| `tests/test_g1_asset.py` | XML loads; 29 hinge joints + 1 mocap Pelvis; every collision geom ends in `_col`; no mesh refs (strategy α); SSM bodies resolve; arm chains resolve; standing pose physically stable for 100 mj_steps | 10 |
 | `tests/test_g1_human_controller.py` | Controller instantiates; PD holds standing pose; `load_clip` is a no-op; root offset writes to mocap; IK callback blends during loiter | 5 |
 | `tests/test_g1_safety_tracking.py` | SSM finds all 14 G1 bodies; every `_col` geom has a PFL region; the 8 G1-specific PFL entries are present | 3 |
 | `tests/test_collision_groups.py` (parametrized) | All existing collision-bit assertions run against both `smplh` and `g1` | 5 × 2 |

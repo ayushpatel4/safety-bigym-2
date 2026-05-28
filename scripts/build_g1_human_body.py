@@ -4,49 +4,37 @@ The output is the merge-into-world fragment loaded by ``SafetyBiGymEnv``
 when ``human_model == "g1"``. The script is deterministic and idempotent:
 re-running on the same upstream input produces a byte-identical output.
 
-Two visual strategies, toggled by ``VISUAL_STRATEGY`` below:
-
-- ``"capsules"`` (strategy α, default): render the hand-authored ``_col``
-  capsules as skin-toned blobs matching SMPL-H's rgba. Closest match to the
-  SMPL-H pixel distribution (SMPL-H's body is rendered as skin-toned
-  capsules too). Loses the G1 silhouette but maximises CNN encoder reuse.
-- ``"meshes"``: keep the upstream G1 STL visual meshes and remap them to a
-  matte skin-toned material. Preserves the robot silhouette; introduces
-  more visual detail than SMPL-H, so the CNN encoder may need more frames
-  to adapt.
-
-The collision capsules are always present and always carry the safety
-bits; only their *visibility* and the visibility of the STL meshes change
-with the strategy. Toggle by editing ``VISUAL_STRATEGY`` and re-running.
+**Default preset (2026-05-28):** strategy α — skin-toned collision capsules
+only, no STL meshes. Matches commit ``2683b67`` (CQN-AS base curriculum at
+100 % success). For the real-G1 mesh visual, see branch history from
+``387748f`` onward and restore that build script variant manually.
 
 Transformations applied:
 
 1. Rename root body ``pelvis`` → ``Pelvis``, drop the ``childclass="g1"``
    attribute, replace ``<freejoint>`` with ``mocap="true"``, set
    ``pos="0 0 0"`` (the controller writes runtime position to mocap_pos).
-2. Always keep every ``class="visual"`` geom but render it only under
-   strategy ``"meshes"``; under strategy ``"capsules"`` they are moved to
-   render group 3 (hidden). Always strip the upstream ``class="collision"``
-   mesh geoms and ``class="foot"`` proxies — they are replaced by the
-   hand-authored ``_col`` capsule primitives.
-3. **Keep** the ``<asset>`` block (mesh refs are needed by the visual
-   geoms even when hidden). Rewrite each ``<mesh file="...">`` to a path
-   relative to the output XML; ``SafetyBiGymEnv._create_merged_world``
-   absolutises those paths when copying the asset block into the temp
-   merged XML.
-4. Strip the upstream ``<keyframe>`` (it referenced the now-removed
-   freejoint) and the upstream ``<actuator>`` / ``<sensor>`` blocks.
-   Regenerate ``<actuator>`` with one ``class="position_actuator"``
-   entry per body joint in ``g1_human_spec.BODY_JOINT_NAMES``.
+2. Strip every original ``<geom>`` (visual / collision / foot) and
+   ``<site>`` from every body.
+3. Strip the ``<asset>`` block (no meshes referenced after step 2) and the
+   upstream ``<keyframe>`` (it referenced the now-removed freejoint).
+4. Strip the upstream ``<actuator>`` and ``<sensor>`` blocks; regenerate
+   ``<actuator>`` with one ``class="position_actuator"`` entry per body
+   joint in ``g1_human_spec.BODY_JOINT_NAMES``.
 5. Insert ``<default>`` blocks for ``human`` / ``human_collision`` /
    ``position_actuator`` matching ``assets/smplh_human_body.xml`` so the
    existing env wrappers (collision-bits, PFL geom suffix) work unchanged.
-   The capsule visibility and rgba are set by the strategy.
 6. Stamp ``class="human"`` on every joint so they inherit human damping /
    armature defaults.
 7. Insert hand-authored collision capsules on the chosen carrier bodies,
    each named ``<Region>_col`` so ``ISO15066Wrapper`` and
    ``_configure_collision_bits`` find them by suffix.
+
+Capsule sizes are tuned to roughly match SMPL-H humanoid volume so the CNN
+encoder sees a similar silhouette to the SMPL-H baseline (strategy α).
+Bridge geoms (``L/R_Hip_col``, ``L/R_Thorax_col``) close visual gaps between
+pelvis↔thigh and chest↔shoulder; upper-arm capsules sit on ``*_shoulder_yaw_link``
+so they track the full shoulder chain.
 
 Run from the repo root:
     cd safety_bigym && python scripts/build_g1_human_body.py
@@ -72,63 +60,30 @@ _spec = importlib.util.spec_from_file_location("g1_human_spec", _SPEC_PATH)
 g1_human_spec = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(g1_human_spec)
 BODY_JOINT_NAMES = g1_human_spec.BODY_JOINT_NAMES
-VISUAL_MATERIAL_NAME = "g1_matte_skin"
-
-# Visual strategy — see module docstring.
-#   "capsules" — skin-toned _col capsules visible, STL meshes hidden.
-#                Closest to SMPL-H pixel distribution.
-#   "meshes"   — STL meshes visible with matte skin material, capsules hidden.
-#                Preserves G1 silhouette but more visual shift vs SMPL-H.
-VISUAL_STRATEGY = "capsules"
-assert VISUAL_STRATEGY in {"capsules", "meshes"}
-
-# SMPL-H body rgba is "0.8 0.6 0.5 0.5/0.8" (see assets/smplh_human*.xml).
-# Match it exactly under the capsule strategy so the CNN encoder sees a near-
-# identical skin tone across the two human models.
-SMPLH_SKIN_RGBA = "0.8 0.6 0.5 1"
 
 
 # (carrier_body, geom_name, geom_attrs) — appended in document order on the
 # matching body. Sizes / fromto coords are body-LOCAL.
-#
-# Geometry chosen for visual connectedness under VISUAL_STRATEGY="capsules":
-#   - Pelvis is a *vertical* capsule (not lateral) so it doesn't look wide;
-#     it reaches down to the hip-joint level.
-#   - L_Hip / R_Hip on hip_pitch_link are short stub capsules that bridge
-#     the pelvis to the thigh as the hip pitches.
-#   - L_Thorax / R_Thorax on torso_link are clavicle bridges connecting the
-#     chest top to the shoulder pitch link.
-#   - L_Shoulder / R_Shoulder live on shoulder_yaw_link (not pitch_link) and
-#     act as full upper-arm capsules — yaw_link rotates with the entire
-#     shoulder pitch/roll/yaw chain so the upper arm tracks the elbow.
-# All bridge names exist in pfl_limits.GEOM_TO_REGION (SMPL-H schema reuse).
 COLLISION_CAPSULES: list[tuple[str, str, dict[str, str]]] = [
-    # Root + trunk (mocap-driven). Vertical capsule from waist down to hip
-    # joint level (hip_pitch_link is at Z=-0.103 in pelvis frame); lateral
-    # radius 0.10 keeps the silhouette narrower than the previous
-    # 0.44 m-wide lateral capsule. Hip joints at Y=±0.064 sit inside this.
+    # Root + trunk (mocap-driven). Vertical pelvis reaches hip-joint level.
     ("Pelvis", "Pelvis_col", {"fromto": "0 0 0.02  0 0 -0.10", "size": "0.10"}),
     ("waist_yaw_link", "Spine_col", {"fromto": "0 0 0  0 0 0.10", "size": "0.08"}),
     ("torso_link", "Chest_col", {"fromto": "0 0 0.05  0 0 0.30", "size": "0.13"}),
-    # Head as a sphere on torso_link (no separate head body in upstream g1).
     ("torso_link", "Head_col", {"pos": "0 0 0.48", "size": "0.10", "type": "sphere"}),
 
-    # Hip bridges — short stubs at the hip joint that fill the gap between
-    # the pelvis blob and the thigh. Placed on hip_pitch_link so they sit
-    # right at the hip joint origin and rotate with hip pitch.
+    # Hip bridges (hip_pitch_link) — pelvis blob to thigh.
     ("left_hip_pitch_link", "L_Hip_col",
      {"fromto": "0 0 0.02  0 0 -0.08", "size": "0.075"}),
     ("right_hip_pitch_link", "R_Hip_col",
      {"fromto": "0 0 0.02  0 0 -0.08", "size": "0.075"}),
 
-    # Left leg.
+    # Legs.
     ("left_hip_yaw_link", "L_Thigh_col",
      {"fromto": "0 0 0  -0.078 0.002 -0.177", "size": "0.075"}),
     ("left_knee_link", "L_Shin_col",
      {"fromto": "0 0 0  0 0 -0.30", "size": "0.06"}),
     ("left_ankle_roll_link", "L_Foot_col",
      {"fromto": "-0.04 0 -0.025  0.12 0 -0.025", "size": "0.04"}),
-    # Right leg.
     ("right_hip_yaw_link", "R_Thigh_col",
      {"fromto": "0 0 0  -0.078 -0.002 -0.177", "size": "0.075"}),
     ("right_knee_link", "R_Shin_col",
@@ -136,18 +91,13 @@ COLLISION_CAPSULES: list[tuple[str, str, dict[str, str]]] = [
     ("right_ankle_roll_link", "R_Foot_col",
      {"fromto": "-0.04 0 -0.025  0.12 0 -0.025", "size": "0.04"}),
 
-    # Clavicle bridges on torso_link — connect the chest top (around Z=0.30)
-    # to the shoulder_pitch_link origin at (0.004, ±0.10, 0.248). Carries
-    # the 'chest' PFL region (same as SMPL-H L_Thorax_col / R_Thorax_col).
+    # Clavicle bridges (torso_link) — chest to shoulder_pitch origin.
     ("torso_link", "L_Thorax_col",
      {"fromto": "0 0.00 0.28  0.004 0.10 0.248", "size": "0.065"}),
     ("torso_link", "R_Thorax_col",
      {"fromto": "0 0.00 0.28  0.004 -0.10 0.248", "size": "0.065"}),
 
-    # Left arm — upper-arm capsule on shoulder_yaw_link (after the full
-    # pitch/roll/yaw chain) so it tracks the elbow. Elbow body sits at
-    # (0.016, 0, -0.081) in yaw_link frame; capsule extends slightly
-    # above the yaw_link origin to overlap visually with the clavicle.
+    # Arms — upper arm on shoulder_yaw_link (tracks pitch/roll/yaw chain).
     ("left_shoulder_yaw_link", "L_Shoulder_col",
      {"fromto": "0 0 0.04  0.016 0 -0.081", "size": "0.055"}),
     ("left_elbow_link", "L_Elbow_col",
@@ -156,8 +106,6 @@ COLLISION_CAPSULES: list[tuple[str, str, dict[str, str]]] = [
      {"fromto": "0 0 0  0.084 0 0", "size": "0.035"}),
     ("left_wrist_yaw_link", "L_Hand_col",
      {"fromto": "0 0 0  0.09 0 0", "size": "0.040"}),
-
-    # Right arm.
     ("right_shoulder_yaw_link", "R_Shoulder_col",
      {"fromto": "0 0 0.04  0.016 0 -0.081", "size": "0.055"}),
     ("right_elbow_link", "R_Elbow_col",
@@ -170,99 +118,28 @@ COLLISION_CAPSULES: list[tuple[str, str, dict[str, str]]] = [
 
 
 def build_defaults() -> etree._Element:
-    """Default classes the merged-into-world XML needs.
-
-    Three from the SMPL-H contract (``human`` / ``human_collision`` /
-    ``position_actuator``) plus an upstream-G1 ``visual`` class. Visibility
-    of capsules vs STL meshes is gated by ``VISUAL_STRATEGY`` so we can
-    A/B SMPL-H-like blobs against the real Unitree silhouette without
-    regenerating the body tree.
-    """
+    """Three default classes matching ``smplh_human_body.xml``."""
     defaults = etree.Element("default")
 
     human = etree.SubElement(defaults, "default", {"class": "human"})
-    etree.SubElement(human, "joint", {"damping": "30", "armature": "0.01"})
+    etree.SubElement(human, "joint", {"damping": "50", "armature": "0.01"})
     etree.SubElement(human, "geom", {
         "type": "capsule", "condim": "3",
         "friction": "1 0.5 0.001", "density": "1000",
     })
 
-    capsules_visible = VISUAL_STRATEGY == "capsules"
     coll = etree.SubElement(defaults, "default", {"class": "human_collision"})
     etree.SubElement(coll, "geom", {
         "type": "capsule",
         "solref": "0.02 1.0", "solimp": "0.9 0.95 0.001",
-        # group 0 = default-visible render group when capsules carry the
-        # visual; group 3 (hidden by default) when STL meshes do. Collision
-        # bits (contype/conaffinity) stay live regardless so SSM/PFL work.
-        "group": "0" if capsules_visible else "3",
-        "contype": "2", "conaffinity": "4",
-        "rgba": SMPLH_SKIN_RGBA if capsules_visible else "0.8 0.6 0.5 0.0",
+        "group": "0", "contype": "2", "conaffinity": "4",
+        "rgba": "0.8 0.6 0.5 1.0",
     })
 
     pos = etree.SubElement(defaults, "default", {"class": "position_actuator"})
-    etree.SubElement(pos, "position", {"kp": "600", "kv": "60"})
-
-    # Upstream G1 visual meshes. Group 2 = visible under "meshes" strategy;
-    # group 3 = hidden under "capsules". Material is the matte skin tone so
-    # if the user toggles to "meshes", they get the low-contrast render.
-    vis = etree.SubElement(defaults, "default", {"class": "visual"})
-    etree.SubElement(vis, "geom", {
-        "group": "2" if VISUAL_STRATEGY == "meshes" else "3",
-        "type": "mesh",
-        "contype": "0", "conaffinity": "0",
-        "density": "0", "material": VISUAL_MATERIAL_NAME,
-    })
+    etree.SubElement(pos, "position", {"kp": "200", "kv": "20"})
 
     return defaults
-
-
-def build_asset_block(upstream_root: etree._Element) -> etree._Element:
-    """Copy the upstream ``<asset>`` block with mesh paths rewritten as
-    paths **relative to** the output ``g1_human_body.xml`` location.
-
-    The output XML lives at ``safety_bigym/assets/g1_human_body.xml`` and
-    the upstream STL files live at ``safety_bigym/assets/g1/assets/*.STL``,
-    so the relative reference is ``g1/assets/<file>``. The env's
-    ``_create_merged_world`` resolves these to absolute paths at runtime
-    (because the merged-into-world XML is written to a temp dir where the
-    relative path would otherwise break). This keeps the checked-in XML
-    portable across machines (no absolute paths baked in).
-    """
-    upstream_asset = upstream_root.find("asset")
-    if upstream_asset is None:
-        return etree.Element("asset")
-
-    out = etree.Element("asset")
-    etree.SubElement(out, "material", {
-        "name": VISUAL_MATERIAL_NAME,
-        "rgba": "0.75 0.58 0.50 1",
-        "specular": "0.05",
-        "shininess": "0.05",
-        "reflectance": "0",
-    })
-
-    for child in upstream_asset:
-        clone = etree.fromstring(etree.tostring(child))
-        if clone.tag == "mesh":
-            file_attr = clone.get("file")
-            if file_attr is not None:
-                # Upstream g1.xml uses ``meshdir="assets"`` so file paths are
-                # bare filenames. The output XML lives one directory above,
-                # so prefix ``g1/assets/`` to get a path relative to the
-                # output XML's parent.
-                clone.set("file", f"g1/assets/{file_attr}")
-        out.append(clone)
-    return out
-
-
-def normalize_visual_materials(body: etree._Element) -> None:
-    """Assign every kept visual mesh the same low-contrast matte material."""
-    for geom in body.findall("geom"):
-        if geom.get("class") == "visual":
-            geom.set("material", VISUAL_MATERIAL_NAME)
-    for child in body.findall("body"):
-        normalize_visual_materials(child)
 
 
 def transform_pelvis(pelvis: etree._Element) -> None:
@@ -278,23 +155,13 @@ def transform_pelvis(pelvis: etree._Element) -> None:
         pelvis.remove(fj)
 
 
-def strip_collision_geoms_and_sites(body: etree._Element) -> None:
-    """Remove only the upstream collision/foot geoms and all sites.
-
-    Visual mesh geoms are kept so the rendered G1 looks like the real
-    robot. Collision is supplied by hand-authored ``_col`` capsules added
-    later by :func:`insert_collision_capsules`. Sites are stripped because
-    the upstream IMU sites have no role in safety_bigym (and the upstream
-    ``<sensor>`` block they fed is dropped).
-    """
-    for geom in list(body.findall("geom")):
-        cls = geom.get("class")
-        if cls in ("collision", "foot"):
-            body.remove(geom)
-    for site in list(body.findall("site")):
-        body.remove(site)
+def strip_geoms_and_sites(body: etree._Element) -> None:
+    """Remove every <geom> and <site> from a body element (recursive)."""
+    for tag in ("geom", "site"):
+        for el in list(body.findall(tag)):
+            body.remove(el)
     for child in body.findall("body"):
-        strip_collision_geoms_and_sites(child)
+        strip_geoms_and_sites(child)
 
 
 def stamp_joint_class(body: etree._Element) -> None:
@@ -352,10 +219,9 @@ def build() -> str:
     new_root = etree.Element("mujoco", {"model": "g1_human_body"})
 
     new_root.append(build_defaults())
-    new_root.append(build_asset_block(root))
 
-    # Worldbody: keep the upstream body tree (including visual mesh geoms),
-    # transform the pelvis, strip only collision proxies + sites.
+    # Worldbody: copy the upstream worldbody but strip lights, transform pelvis,
+    # and prune geoms/sites from every body.
     new_world = etree.SubElement(new_root, "worldbody")
     upstream_world = root.find("worldbody")
     if upstream_world is None:
@@ -366,8 +232,7 @@ def build() -> str:
         raise RuntimeError("Upstream g1.xml has no body named 'pelvis'")
 
     transform_pelvis(pelvis)
-    strip_collision_geoms_and_sites(pelvis)
-    normalize_visual_materials(pelvis)
+    strip_geoms_and_sites(pelvis)
     stamp_joint_class(pelvis)
     insert_collision_capsules(pelvis)
 
