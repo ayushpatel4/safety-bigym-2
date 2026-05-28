@@ -136,7 +136,7 @@ class ParameterSpace:
     coworker_reach_period_range: tuple = (4.5, 6.5)       # seconds per cycle (1/freq)
     coworker_target_mix_p_ee_range: tuple = (0.4, 0.6)    # P(reach EE); P(task)=1-p
     coworker_near_loiter_range: tuple = (7.0, 11.0)       # dwell at NEAR (s)
-    coworker_walk_speed_range: tuple = (0.8, 1.3)         # walk speed (m/s)
+    coworker_walk_speed_range: tuple = (1.0, 1.5)         # walk speed (m/s)
     # Relative weights for COWORKER trajectory modes (normalized per draw).
     # Default is uniform; ``make_coworker_train_space`` pins patrol-heavy
     # weights so stage-2 training mostly exercises depart/return cycles.
@@ -172,7 +172,7 @@ _COWORKER_TRAIN_RANGES: Dict[str, tuple] = {
     "coworker_reach_period_range": (4.5, 6.5),
     "coworker_target_mix_p_ee_range": (0.4, 0.6),
     "coworker_near_loiter_range": (7.0, 11.0),
-    "coworker_walk_speed_range": (0.8, 1.3),
+    "coworker_walk_speed_range": (1.0, 1.5),
 }
 
 _COWORKER_EVAL_RANGES: Dict[str, tuple] = {
@@ -390,9 +390,9 @@ class ScenarioSampler:
                 disruption_type=disruption_type,
                 target_noise_std=0.0,
                 coworker_reach_period=coworker_reach_period,
-                coworker_reach_fraction=0.15,
-                coworker_hold_fraction=0.20,
-                coworker_retract_fraction=0.15,
+                coworker_reach_fraction=0.35,
+                coworker_hold_fraction=0.10,
+                coworker_retract_fraction=0.35,
                 coworker_target_mix=(p_ee, 1.0 - p_ee),
                 coworker_active_arm=active_arm,
             )
@@ -403,6 +403,9 @@ class ScenarioSampler:
             patrol_away_loiter = float(rng.uniform(3.0, 5.0))
             patrol_away_distance = float(rng.uniform(2.0, 3.0))
             patrol_excursions = int(rng.integers(1, 3))  # 1 or 2
+            # Short IK ramp — G1 has no AMASS body to blend from, and a
+            # long blend stacks on top of the coworker arm cycle alpha.
+            blend_duration = min(blend_duration, 0.10)
         elif disruption_type == DisruptionType.CONTACT:
             # Active reach: human walks into the robot, presses for the
             # loiter window, then departs. embed_distance puts the IK

@@ -46,10 +46,10 @@ _STAGE_BANDS = {
     },
     "train": {
         "coworker_closest_approach_range": (0.55, 0.85),
-        "coworker_reach_period_range": (3.0, 5.0),
+        "coworker_reach_period_range": (0.9, 1.6),
         "coworker_target_mix_p_ee_range": (0.55, 0.85),
         "coworker_near_loiter_range": (12.0, 18.0),
-        "coworker_walk_speed_range": (0.8, 1.3),
+        "coworker_walk_speed_range": (1.0, 1.5),
     },
 }
 
