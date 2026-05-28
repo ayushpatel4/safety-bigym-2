@@ -77,27 +77,11 @@ Modified existing modules:
 - **`safety_bigym/cfgs/env/safety_bigym.yaml`** — adds `human_model: smplh` default.
 - **`safety_bigym/scripts/run_base_curriculum.sh`** — `HUMAN_MODEL` env var (default `smplh`); conditional AMASS validation; W&B tag emission includes `human:<model>`.
 
-### Visual strategy — training vs viewing (two XML files)
+### Visual strategy
 
-| File | Preset | Used by | Geoms |
-|------|--------|---------|-------|
-| `assets/g1_human_body.xml` | **training** (`2683b67`) | `SafetyBiGymEnv` when `env.human_model=g1` — curriculum, eval, W&B videos | 18 skin-toned `_col` capsules |
-| `assets/g1_human_body_view.xml` | **view** (connected) | `scripts/visualize_g1_human.py` only — **not** loaded by the env | 22 capsules (hip/thorax bridges) |
+**Current (2026-05-28): strategy α — skin-toned collision capsules only** (commit `2683b67`, CQN-AS base curriculum at 100 % success). No STL meshes; `_col` geoms are visible with SMPL-H skin rgba. `_create_merged_world` still merges `<asset>` when present (no-op for this XML).
 
-Build:
-
-```bash
-python scripts/build_g1_human_body.py          # training (default)
-python scripts/build_g1_human_body.py --view   # viewer
-python scripts/build_g1_human_body.py --all    # both
-```
-
-Preview connected silhouette: `venv/bin/mjpython scripts/visualize_g1_human.py`  
-Preview training asset: `G1_VIEW_ASSET=training venv/bin/mjpython scripts/visualize_g1_human.py`
-
-Do **not** point the env at the view XML — safety metrics and the pixel policy were validated on the training layout.
-
-**Alternate (branch history `387748f`+):** real Unitree STL meshes. Not wired in the current dual-asset flow; use only if you accept CNN re-adaptation risk.
+**Alternate (branch history `387748f`+):** real Unitree STL meshes with matte `g1_matte_skin`, capsules hidden. Use only if you need supervisor-facing G1 silhouette and accept CNN encoder re-adaptation risk.
 
 ## Verification
 

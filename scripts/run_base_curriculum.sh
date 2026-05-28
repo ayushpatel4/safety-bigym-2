@@ -53,10 +53,8 @@ set -euo pipefail
 # HUMAN_MODEL selects which humanoid plays the coworker role.
 #   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR unless
 #                    SMPLH_MOTION=procedural).
-#   g1            : Unitree G1 mannequin (no AMASS). Training loads
-#                   assets/g1_human_body.xml (2683b67 layout). The connected
-#                   view asset (g1_human_body_view.xml) is viewer-only — see
-#                   scripts/build_g1_human_body.py --view.
+#   g1            : Unitree G1 standing-pose mannequin (no AMASS). Asset is
+#                   strategy α (skin-toned _col capsules only, commit 2683b67).
 HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
 SMPLH_MOTION="${SMPLH_MOTION:-amass}"
 case "${HUMAN_MODEL}" in
