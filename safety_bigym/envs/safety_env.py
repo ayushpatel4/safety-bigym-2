@@ -43,6 +43,7 @@ from safety_bigym.human import (
 )
 from safety_bigym.human import g1_human_spec
 from safety_bigym.human.g1_human_controller import G1HumanController
+from safety_bigym.human.smplh_procedural_controller import SmplhProceduralController
 from safety_bigym.human.g1_human_ik import G1HumanIK
 from safety_bigym.scenarios import (
     ScenarioSampler,
@@ -456,13 +457,21 @@ class SafetyBiGymEnv(BiGymEnv):
                 standing_pelvis_z=self.human_config.g1_standing_pelvis_z,
             )
             logger.info("G1 human controller initialized")
+        elif self.human_config.smplh_motion == "procedural":
+            self.human_controller = SmplhProceduralController(
+                model=self._mojo.model,
+                data=self._mojo.data,
+                gains=gains,
+                standing_pelvis_z=self.human_config.smplh_standing_pelvis_z,
+            )
+            logger.info("SMPL-H procedural human controller initialized")
         else:
             self.human_controller = HumanController(
                 model=self._mojo.model,
                 data=self._mojo.data,
                 gains=gains,
             )
-            logger.info("SMPL-H human controller initialized")
+            logger.info("SMPL-H AMASS human controller initialized")
     
     def _position_human(self, spawn_config: Dict[str, Any]):
         """
@@ -478,9 +487,11 @@ class SafetyBiGymEnv(BiGymEnv):
         yaw = spawn_config.get("yaw", 0.0)
 
         # Get correct Z position from AMASS clip (pelvis height when standing).
-        # G1 has no clip — use the configured standing pelvis Z instead.
+        # G1 / procedural SMPL-H use configured standing pelvis Z instead.
         if self.human_config.human_model == "g1":
             initial_z = self.human_config.g1_standing_pelvis_z
+        elif self.human_config.smplh_motion == "procedural":
+            initial_z = self.human_config.smplh_standing_pelvis_z
         else:
             initial_z = 1.0  # Default standing pelvis height for SMPL-H
             if self.human_controller is not None and self.human_controller.clip is not None:
@@ -522,8 +533,12 @@ class SafetyBiGymEnv(BiGymEnv):
         if self.human_controller is not None:
             self.human_controller.reset()
             
-            # Load motion clip
-            if self._current_scenario.clip_path:
+            # Load motion clip (AMASS mode only)
+            use_amass = (
+                self.human_config.human_model == "smplh"
+                and self.human_config.smplh_motion == "amass"
+            )
+            if use_amass and self._current_scenario.clip_path:
                 # Build full path from motion_clip_dir + relative clip path
                 if self.human_config.motion_clip_dir:
                     full_clip_path = str(Path(self.human_config.motion_clip_dir) / self._current_scenario.clip_path)

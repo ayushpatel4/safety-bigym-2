@@ -136,10 +136,11 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
 
         # Human config from Hydra config
         human_model = cfg.env.get("human_model", "smplh")
-        if human_model == "g1":
-            # G1 is AMASS-free; don't read AMASS_DATA_DIR or clip paths
-            # (clip_paths still passed through ParameterSpace for SMPL-H
-            # default samplers, but for G1 they're unused at runtime).
+        smplh_motion = cfg.env.get("smplh_motion", "amass")
+        if human_model == "g1" or (
+            human_model == "smplh" and smplh_motion == "procedural"
+        ):
+            # No AMASS clip playback at runtime.
             motion_clip_dir = None
             motion_clip_paths = []
         else:
@@ -159,6 +160,7 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             motion_clip_dir=motion_clip_dir,
             motion_clip_paths=motion_clip_paths,
             human_model=human_model,
+            smplh_motion=smplh_motion,
         )
 
         # Read reward-shaping fields from cfg.env.safety; defaults preserve

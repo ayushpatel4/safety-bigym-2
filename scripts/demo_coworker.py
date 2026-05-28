@@ -18,6 +18,10 @@ Usage::
     mjpython scripts/demo_coworker.py --human g1 --spawn patrol --stage train \\
         --task saucepan --seed 0
 
+    # SMPL-H capsules, procedural motion (no AMASS — walks like G1):
+    mjpython scripts/demo_coworker.py --human smplh --smplh-motion procedural \\
+        --spawn patrol --stage train --task saucepan --seed 0
+
 The script prints reach-phase transitions to stdout so the user can
 correlate what they see in the viewer with the underlying state machine.
 """
@@ -211,6 +215,12 @@ def main() -> None:
         help="Coworker humanoid model (g1 skips AMASS).",
     )
     parser.add_argument(
+        "--smplh-motion",
+        default="amass",
+        choices=["amass", "procedural"],
+        help="SMPL-H body motion: amass clip playback or procedural (G1-style).",
+    )
+    parser.add_argument(
         "--stage",
         default="default",
         choices=list(_STAGE_BANDS),
@@ -229,24 +239,30 @@ def main() -> None:
         return
 
     amass_dir = os.environ.get("AMASS_DATA_DIR")
-    if args.human == "smplh" and not amass_dir:
+    if args.human == "smplh" and args.smplh_motion == "amass" and not amass_dir:
         raise RuntimeError(
             "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
             "  export AMASS_DATA_DIR=/Users/ayushpatel/Documents/FYP3/CMU/CMU\n"
-            "Or pass --human g1 to skip AMASS."
+            "Or pass --smplh-motion procedural to skip AMASS."
         )
 
     task_cls = _load_task_cls(args.task)
     print("=" * 60)
     print(f"COWORKER demo  |  task={task_cls.__name__}  human={args.human}  "
+          f"smplh_motion={args.smplh_motion}  "
           f"stage={args.stage}  spawn={args.spawn}  "
           f"arm={args.arm}  target={args.reach_target}")
     print("=" * 60)
 
-    clip_paths = ["74/74_01_poses.npz"] if args.human == "smplh" else []
+    clip_paths = (
+        ["74/74_01_poses.npz"]
+        if args.human == "smplh" and args.smplh_motion == "amass"
+        else []
+    )
     human_config = HumanConfig(
         human_model=args.human,
-        motion_clip_dir=amass_dir if args.human == "smplh" else None,
+        smplh_motion=args.smplh_motion,
+        motion_clip_dir=amass_dir if clip_paths else None,
         motion_clip_paths=clip_paths,
     )
     safety_config = SafetyConfig(
@@ -254,7 +270,7 @@ def main() -> None:
     )
 
     sampler = _make_sampler(
-        amass_dir if args.human == "smplh" else None,
+        amass_dir if clip_paths else None,
         human_config.motion_clip_paths,
         args.spawn,
         args.arm if args.arm != "auto" else None,

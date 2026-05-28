@@ -45,16 +45,22 @@
 set -euo pipefail
 
 # HUMAN_MODEL selects which humanoid plays the coworker role.
-#   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR).
+#   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR unless
+#                    SMPLH_MOTION=procedural).
 #   g1            : Unitree G1 standing-pose mannequin (no AMASS).
 HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
+SMPLH_MOTION="${SMPLH_MOTION:-amass}"
 case "${HUMAN_MODEL}" in
   smplh|g1) ;;
   *) echo "ERROR: HUMAN_MODEL must be 'smplh' or 'g1', got '${HUMAN_MODEL}'" >&2; exit 1 ;;
 esac
+case "${SMPLH_MOTION}" in
+  amass|procedural) ;;
+  *) echo "ERROR: SMPLH_MOTION must be 'amass' or 'procedural', got '${SMPLH_MOTION}'" >&2; exit 1 ;;
+esac
 
-if [[ "${HUMAN_MODEL}" == "smplh" && -z "${AMASS_DATA_DIR:-}" ]]; then
-  echo "ERROR: export AMASS_DATA_DIR before running smplh curriculum (see CLAUDE.md)." >&2
+if [[ "${HUMAN_MODEL}" == "smplh" && "${SMPLH_MOTION}" == "amass" && -z "${AMASS_DATA_DIR:-}" ]]; then
+  echo "ERROR: export AMASS_DATA_DIR before running smplh+amass curriculum (see CLAUDE.md)." >&2
   exit 1
 fi
 
@@ -69,6 +75,7 @@ mkdir -p "${OUTDIR}"
 COMMON=(
   env=safety_bigym/saucepan_to_hob
   "env.human_model=${HUMAN_MODEL}"
+  "env.smplh_motion=${SMPLH_MOTION}"
   bodyslam=oracle
   num_demos=36
   env.safety.add_workspace_penalty=true

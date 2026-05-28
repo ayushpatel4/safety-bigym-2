@@ -15,11 +15,13 @@ env:
 
   # Safety-specific settings
   inject_human: true
-  # Which humanoid plays the coworker role. "smplh" uses the AMASS-driven
-  # SMPL-H human; "g1" uses a Unitree G1 standing-pose mannequin with
-  # procedural arm IK (COWORKER only). When set to "g1", the AMASS
-  # motion_clip_* fields below are ignored.
+  # Which humanoid plays the coworker role. "smplh" uses the SMPL-H asset;
+  # "g1" uses a Unitree G1 standing-pose mannequin with procedural arm IK.
   human_model: smplh
+  # SMPL-H motion: "amass" (default) replays CMU clips on the body;
+  # "procedural" holds a fixed standing pose and moves the pelvis via the
+  # trajectory planner (same contract as G1 — no AMASS, no AMASS_DATA_DIR).
+  smplh_motion: amass
   motion_clip_dir: ${oc.env:AMASS_DATA_DIR,null}
   motion_clip_paths:
     - "74/74_01_poses.npz"

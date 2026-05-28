@@ -125,9 +125,15 @@ class HumanConfig:
     # mannequin with procedural arm IK. AMASS fields above are ignored when
     # human_model == "g1".
     human_model: str = "smplh"
+    # SMPL-H motion source when human_model == "smplh":
+    #   "amass"       — AMASS clip playback + trajectory planner (default)
+    #   "procedural"  — fixed standing pose + planner + COWORKER IK (G1-style)
+    smplh_motion: str = "amass"
     # G1 mocap pelvis height (m). Tuned to put the G1 trunk roughly where
     # SMPL-H's AMASS standing pelvis lands.
     g1_standing_pelvis_z: float = 0.95
+    # Procedural SMPL-H pelvis height (m). Used when smplh_motion=procedural.
+    smplh_standing_pelvis_z: float = 1.0
 
     def __post_init__(self):
         if self.motion_clip_dir is not None:
@@ -136,6 +142,11 @@ class HumanConfig:
             raise ValueError(
                 f"HumanConfig.human_model must be 'smplh' or 'g1', "
                 f"got {self.human_model!r}"
+            )
+        if self.smplh_motion not in ("amass", "procedural"):
+            raise ValueError(
+                f"HumanConfig.smplh_motion must be 'amass' or 'procedural', "
+                f"got {self.smplh_motion!r}"
             )
 
 
