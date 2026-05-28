@@ -1,31 +1,35 @@
-"""Standalone MuJoCo viewer for ``assets/g1_human_body.xml``.
+"""Standalone MuJoCo viewer for the G1 *view* asset.
 
-The committed ``g1_human_body.xml`` is a *fragment* meant to be merged into
-BiGym's worldbody at runtime — it has no light, floor, or camera, and its
-mocap pelvis sits at ``z=0`` so the body interpenetrates the implicit
-ground. Loading it directly via ``mjpython -m mujoco.viewer`` triggers a
-``RuntimeError: Caught an unknown exception!`` at ``_Simulate(`` on some
-macOS builds.
+Training loads ``assets/g1_human_body.xml`` (2683b67 capsule layout). This
+script loads ``assets/g1_human_body_view.xml`` (connected hips/shoulders) so
+you can inspect a nicer silhouette without changing what the CNN sees.
 
-This script wraps the fragment in a minimal standalone world (light,
-floor, camera, and a pelvis raised to standing height) and launches the
-passive viewer.
+Generate the view asset::
+
+    python scripts/build_g1_human_body.py --view
 
 Run from the repo root::
 
     cd safety_bigym
     venv/bin/mjpython scripts/visualize_g1_human.py
+
+To preview the training asset instead::
+
+    G1_VIEW_ASSET=training venv/bin/mjpython scripts/visualize_g1_human.py
 """
 
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-G1_BODY = REPO_ROOT / "safety_bigym" / "assets" / "g1_human_body.xml"
+ASSETS = REPO_ROOT / "safety_bigym" / "assets"
+G1_BODY_TRAINING = ASSETS / "g1_human_body.xml"
+G1_BODY_VIEW = ASSETS / "g1_human_body_view.xml"
 
 STANDING_Z = 0.95  # raise the pelvis so the feet clear the floor.
 
@@ -56,30 +60,39 @@ WRAPPER_TEMPLATE = """<?xml version='1.0' encoding='utf-8'?>
 """
 
 
+def _resolve_body_path() -> Path:
+    mode = os.environ.get("G1_VIEW_ASSET", "view").strip().lower()
+    if mode in ("training", "train"):
+        return G1_BODY_TRAINING
+    return G1_BODY_VIEW
+
+
 def main() -> int:
-    if not G1_BODY.is_file():
-        print(f"ERROR: {G1_BODY} not found. Run scripts/build_g1_human_body.py first.",
-              file=sys.stderr)
+    g1_body = _resolve_body_path()
+    if not g1_body.is_file():
+        hint = (
+            "python scripts/build_g1_human_body.py"
+            if g1_body == G1_BODY_TRAINING
+            else "python scripts/build_g1_human_body.py --view"
+        )
+        print(f"ERROR: {g1_body} not found. Run {hint} first.", file=sys.stderr)
         return 1
 
-    # Raise the pelvis so the body stands above the floor for viewing, and
-    # absolutise the mesh paths so they resolve from the temp wrapper dir.
-    # The fragment uses ``g1/assets/<file>.STL`` relative to its own
-    # location; once we write it into a temp subdir, MuJoCo would look
-    # under ``<tmp>/g1/assets/...`` which doesn't exist.
-    body_text = G1_BODY.read_text()
+    print(f"Loading {g1_body.name} ({os.environ.get('G1_VIEW_ASSET', 'view')} preset)")
+
+    body_text = g1_body.read_text()
     body_text = body_text.replace(
         'name="Pelvis" pos="0 0 0"',
         f'name="Pelvis" pos="0 0 {STANDING_Z}"',
         1,
     )
-    mesh_root = (G1_BODY.parent / "g1" / "assets").resolve()
+    mesh_root = (g1_body.parent / "g1" / "assets").resolve()
     body_text = body_text.replace(
         'file="g1/assets/',
         f'file="{mesh_root}/',
     )
 
-    tmp_dir = Path(tempfile.mkdtemp(prefix="g1_viewer_", dir=str(G1_BODY.parent)))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="g1_viewer_", dir=str(g1_body.parent)))
     try:
         include_path = tmp_dir / "g1_human_body_viewer.xml"
         include_path.write_text(body_text)

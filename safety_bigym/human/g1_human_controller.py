@@ -126,11 +126,17 @@ class G1HumanController:
         if self._trajectory_planner is not None:
             _, _, _, phase = self._trajectory_planner.get_pose(self.t)
             if phase == "loiter" and self._ik_target_callback is not None:
-                # G1 has no AMASS body to ramp from — apply the coworker
-                # IK targets directly. The outer loiter blend was stacking
-                # on CoworkerArmController's internal extend/retract alpha
-                # and made the arm feel sluggish.
-                targets = self._get_ik_targets(robot_state)
+                blend = (
+                    self.scenario.blend_duration if self.scenario else 0.4
+                )
+                loiter_start = self._get_loiter_start_time()
+                loiter_elapsed = self.t - loiter_start
+                ik_targets = self._get_ik_targets(robot_state)
+                if loiter_elapsed < blend:
+                    alpha = max(0.0, loiter_elapsed / blend)
+                    targets = (1.0 - alpha) * rest_targets + alpha * ik_targets
+                else:
+                    targets = ik_targets
 
         self.pd_controller.set_targets(targets)
         self.pd_controller.apply_control()

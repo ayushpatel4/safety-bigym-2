@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<mujoco model="g1_human_body">
+<mujoco model="g1_human_body_view">
   <default>
     <default class="human">
       <joint damping="50" armature="0.01"/>
@@ -34,10 +34,10 @@
                   <joint name="left_ankle_roll_joint" axis="1 0 0" range="-0.2618 0.2618" actuatorfrcrange="-50 50" class="human"/>
                   <geom name="L_Foot_col" class="human_collision" fromto="-0.04 0 -0.025  0.12 0 -0.025" size="0.04"/></body>
               </body>
-            <geom name="L_Shin_col" class="human_collision" fromto="0 0 0  0 0 -0.30" size="0.055"/></body>
-          <geom name="L_Thigh_col" class="human_collision" fromto="0 0 0  -0.078 0.002 -0.177" size="0.07"/></body>
+            <geom name="L_Shin_col" class="human_collision" fromto="0 0 0  0 0 -0.30" size="0.06"/></body>
+          <geom name="L_Thigh_col" class="human_collision" fromto="0 0 0  -0.078 0.002 -0.177" size="0.075"/></body>
         </body>
-      </body>
+      <geom name="L_Hip_col" class="human_collision" fromto="0 0 0.02  0 0 -0.08" size="0.075"/></body>
       <body name="right_hip_pitch_link" pos="0 -0.064452 -0.1027">
         <inertial pos="0.002741 -0.047791 -0.02606" quat="0.954862 -0.293964 0.0302556 -0.030122" mass="1.35" diaginertia="0.00181517 0.00153422 0.00116212"/>
         <joint name="right_hip_pitch_joint" axis="0 1 0" range="-2.5307 2.8798" actuatorfrcrange="-88 88" class="human"/>
@@ -58,10 +58,10 @@
                   <joint name="right_ankle_roll_joint" axis="1 0 0" range="-0.2618 0.2618" actuatorfrcrange="-50 50" class="human"/>
                   <geom name="R_Foot_col" class="human_collision" fromto="-0.04 0 -0.025  0.12 0 -0.025" size="0.04"/></body>
               </body>
-            <geom name="R_Shin_col" class="human_collision" fromto="0 0 0  0 0 -0.30" size="0.055"/></body>
-          <geom name="R_Thigh_col" class="human_collision" fromto="0 0 0  -0.078 -0.002 -0.177" size="0.07"/></body>
+            <geom name="R_Shin_col" class="human_collision" fromto="0 0 0  0 0 -0.30" size="0.06"/></body>
+          <geom name="R_Thigh_col" class="human_collision" fromto="0 0 0  -0.078 -0.002 -0.177" size="0.075"/></body>
         </body>
-      </body>
+      <geom name="R_Hip_col" class="human_collision" fromto="0 0 0.02  0 0 -0.08" size="0.075"/></body>
       <body name="waist_yaw_link">
         <inertial pos="0.003494 0.000233 0.018034" quat="0.289697 0.591001 -0.337795 0.672821" mass="0.214" diaginertia="0.000163531 0.000107714 0.000102205"/>
         <joint name="waist_yaw_joint" axis="0 0 1" range="-2.618 2.618" actuatorfrcrange="-88 88" class="human"/>
@@ -96,9 +96,9 @@
                       </body>
                     <geom name="L_Wrist_col" class="human_collision" fromto="0 0 0  0.084 0 0" size="0.035"/></body>
                   <geom name="L_Elbow_col" class="human_collision" fromto="0 0 0  0.10 0 -0.01" size="0.045"/></body>
-                </body>
+                <geom name="L_Shoulder_col" class="human_collision" fromto="0 0 0.04  0.016 0 -0.081" size="0.055"/></body>
               </body>
-            <geom name="L_Shoulder_col" class="human_collision" fromto="0 0 0  0 0.04 -0.02" size="0.06"/></body>
+            </body>
             <body name="right_shoulder_pitch_link" pos="0.0039563 -0.10021 0.24778" quat="0.990264 -0.139201 1.38722e-05 9.86868e-05">
               <inertial pos="0 -0.035892 -0.011628" quat="0.68225 -0.326267 0.0130458 0.654152" mass="0.718" diaginertia="0.000465864 0.000432842 0.000406394"/>
               <joint name="right_shoulder_pitch_joint" axis="0 1 0" range="-3.0892 2.6704" actuatorfrcrange="-25 25" class="human"/>
@@ -124,13 +124,13 @@
                       </body>
                     <geom name="R_Wrist_col" class="human_collision" fromto="0 0 0  0.084 0 0" size="0.035"/></body>
                   <geom name="R_Elbow_col" class="human_collision" fromto="0 0 0  0.10 0 -0.01" size="0.045"/></body>
-                </body>
+                <geom name="R_Shoulder_col" class="human_collision" fromto="0 0 0.04  0.016 0 -0.081" size="0.055"/></body>
               </body>
-            <geom name="R_Shoulder_col" class="human_collision" fromto="0 0 0  0 -0.04 -0.02" size="0.06"/></body>
-          <geom name="Chest_col" class="human_collision" fromto="0 0 0.05  0 0 0.30" size="0.13"/><geom name="Head_col" class="human_collision" pos="0 0 0.48" size="0.10" type="sphere"/></body>
+            </body>
+          <geom name="Chest_col" class="human_collision" fromto="0 0 0.05  0 0 0.30" size="0.13"/><geom name="Head_col" class="human_collision" pos="0 0 0.48" size="0.10" type="sphere"/><geom name="L_Thorax_col" class="human_collision" fromto="0 0.00 0.28  0.004 0.10 0.248" size="0.065"/><geom name="R_Thorax_col" class="human_collision" fromto="0 0.00 0.28  0.004 -0.10 0.248" size="0.065"/></body>
         </body>
       <geom name="Spine_col" class="human_collision" fromto="0 0 0  0 0 0.10" size="0.08"/></body>
-    <geom name="Pelvis_col" class="human_collision" fromto="0 -0.10 0  0 0.10 0" size="0.12"/></body>
+    <geom name="Pelvis_col" class="human_collision" fromto="0 0 0.02  0 0 -0.10" size="0.10"/></body>
   </worldbody>
   <actuator>
     <position name="act_left_hip_pitch_joint" joint="left_hip_pitch_joint" class="position_actuator"/>

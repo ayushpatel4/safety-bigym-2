@@ -53,8 +53,10 @@ set -euo pipefail
 # HUMAN_MODEL selects which humanoid plays the coworker role.
 #   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR unless
 #                    SMPLH_MOTION=procedural).
-#   g1            : Unitree G1 standing-pose mannequin (no AMASS). Asset is
-#                   strategy α (skin-toned _col capsules only, commit 2683b67).
+#   g1            : Unitree G1 mannequin (no AMASS). Training loads
+#                   assets/g1_human_body.xml (2683b67 layout). The connected
+#                   view asset (g1_human_body_view.xml) is viewer-only — see
+#                   scripts/build_g1_human_body.py --view.
 HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
 SMPLH_MOTION="${SMPLH_MOTION:-amass}"
 case "${HUMAN_MODEL}" in
@@ -130,12 +132,26 @@ COMMON=(
   save_video=true
 )
 
-# Best snapshot for curriculum resume: peak eval success_rate (written by
-# train_cqn_as as snapshot_best.pt). Falls back for legacy runs via
-# scripts/pick_best_snapshot.py (metrics.jsonl / nearest step / latest).
+# Curriculum resume checkpoint. Default matches commit 2683b67 (newest
+# snapshot_*.pt by mtime — typically the final save at num_train_frames).
+# Set CURRICULUM_SNAPSHOT=best to resume from peak eval success_rate
+# (snapshot_best.pt / pick_best_snapshot.py) instead.
+latest_snapshot() {
+  ls -t "$1"/snapshot_*.pt 2>/dev/null | grep -v snapshot_best.pt | head -1
+}
+
 best_snapshot() {
   local stage_dir="$1"
   python scripts/pick_best_snapshot.py "${stage_dir}" 2>/dev/null || true
+}
+
+pick_stage_snapshot() {
+  local stage_dir="$1"
+  if [[ "${CURRICULUM_SNAPSHOT:-latest}" == "best" ]]; then
+    best_snapshot "${stage_dir}"
+  else
+    latest_snapshot "${stage_dir}"
+  fi
 }
 
 run_stage() {
@@ -184,11 +200,11 @@ if [[ "${RESUME_STAGE2:-0}" == "1" ]]; then
   if [[ -z "${SNAP}" ]]; then
     for d in "${OUTDIR}"/stage2_full*; do
       [[ -d "${d}" ]] || continue
-      SNAP="$(best_snapshot "${d}")"
+      SNAP="$(pick_stage_snapshot "${d}")"
       [[ -n "${SNAP}" ]] && break
     done
   fi
-  [[ -z "${SNAP}" ]] && SNAP="$(best_snapshot "${OUTDIR}/stage1_easy")"
+  [[ -z "${SNAP}" ]] && SNAP="$(pick_stage_snapshot "${OUTDIR}/stage1_easy")"
   if [[ -z "${SNAP}" ]]; then
     echo "ERROR: no snapshot found under ${OUTDIR} (stage2_full*/ or stage1_easy/)." >&2
     exit 1
@@ -204,20 +220,20 @@ fi
 # is the GATE — episode_reward must climb >0 on some episodes with returns inside
 # [-6, 2]. If it fails, the problem is demos/CQN-AS, not safety: stop and reassess.
 run_stage stage0_idle coworker_idle "${STAGE0_FRAMES}"
-SNAP0="$(best_snapshot "${OUTDIR}/stage0_idle")"
+SNAP0="$(pick_stage_snapshot "${OUTDIR}/stage0_idle")"
 if [[ -z "${SNAP0}" ]]; then
   echo "ERROR: no snapshot found under ${OUTDIR}/stage0_idle" >&2
   exit 1
 fi
-echo "== stage 1 resumes from best stage-0 snapshot: ${SNAP0} =="
+echo "== stage 1 resumes from stage-0 snapshot (${CURRICULUM_SNAPSHOT:-latest}): ${SNAP0} =="
 
 run_stage stage1_easy coworker_easy "${STAGE1_FRAMES}" "${SNAP0}"
-SNAP1="$(best_snapshot "${OUTDIR}/stage1_easy")"
+SNAP1="$(pick_stage_snapshot "${OUTDIR}/stage1_easy")"
 if [[ -z "${SNAP1}" ]]; then
   echo "ERROR: no snapshot found under ${OUTDIR}/stage1_easy" >&2
   exit 1
 fi
-echo "== stage 2 resumes from best stage-1 snapshot: ${SNAP1} =="
+echo "== stage 2 resumes from stage-1 snapshot (${CURRICULUM_SNAPSHOT:-latest}): ${SNAP1} =="
 
 run_stage stage2_full coworker_train "${STAGE2_FRAMES}" "${SNAP1}"
 
