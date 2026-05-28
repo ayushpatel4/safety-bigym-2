@@ -33,6 +33,12 @@
 #   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
 #
+# Auto RUN_TAG (when unset): base_<human>_<frames>_<YYYYMMDD_HHMMSS>
+#   e.g. base_smplh_proc_30k_30k_40k_20260528_153045
+# Manual RUN_TAG=... also gets _<YYYYMMDD_HHMMSS> appended unless already present.
+#
+#   RUN_TAG=my_label scripts/run_base_curriculum.sh
+#
 #   # Resume ONLY stage 2 (e.g. after a machine crash) — skips stages 0/1 and
 #   # restarts stage 2 from the newest snapshot it can find. Point RESUME_DIR at
 #   # the prior run dir; the resumed run writes to <RESUME_DIR>/stage2_full_resume.
@@ -67,9 +73,44 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
-RUN_TAG="${RUN_TAG:-base_curriculum_$(date +%Y%m%d_%H%M%S)}"
+if [[ "${SMOKE:-0}" == "1" ]]; then
+  STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
+  STAGE1_FRAMES=0
+  STAGE2_FRAMES=0
+  WANDB=(wandb.use=false)
+  # Synchronous CUDA so any device-side assert points at the real op/line
+  # (smoke is short; the slowdown is irrelevant here).
+  export CUDA_LAUNCH_BLOCKING=1
+else
+  STAGE0_FRAMES="${STAGE0_FRAMES:-30000}"
+  STAGE1_FRAMES="${STAGE1_FRAMES:-30000}"
+  STAGE2_FRAMES="${STAGE2_FRAMES:-40000}"
+  WANDB=(wandb.use=true)
+fi
+
+# Auto RUN_TAG encodes human variant + stage budgets + launch stamp so exp_local/
+# and W&B names are grep-friendly and unique per invocation.
+_RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
+if [[ -z "${RUN_TAG:-}" ]]; then
+  if [[ "${HUMAN_MODEL}" == "g1" ]]; then
+    _human_tag="g1"
+  elif [[ "${SMPLH_MOTION}" == "procedural" ]]; then
+    _human_tag="smplh_proc"
+  else
+    _human_tag="smplh_amass"
+  fi
+  if [[ "${SMOKE:-0}" == "1" ]]; then
+    _frames_tag="smoke${STAGE0_FRAMES}"
+  else
+    _frames_tag="$(( STAGE0_FRAMES / 1000 ))k_$(( STAGE1_FRAMES / 1000 ))k_$(( STAGE2_FRAMES / 1000 ))k"
+  fi
+  RUN_TAG="base_${_human_tag}_${_frames_tag}_${_RUN_STAMP}"
+elif [[ ! "${RUN_TAG}" =~ _[0-9]{8}_[0-9]{6}$ ]]; then
+  RUN_TAG="${RUN_TAG}_${_RUN_STAMP}"
+fi
 OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
 mkdir -p "${OUTDIR}"
+echo "== RUN_TAG=${RUN_TAG} OUTDIR=${OUTDIR} =="
 
 # Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
 COMMON=(
@@ -87,21 +128,6 @@ COMMON=(
   save_snapshot=true
   save_video=true
 )
-
-if [[ "${SMOKE:-0}" == "1" ]]; then
-  STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
-  STAGE1_FRAMES=0
-  STAGE2_FRAMES=0
-  WANDB=(wandb.use=false)
-  # Synchronous CUDA so any device-side assert points at the real op/line
-  # (smoke is short; the slowdown is irrelevant here).
-  export CUDA_LAUNCH_BLOCKING=1
-else
-  STAGE0_FRAMES="${STAGE0_FRAMES:-30000}"
-  STAGE1_FRAMES="${STAGE1_FRAMES:-30000}"
-  STAGE2_FRAMES="${STAGE2_FRAMES:-40000}"
-  WANDB=(wandb.use=true)
-fi
 
 # Best snapshot for curriculum resume: peak eval success_rate (written by
 # train_cqn_as as snapshot_best.pt). Falls back for legacy runs via
