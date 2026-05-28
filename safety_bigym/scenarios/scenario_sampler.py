@@ -136,7 +136,7 @@ class ParameterSpace:
     coworker_reach_period_range: tuple = (4.5, 6.5)       # seconds per cycle (1/freq)
     coworker_target_mix_p_ee_range: tuple = (0.4, 0.6)    # P(reach EE); P(task)=1-p
     coworker_near_loiter_range: tuple = (7.0, 11.0)       # dwell at NEAR (s)
-    coworker_walk_speed_range: tuple = (1.0, 1.6)         # walk speed (m/s)
+    coworker_walk_speed_range: tuple = (0.8, 1.3)         # walk speed (m/s)
     # Relative weights for COWORKER trajectory modes (normalized per draw).
     # Default is uniform; ``make_coworker_train_space`` pins patrol-heavy
     # weights so stage-2 training mostly exercises depart/return cycles.
@@ -172,7 +172,7 @@ _COWORKER_TRAIN_RANGES: Dict[str, tuple] = {
     "coworker_reach_period_range": (4.5, 6.5),
     "coworker_target_mix_p_ee_range": (0.4, 0.6),
     "coworker_near_loiter_range": (7.0, 11.0),
-    "coworker_walk_speed_range": (1.0, 1.6),
+    "coworker_walk_speed_range": (0.8, 1.3),
 }
 
 _COWORKER_EVAL_RANGES: Dict[str, tuple] = {

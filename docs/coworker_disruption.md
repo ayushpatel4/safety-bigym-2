@@ -113,7 +113,7 @@ generalisation experiments:
 | Reach period *(= 1 / frequency)* | `coworker_reach_period_range` | `3.0 – 5.0 s` | `3.0 – 9.0 s` |
 | P(reach EE) *(vs task obj)* | `coworker_target_mix_p_ee_range` | `0.55 – 0.85` | `0.1 – 0.9` |
 | Dwell time at NEAR | `coworker_near_loiter_range` | `12 – 18 s` | `4 – 16 s` |
-| Walk speed | `coworker_walk_speed_range` | `1.0 – 1.6 m/s` | `0.6 – 2.2 m/s` |
+| Walk speed | `coworker_walk_speed_range` | `0.8 – 1.3 m/s` | `0.6 – 2.2 m/s` |
 | Patrol trajectory weight | `coworker_trajectory_weights.COWORKER_PATROL` | **8** (vs 1 each for other modes → ~80 % patrol) | uniform (1:1:1) |
 
 The train band was tightened on 2026-05-27 so stage 2 reliably brings the
@@ -164,7 +164,7 @@ python train_safety.py \\
     env.disruptions.coworker_reach_period_range='[3.0, 5.0]' \\
     env.disruptions.coworker_target_mix_p_ee_range='[0.55, 0.85]' \\
     env.disruptions.coworker_near_loiter_range='[12.0, 18.0]' \\
-    env.disruptions.coworker_walk_speed_range='[1.0, 1.6]'
+    env.disruptions.coworker_walk_speed_range='[0.8, 1.3]'
 ```
 
 The factory ([safety_bigym_factory.py](../safety_bigym/envs/safety_bigym_factory.py))
