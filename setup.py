@@ -28,6 +28,11 @@ setuptools.setup(
         "tensordict==0.6.0",
         # CQN-AS env_adapter TimeStep contract.
         "dm_env",
+        # Benchmark harness (safety_bigym/benchmark, scripts/benchmark_policy.py):
+        # per-episode raw rolls are persisted as parquet for later re-aggregation
+        # without re-rollout. pandas writes the per-cell CSV + the parquet sidecar.
+        "pandas>=2.0",
+        "pyarrow>=12.0",
     ],
     package_data={
         "": [str(p.resolve()) for p in Path("safety_bigym/assets").glob("**/*")]
