@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Staged human-curriculum re-validation of the CQN-AS base policy on
-# saucepan_to_hob, with the 2026-05-20 reward/critic-support fix applied.
+# Staged human-curriculum re-validation of the CQN-AS base policy
+# (default task: saucepan_to_hob; set TASK=drawers_open_all for cupboards),
+# with the 2026-05-20 reward/critic-support fix applied.
 #
 # Why this script exists: the 50k single-stage validation produced a degenerate
 # "retreat from human" policy. Root cause = the dense workspace penalty's
@@ -9,7 +10,7 @@
 # four levers, all applied here:
 #   (1) bounded penalty:  workspace_beta=0.05, workspace_excess_cap=1.0
 #   (2) widened support:  agent.v_min=-6 agent.v_max=2 agent.atoms=101
-#   (3) more demos:       num_demos=36
+#   (3) task demos:       num_demos per cfgs/env/safety_bigym/<task>.yaml
 #   (4) human curriculum: 3 stages via snapshot-resume (the env is stateless
 #       w.r.t. training step, so no within-run ramp — we stage it instead):
 #         stage 0  disruption=null          (no human; "can it learn the task?")
@@ -28,13 +29,16 @@
 #   cd safety_bigym && source venv/bin/activate    # needs tensordict
 #
 # Usage:
-#   scripts/run_base_curriculum.sh                 # full run (stages 0->1->2)
+#   scripts/run_base_curriculum.sh                 # saucepan_to_hob (default)
+#   TASK=drawers_open_all scripts/run_base_curriculum.sh
 #   SMOKE=1 scripts/run_base_curriculum.sh         # ≤2000-frame stage-0 smoke only
+#   SMOKE=1 TASK=drawers_open_all scripts/run_base_curriculum.sh
 #   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
 #
-# Auto RUN_TAG (when unset): base_<human>_<frames>_<YYYYMMDD_HHMMSS>
-#   e.g. base_smplh_proc_30k_30k_40k_20260528_153045
+# Auto RUN_TAG (when unset): base_<human>_<task>_<frames>_<YYYYMMDD_HHMMSS>
+#   e.g. base_g1_saucepan_30k_30k_40k_20260528_153045
+#        base_g1_drawers_30k_30k_40k_20260528_160012
 # Manual RUN_TAG=... also gets _<YYYYMMDD_HHMMSS> appended unless already present.
 #
 #   RUN_TAG=my_label scripts/run_base_curriculum.sh
@@ -72,6 +76,23 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# TASK selects the BiGym task via env=safety_bigym/<task>. NUM_DEMOS matches
+# cfgs/env/safety_bigym/<task>.yaml `demos:` for known curriculum tasks.
+TASK="${TASK:-saucepan_to_hob}"
+if [[ ! -f "${REPO_ROOT}/cfgs/env/safety_bigym/${TASK}.yaml" ]]; then
+  echo "ERROR: TASK=${TASK} — no cfgs/env/safety_bigym/${TASK}.yaml" >&2
+  echo "       Built-in: saucepan_to_hob (36 demos), drawers_open_all (50 demos)" >&2
+  exit 1
+fi
+case "${TASK}" in
+  saucepan_to_hob)  NUM_DEMOS="${NUM_DEMOS:-36}" ;;
+  drawers_open_all) NUM_DEMOS="${NUM_DEMOS:-50}" ;;
+  *)
+    NUM_DEMOS="${NUM_DEMOS:-36}"
+    echo "WARNING: TASK=${TASK} using NUM_DEMOS=${NUM_DEMOS} (set NUM_DEMOS= to override)" >&2
+    ;;
+esac
+
 if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
   STAGE1_FRAMES=0
@@ -98,26 +119,31 @@ if [[ -z "${RUN_TAG:-}" ]]; then
   else
     _human_tag="smplh_amass"
   fi
+  case "${TASK}" in
+    drawers_open_all) _task_tag="drawers" ;;
+    saucepan_to_hob)  _task_tag="saucepan" ;;
+    *) _task_tag="${TASK}" ;;
+  esac
   if [[ "${SMOKE:-0}" == "1" ]]; then
     _frames_tag="smoke${STAGE0_FRAMES}"
   else
     _frames_tag="$(( STAGE0_FRAMES / 1000 ))k_$(( STAGE1_FRAMES / 1000 ))k_$(( STAGE2_FRAMES / 1000 ))k"
   fi
-  RUN_TAG="base_${_human_tag}_${_frames_tag}_${_RUN_STAMP}"
+  RUN_TAG="base_${_human_tag}_${_task_tag}_${_frames_tag}_${_RUN_STAMP}"
 elif [[ ! "${RUN_TAG}" =~ _[0-9]{8}_[0-9]{6}$ ]]; then
   RUN_TAG="${RUN_TAG}_${_RUN_STAMP}"
 fi
 OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
 mkdir -p "${OUTDIR}"
-echo "== RUN_TAG=${RUN_TAG} OUTDIR=${OUTDIR} =="
+echo "== TASK=${TASK} NUM_DEMOS=${NUM_DEMOS} RUN_TAG=${RUN_TAG} OUTDIR=${OUTDIR} =="
 
 # Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
 COMMON=(
-  env=safety_bigym/saucepan_to_hob
+  "env=safety_bigym/${TASK}"
   "env.human_model=${HUMAN_MODEL}"
   "env.smplh_motion=${SMPLH_MOTION}"
   bodyslam=oracle
-  num_demos=36
+  "num_demos=${NUM_DEMOS}"
   env.safety.add_workspace_penalty=true
   env.safety.workspace_beta=0.05
   env.safety.workspace_excess_cap=1.0
@@ -170,7 +196,7 @@ run_stage() {
   # `unconstrained`; the Lagrangian launcher overrides this.
   local stage_tag="${name%%_*}"  # stage0_idle -> stage0
   local method_tag="${METHOD:-unconstrained}"
-  local task_tag="${TASK_TAG:-saucepan_to_hob}"
+  local task_tag="${TASK_TAG:-${TASK}}"
   local wb_tags="+wandb.tags=[${stage_tag},method:${method_tag},task:${task_tag},human:${HUMAN_MODEL}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
