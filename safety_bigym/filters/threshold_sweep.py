@@ -2,7 +2,8 @@
 
 Given a frozen critic + a target policy, ``evaluate_threshold`` runs N episodes
 under :class:`SafetyFilterWrapper` at a fixed ``R`` and records intervention
-rate + residual violation rate. ``sweep_thresholds`` calls it for each ``R``.
+rate, residual SSM-violation rate, and the thesis-primary
+``proximity_violation_rate``. ``sweep_thresholds`` calls it for each ``R``.
 
 This module is pure (no W&B / no logging / no scripts) so unit tests can
 exercise the Pareto monotonicity invariant with stub envs and stub critics.
@@ -32,6 +33,7 @@ class ThresholdEvalResult:
     n_steps: int
     intervention_rate: float
     residual_violation_rate: float
+    proximity_violation_rate: float
     mean_q_value: float
 
     def to_dict(self) -> Dict[str, float]:
@@ -41,6 +43,7 @@ class ThresholdEvalResult:
             "n_steps": int(self.n_steps),
             "intervention_rate": float(self.intervention_rate),
             "residual_violation_rate": float(self.residual_violation_rate),
+            "proximity_violation_rate": float(self.proximity_violation_rate),
             "mean_q_value": float(self.mean_q_value),
         }
 
@@ -63,6 +66,7 @@ def evaluate_threshold(
     total_steps = 0
     total_intervened = 0
     total_violations = 0
+    total_proximity_violations = 0
     q_sum = 0.0
 
     for ep in range(n_episodes):
@@ -75,8 +79,14 @@ def evaluate_threshold(
             if sf.get("intervened"):
                 total_intervened += 1
             q_sum += float(sf.get("q_value", 0.0))
-            if info.get("safety", {}).get("ssm_violation"):
+            safety = info.get("safety", {})
+            if safety.get("ssm_violation"):
                 total_violations += 1
+            # Thesis-primary safety axis: per-step geometric proximity
+            # violations. Pooled over all steps this equals
+            # ``ep_proximity_violation_rate`` (mean of the per-step flag).
+            if safety.get("proximity_violation"):
+                total_proximity_violations += 1
             if terminated or truncated:
                 break
 
@@ -87,6 +97,7 @@ def evaluate_threshold(
             n_steps=0,
             intervention_rate=0.0,
             residual_violation_rate=0.0,
+            proximity_violation_rate=0.0,
             mean_q_value=0.0,
         )
 
@@ -96,6 +107,7 @@ def evaluate_threshold(
         n_steps=total_steps,
         intervention_rate=total_intervened / total_steps,
         residual_violation_rate=total_violations / total_steps,
+        proximity_violation_rate=total_proximity_violations / total_steps,
         mean_q_value=q_sum / total_steps,
     )
 

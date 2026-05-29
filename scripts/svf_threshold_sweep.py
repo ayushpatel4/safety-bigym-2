@@ -68,6 +68,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--task", default="reach_target_single", choices=sorted(TASK_REGISTRY)
     )
     p.add_argument("--disruption", default=DEFAULT_DISRUPTIONS[0])
+    p.add_argument(
+        "--human-model",
+        choices=("smplh", "g1"),
+        default="g1",
+        help=(
+            "Coworker embodiment. 'g1' (default) is AMASS-free; 'smplh' "
+            "requires AMASS_DATA_DIR and replays motion clips."
+        ),
+    )
     p.add_argument("--episodes-per-R", type=int, default=10)
     p.add_argument("--max-steps", type=int, default=300)
     p.add_argument("--bodyslam-mode", choices=("oracle", "noisy"), default="oracle")
@@ -125,6 +134,7 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
         args.task, args.disruption, bodyslam_mode, DEFAULT_CLIPS,
         cameras=snapshot_cameras,
         camera_resolution=snapshot_resolution,
+        human_model=args.human_model,
     )
     fallback = FallbackRegistry.build(args.fallback, env.action_space)
 
@@ -148,6 +158,7 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
     for r in rows:
         logger.info(
             f"R={r.threshold_R:5.1f} intervention_rate={r.intervention_rate:.3f} "
+            f"proximity_violation_rate={r.proximity_violation_rate:.3f} "
             f"residual_violation_rate={r.residual_violation_rate:.3f}"
         )
     return rows

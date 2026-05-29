@@ -118,6 +118,9 @@ class CollectionPlan:
     seed: int = 0
     motion_clips: Tuple[str, ...] = DEFAULT_CLIPS
     demos_per_task: int = 30  # used only by the demo source
+    # Coworker embodiment. "g1" (default) is AMASS-free; "smplh" requires
+    # AMASS_DATA_DIR and replays motion clips. Flows into every _build_live_env.
+    human_model: str = "g1"
     # Per-task snapshot path overrides — populated by --snapshot-override CLI
     # flags. Empty by default; the resolver falls through to
     # safety_bigym.filters.snapshots.SNAPSHOTS.
@@ -159,6 +162,7 @@ def _build_live_env(
     *,
     cameras: Sequence[str] = (),
     camera_resolution: Tuple[int, int] = (84, 84),
+    human_model: str = "g1",
 ):
     """Construct ``[BodySLAMWrapper(]SafetyBiGymEnv[)]`` — used by random/snapshot.
 
@@ -172,12 +176,24 @@ def _build_live_env(
     callers don't pay the MuJoCo render cost. Pixel-trained snapshot policies
     must pass the cameras list from their snapshot's ``cfg.env.cameras`` so
     the obs dict carries the ``rgb_<name>`` keys the actor's encoder expects.
+
+    ``human_model``: "g1" (default) loads the AMASS-free Unitree G1 coworker;
+    "smplh" loads the AMASS-driven SMPL-H coworker. Mirrors the G1 branch in
+    ``safety_bigym_factory._create_env`` — for G1 the AMASS requirement and
+    motion-clip injection are skipped entirely (``motion_clip_dir=None``).
     """
-    if not AMASS_DATA_DIR:
-        raise RuntimeError(
-            "AMASS_DATA_DIR is not set. Export it before running:\n"
-            "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
-        )
+    # AMASS is only needed for the SMPL-H clip-playback path; G1 is AMASS-free.
+    if human_model == "g1":
+        motion_clip_dir = None
+        motion_clip_paths: list = []
+    else:
+        if not AMASS_DATA_DIR:
+            raise RuntimeError(
+                "AMASS_DATA_DIR is not set. Export it before running:\n"
+                "  export AMASS_DATA_DIR=/path/to/CMU/CMU"
+            )
+        motion_clip_dir = AMASS_DATA_DIR
+        motion_clip_paths = list(motion_clips)
 
     from safety_bigym import SafetyConfig, HumanConfig, make_safety_env
     from safety_bigym.perception.bodyslam_wrapper import BodySLAMWrapper
@@ -193,8 +209,9 @@ def _build_live_env(
 
     task_cls = _import_task(task_key)
     human_config = HumanConfig(
-        motion_clip_dir=AMASS_DATA_DIR,
-        motion_clip_paths=list(motion_clips),
+        motion_clip_dir=motion_clip_dir,
+        motion_clip_paths=motion_clip_paths,
+        human_model=human_model,
     )
     # Cell label dispatch: "coworker_train" / "coworker_eval" use the strict-
     # superset COWORKER factories; any other value is treated as a legacy
@@ -214,7 +231,7 @@ def _build_live_env(
         )
     sampler = ScenarioSampler(
         parameter_space=parameter_space,
-        motion_dir=AMASS_DATA_DIR,
+        motion_dir=motion_clip_dir,
     )
     make_env_kwargs: Dict[str, Any] = {}
     if cameras:
@@ -299,6 +316,11 @@ def rollout_episode(
     from safety_bigym.filters.labeling import label_transition
 
     obs, _info = env.reset()
+    # Stateful policies (e.g. CQN-AS frame-stacked snapshots) must clear their
+    # per-episode buffers at the episode boundary. Stateless policies (random,
+    # ACT _SnapshotPolicy) have no reset() and are unaffected.
+    if hasattr(policy, "reset"):
+        policy.reset()
     obs_buf: Dict[str, List[np.ndarray]] = {k: [] for k in obs_keys}
     next_obs_buf: Dict[str, List[np.ndarray]] = {k: [] for k in obs_keys}
     actions: List[np.ndarray] = []
@@ -660,11 +682,16 @@ def _peek_snapshot_cfg(snapshot_path: Path):
     from omegaconf import DictConfig, OmegaConf
 
     payload = torch.load(snapshot_path, map_location="cpu", weights_only=False)
+    # RoboBase ACT/DP snapshots store the Hydra cfg under "cfg"; CQN-AS
+    # (train_cqn_as.py) stores a resolved container under "config". Accept both.
     cfg = payload.get("cfg")
     if cfg is None:
+        cfg = payload.get("config")
+    if cfg is None:
         raise KeyError(
-            f"snapshot at {snapshot_path} has no 'cfg' field — was it produced "
-            "after the workspace.py drift fix? See CLAUDE.md."
+            f"snapshot at {snapshot_path} has neither a 'cfg' (RoboBase) nor a "
+            "'config' (CQN-AS) field — was it produced after the workspace.py "
+            "drift fix? See CLAUDE.md."
         )
     if not isinstance(cfg, DictConfig):
         cfg = OmegaConf.create(cfg)
@@ -788,6 +815,13 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     from omegaconf import DictConfig, OmegaConf
 
     payload = torch.load(snapshot_path, map_location="cpu", weights_only=False)
+
+    # CQN-AS snapshots (train_cqn_as.py) carry "agent_state" + "config" and a
+    # vendored CQNASAgent whose act() takes split (rgb_obs, low_dim_obs) args —
+    # incompatible with the RoboBase instantiate path below. Dispatch early.
+    if "agent_state" in payload:
+        return _load_cqn_as_snapshot_policy(payload, env)
+
     cfg = payload.get("cfg")
     if cfg is None:
         raise KeyError(
@@ -864,6 +898,193 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
         includes_human_pos=includes_human_pos,
         action_stats=action_stats,
         min_max_margin=min_max_margin,
+    )
+
+
+class _CQNASSnapshotPolicy:
+    """Roll out a CQN-AS snapshot as a ``policy(gym_obs) -> raw_action`` callable.
+
+    CQN-AS snapshots differ from RoboBase ACT/DP ones: the vendored
+    ``CQNASAgent`` is not a RoboBase Method, and ``act`` takes split
+    ``(rgb_obs, low_dim_obs)`` arrays rather than an obs dict. This wrapper
+    replicates :meth:`SafetyBiGymCQNAdapter._extract_obs` (state-key concat,
+    optional ``human_pos_estimate`` injection, per-camera frame-stacked rgb)
+    and ``_convert_action_to_raw`` (``[-1, 1]`` → env range) so the agent sees
+    exactly its training-time inputs while the SVF collector keeps driving the
+    plain gym env from :func:`_build_live_env`.
+
+    ``includes_human_pos`` comes from the *snapshot's* trained bodyslam mode
+    (so a bodyslam=off policy is fed low_dim without the 6-D human channel),
+    independently of the env's own bodyslam mode (which is ``noisy`` so the
+    dataset still records ``human_pos_estimate``). This mirrors the ACT path's
+    ``includes_human_pos`` decoupling.
+
+    Following the ACT convention in :class:`_SnapshotPolicy`, the agent is
+    queried every step and the first sub-action of the returned chunk is
+    executed (receding horizon). Frame-stack deques are reset per episode via
+    :meth:`reset`, which :func:`rollout_episode` calls after ``env.reset()``.
+    """
+
+    def __init__(
+        self,
+        *,
+        agent: Any,
+        state_keys: Sequence[str],
+        includes_human_pos: bool,
+        camera_keys: Sequence[str],
+        frame_stack: int,
+        action_sequence: int,
+        action_low: np.ndarray,
+        action_high: np.ndarray,
+        rgb_placeholder_shape: Optional[Sequence[int]] = None,
+    ):
+        self.agent = agent
+        self._state_keys = tuple(state_keys)
+        self._includes_human_pos = bool(includes_human_pos)
+        self._camera_keys = tuple(camera_keys)
+        self._frame_stack = int(frame_stack)
+        self._action_sequence = int(action_sequence)
+        self._action_low = np.asarray(action_low, dtype=np.float32)
+        self._action_high = np.asarray(action_high, dtype=np.float32)
+        self._rgb_placeholder_shape = (
+            tuple(int(x) for x in rgb_placeholder_shape)
+            if rgb_placeholder_shape is not None
+            else None
+        )
+        self._low_dim_frames: Any = None
+        self._rgb_frames: Dict[str, Any] = {}
+        self.reset()
+
+    def reset(self) -> None:
+        from collections import deque
+
+        self._low_dim_frames = deque(maxlen=self._frame_stack)
+        self._rgb_frames = {
+            cam: deque(maxlen=self._frame_stack) for cam in self._camera_keys
+        }
+
+    def _stack_into(self, dq, frame: np.ndarray) -> None:
+        # Match the adapter: prime the deque by repeating the first frame so a
+        # fresh episode's stack is full from step 0; thereafter append normally.
+        if len(dq) == 0:
+            for _ in range(self._frame_stack):
+                dq.append(frame)
+        else:
+            dq.append(frame)
+
+    def _build_low_dim(self, gym_obs: Dict[str, np.ndarray]) -> np.ndarray:
+        pieces = [
+            np.asarray(gym_obs[k], dtype=np.float32).reshape(-1)
+            for k in self._state_keys
+        ]
+        if self._includes_human_pos:
+            pieces.append(
+                np.asarray(gym_obs[HUMAN_POS_ESTIMATE_KEY], dtype=np.float32).reshape(-1)
+            )
+        low_dim = np.hstack(pieces).astype(np.float32)
+        self._stack_into(self._low_dim_frames, low_dim)
+        return np.concatenate(list(self._low_dim_frames), axis=0)
+
+    def _build_rgb(self, gym_obs: Dict[str, np.ndarray]) -> np.ndarray:
+        if not self._camera_keys:
+            if self._rgb_placeholder_shape is None:
+                raise ValueError(
+                    "CQN-AS snapshot has no cameras and no rgb_obs_shape to "
+                    "build a placeholder from."
+                )
+            return np.zeros(self._rgb_placeholder_shape, dtype=np.uint8)
+        for cam in self._camera_keys:
+            px = np.asarray(gym_obs[f"rgb_{cam}"]).astype(np.uint8, copy=False)
+            # Bare bigym emits (H, W, 3); CQN-AS expects channel-first (C, H, W).
+            if px.ndim == 3 and px.shape[-1] == 3:
+                px = np.transpose(px, (2, 0, 1))
+            self._stack_into(self._rgb_frames[cam], px)
+        # (num_cameras, C * frame_stack, H, W) — mirrors adapter._extract_obs.
+        return np.stack(
+            [
+                np.concatenate(list(self._rgb_frames[cam]), axis=0)
+                for cam in self._camera_keys
+            ],
+            axis=0,
+        )
+
+    def __call__(self, gym_obs: Dict[str, np.ndarray]) -> np.ndarray:
+        import torch
+
+        low_dim_obs = self._build_low_dim(gym_obs)
+        rgb_obs = self._build_rgb(gym_obs)
+        with torch.no_grad():
+            # step is irrelevant under eval_mode (it only gates the stddev
+            # schedule / exploration, both bypassed when eval_mode=True).
+            raw = self.agent.act(rgb_obs, low_dim_obs, step=10**9, eval_mode=True)
+        chunk = np.asarray(raw, dtype=np.float32).reshape(self._action_sequence, -1)
+        norm_action = chunk[0]  # receding horizon: execute the first sub-action
+        # [-1, 1] → raw env range (mirror adapter._convert_action_to_raw).
+        scaled = (norm_action + 1.0) / 2.0
+        raw_action = scaled * (self._action_high - self._action_low + 1e-8)
+        raw_action = raw_action + self._action_low
+        return raw_action.astype(np.float32, copy=False)
+
+
+def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshotPolicy:
+    """Build a CQN-AS policy from a ``train_cqn_as.py`` snapshot payload.
+
+    The agent's input shapes (``rgb_obs_shape`` / ``low_dim_obs_shape`` /
+    ``action_shape``) are baked into ``config.agent`` by ``make_agent`` at
+    train time, so the agent is rebuilt with ``hydra.utils.instantiate`` and
+    loaded via the vendored ``CQNASAgent.load_state_dict``.
+    """
+    import hydra
+    from omegaconf import DictConfig, OmegaConf
+
+    from safety_bigym.agents.cqn_as.env_adapter import _DEFAULT_STATE_KEYS
+
+    cfg = payload.get("config")
+    if cfg is None:
+        raise KeyError(
+            "CQN-AS snapshot payload has 'agent_state' but no 'config' field."
+        )
+    if not isinstance(cfg, DictConfig):
+        cfg = OmegaConf.create(cfg)
+
+    agent_cfg = cfg.get("agent")
+    if agent_cfg is None or agent_cfg.get("rgb_obs_shape") is None:
+        raise KeyError(
+            "CQN-AS snapshot config.agent is missing or lacks the baked "
+            "rgb_obs_shape/low_dim_obs_shape/action_shape that make_agent "
+            "writes at train time — cannot rebuild the agent."
+        )
+
+    # Device portability: snapshots trained on the GPU box carry device="cuda";
+    # fall back to CPU where CUDA is absent (local smoke) per the repo's
+    # "works on this device or the GPU device" convention.
+    import torch as _torch
+
+    OmegaConf.set_struct(cfg, False)
+    agent_cfg.device = "cuda" if _torch.cuda.is_available() else "cpu"
+
+    agent = hydra.utils.instantiate(agent_cfg)
+    agent.load_state_dict(payload["agent_state"])
+    if hasattr(agent, "train"):
+        agent.train(False)
+
+    bs = cfg.env.get("bodyslam") if "env" in cfg else None
+    bs_mode = str(bs.get("mode", "off")) if bs is not None else "off"
+    includes_human_pos = bs_mode in ("oracle", "noisy")
+
+    pixels_on = bool(cfg.get("pixels", False))
+    camera_keys = tuple(str(c) for c in cfg.env.get("cameras", [])) if pixels_on else ()
+
+    return _CQNASSnapshotPolicy(
+        agent=agent,
+        state_keys=_DEFAULT_STATE_KEYS,
+        includes_human_pos=includes_human_pos,
+        camera_keys=camera_keys,
+        frame_stack=int(cfg.get("frame_stack", 1)),
+        action_sequence=int(cfg.get("action_sequence", 1)),
+        action_low=env.action_space.low,
+        action_high=env.action_space.high,
+        rgb_placeholder_shape=tuple(agent_cfg.get("rgb_obs_shape")),
     )
 
 
@@ -947,6 +1168,7 @@ def _collect_live_env_source(
                 task_key, disruption, bodyslam_mode, plan.motion_clips,
                 cameras=snapshot_cameras,
                 camera_resolution=snapshot_resolution,
+                human_model=plan.human_model,
             )
 
             if source == "random":
@@ -1027,6 +1249,7 @@ def _collect_demo_source(
             plan.disruptions[0] if plan.disruptions else "coworker_train",
             plan.bodyslam_mode,
             plan.motion_clips,
+            human_model=plan.human_model,
         )
         spec[0] = CriticFeatureSpec.from_spaces(
             probe.observation_space, probe.action_space
@@ -1162,6 +1385,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--demos-per-task", type=int, default=30)
     p.add_argument("--bodyslam-mode", choices=("oracle", "noisy"), default="oracle")
     p.add_argument(
+        "--human-model",
+        choices=("smplh", "g1"),
+        default="g1",
+        help=(
+            "Coworker embodiment. 'g1' (default) is AMASS-free; 'smplh' "
+            "requires AMASS_DATA_DIR and replays motion clips."
+        ),
+    )
+    p.add_argument(
         "--output-dir",
         type=Path,
         default=REPO_ROOT / "datasets" / "svf_v1",
@@ -1224,6 +1456,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             seed=args.seed,
             demos_per_task=args.demos_per_task,
             proximity_threshold=args.proximity_threshold,
+            human_model=args.human_model,
         )
 
     run_collection(plan, use_pfl=args.use_pfl)

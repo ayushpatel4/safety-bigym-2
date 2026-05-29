@@ -15,6 +15,15 @@
 #     lower/upper to [0,atoms-1]) — defensive, not the trigger. See inline
 #     comments + docs/phase3_base_validation_findings.md.
 #   - state_dict / load_state_dict added (snapshot persistence); see below.
+#   - 2026-05-29: inference-path `.view(...)` -> `.reshape(...)` (lines in
+#     MultiViewCNNEncoder.forward and C2FCriticNetwork.forward_each_level).
+#     On torch>=2.x CPU, conv over a non-contiguous view slice (obs[:, v]) and
+#     post-GRU/cat tensors come back non-contiguous, so `.view` raises
+#     "view size is not compatible ...". `.reshape` is behavior-identical for
+#     contiguous tensors (and copies only when needed), making snapshot
+#     inference portable across torch/device (CLAUDE.md "works on this device
+#     or the GPU device"). Surfaced loading a CQN-AS snapshot into the SVF
+#     collector (scripts/svf_collect_dataset.py). Algorithmic logic unchanged.
 from typing import Tuple
 import torch
 import torch.nn as nn
@@ -112,7 +121,7 @@ class MultiViewCNNEncoder(nn.Module):
         hs = []
         for v in range(self.num_views):
             h = self.conv_nets[v](obs[:, v])
-            h = h.view(h.shape[0], -1)
+            h = h.reshape(h.shape[0], -1)
             hs.append(h)
         h = torch.cat(hs, -1)
         return h
@@ -276,7 +285,7 @@ class C2FCriticNetwork(nn.Module):
             .repeat_interleave(value_h.shape[0], 0)
         )
         level_id = level_id.unsqueeze(1).repeat_interleave(self._action_sequence, 1)
-        prev_action = prev_action.view(
+        prev_action = prev_action.reshape(
             -1, self._action_sequence, self._actor_dim
         )  # [B, T, D]
         action_sequence_id = (
@@ -294,7 +303,7 @@ class C2FCriticNetwork(nn.Module):
         value_feats = self.value_net(value_x)
         # Process through GRU
         value_feats, _ = self.value_gru(value_feats)
-        values = self.value_head(value_feats).view(-1, *self.value_output_shape)
+        values = self.value_head(value_feats).reshape(-1, *self.value_output_shape)
 
         # Advantage
         adv_h = adv_h.unsqueeze(1).repeat_interleave(self._action_sequence, 1)
@@ -305,7 +314,7 @@ class C2FCriticNetwork(nn.Module):
         adv_feats = self.adv_net(adv_x)
         # Process through GRU
         adv_feats, _ = self.adv_gru(adv_feats)
-        advs = self.adv_head(adv_feats).view(-1, *self.adv_output_shape)
+        advs = self.adv_head(adv_feats).reshape(-1, *self.adv_output_shape)
 
         q_logits = values + advs - advs.mean(-2, keepdim=True)
         return q_logits

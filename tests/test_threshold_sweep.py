@@ -36,7 +36,7 @@ class _CountingEnv(gym.Env):
     def reset(self, *, seed=None, options=None):
         self._step = 0
         return {"low_dim_state": np.zeros(4, np.float32)}, {
-            "safety": {"ssm_violation": False}
+            "safety": {"ssm_violation": False, "proximity_violation": False}
         }
 
     def step(self, action):
@@ -48,7 +48,10 @@ class _CountingEnv(gym.Env):
             0.0,
             False,
             done,
-            {"safety": {"ssm_violation": bool(violation)}},
+            {"safety": {
+                "ssm_violation": bool(violation),
+                "proximity_violation": bool(violation),
+            }},
         )
 
 
@@ -177,3 +180,25 @@ def test_sweep_records_residual_violation_rate():
     for r in rows:
         assert r.intervention_rate == 0.0
         assert r.residual_violation_rate == pytest.approx(4 / 12)
+
+
+def test_sweep_records_proximity_violation_rate():
+    """The harness must surface proximity_violation_rate — the thesis-primary
+    safety axis (geometric proximity), plotted against intervention_rate for
+    the Phase 2 G1 re-eval (P2)."""
+    env = _CountingEnv(episode_length=12, violate_every=3)  # 4 violations / ep
+    critic = _StubCritic(q=80.0)  # above all thresholds → never intervenes
+    fb = ZeroVelocityFallback(env.action_space)
+
+    rows = sweep_thresholds(
+        env=env,
+        critic=critic,
+        fallback=fb,
+        thresholds=(10.0, 50.0),
+        policy=_random_policy(env),
+        n_episodes=1,
+        max_steps=12,
+    )
+    for r in rows:
+        assert r.intervention_rate == 0.0
+        assert r.proximity_violation_rate == pytest.approx(4 / 12)
