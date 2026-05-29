@@ -125,15 +125,13 @@ def test_arm_chains_resolve(model):
         )
 
 
-def test_no_mesh_references(model):
-    """Curriculum-validated G1 preset (commit 2683b67): skin-toned ``_col``
-    capsules are the render; no STL meshes. Empty ``<asset>`` is fine —
-    ``_create_merged_world`` merges assets when present (no-op here).
+def test_visual_meshes_present(model):
+    """Normal-G1 trial: STL meshes carry the render; hidden ``_col`` capsules
+    still provide collision / safety geometry.
     """
-    assert model.nmesh == 0, (
-        f"g1_human_body.xml still references {model.nmesh} meshes; the build "
-        "script must strip all <mesh> and visual mesh geoms."
-    )
+    assert model.nmesh > 0, "expected G1 to retain upstream visual meshes"
+    visual_groups = [int(model.geom_group[i]) for i in range(model.ngeom)]
+    assert 2 in visual_groups, "expected at least one visible mesh geom"
 
 
 def test_standing_pose_is_stable(model):

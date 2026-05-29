@@ -79,9 +79,9 @@ Modified existing modules:
 
 ### Visual strategy
 
-**Current (2026-05-28): strategy α — skin-toned collision capsules only** (commit `2683b67`, CQN-AS base curriculum at 100 % success). No STL meshes; `_col` geoms are visible with SMPL-H skin rgba. `_create_merged_world` still merges `<asset>` when present (no-op for this XML).
+**Current final trial (2026-05-29): normal G1 mesh render.** Upstream STL meshes carry the visible G1 silhouette with the low-contrast matte `g1_matte_skin` material; connected `_col` capsules remain present but hidden (`group=3`, alpha 0) for collision / safety geometry. Curriculum, workspace shaping, snapshot-resume, and coworker timing knobs are unchanged from the connected-capsule trial.
 
-**Alternate (branch history `387748f`+):** real Unitree STL meshes with matte `g1_matte_skin`, capsules hidden. Use only if you need supervisor-facing G1 silhouette and accept CNN encoder re-adaptation risk.
+**Fallback:** restore strategy α from `2683b67` if the normal-G1 visual regresses training.
 
 ## Verification
 
@@ -89,7 +89,7 @@ Modified existing modules:
 
 | File | Coverage | Count |
 |---|---|---|
-| `tests/test_g1_asset.py` | XML loads; 29 hinge joints + 1 mocap Pelvis; every collision geom ends in `_col`; no mesh refs (strategy α); SSM bodies resolve; arm chains resolve; standing pose physically stable for 100 mj_steps | 10 |
+| `tests/test_g1_asset.py` | XML loads; 29 hinge joints + 1 mocap Pelvis; every collision geom ends in `_col`; visible mesh geoms present; SSM bodies resolve; arm chains resolve; standing pose physically stable for 100 mj_steps | 10 |
 | `tests/test_g1_human_controller.py` | Controller instantiates; PD holds standing pose; `load_clip` is a no-op; root offset writes to mocap; IK callback blends during loiter | 5 |
 | `tests/test_g1_safety_tracking.py` | SSM finds all 14 G1 bodies; every `_col` geom has a PFL region; the 8 G1-specific PFL entries are present | 3 |
 | `tests/test_collision_groups.py` (parametrized) | All existing collision-bit assertions run against both `smplh` and `g1` | 5 × 2 |
