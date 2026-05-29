@@ -172,7 +172,7 @@ _COWORKER_TRAIN_RANGES: Dict[str, tuple] = {
     "coworker_reach_period_range": (4.5, 6.5),
     "coworker_target_mix_p_ee_range": (0.4, 0.6),
     "coworker_near_loiter_range": (7.0, 11.0),
-    "coworker_walk_speed_range": (1.0, 1.6),
+    "coworker_walk_speed_range": (0.8, 1.3),         # slowed ~25 % 2026-05-26
 }
 
 _COWORKER_EVAL_RANGES: Dict[str, tuple] = {
@@ -180,7 +180,7 @@ _COWORKER_EVAL_RANGES: Dict[str, tuple] = {
     "coworker_reach_period_range": (3.0, 9.0),       # ~2x more / less frequent
     "coworker_target_mix_p_ee_range": (0.1, 0.9),    # near-pure EE / near-pure task
     "coworker_near_loiter_range": (4.0, 16.0),       # short + long dwells
-    "coworker_walk_speed_range": (0.6, 2.2),         # shuffle + brisk walk
+    "coworker_walk_speed_range": (0.5, 1.7),         # shuffle + brisk walk (slowed 2026-05-26)
 }
 
 # Train distribution: patrol dominates so the robot sees repeated

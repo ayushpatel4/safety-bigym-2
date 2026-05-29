@@ -202,6 +202,49 @@ def test_support_invariant_holds_for_defaults():
     assert discounted_floor <= v_min_abs
 
 
+def _scene_attrs_stub(task_name=None):
+    """Stub mirroring SafetyBiGymEnv's class-attr defaults so the unbound
+    method can read ``_TASK_OBJECT_ATTRS_SCENE`` via ``self``."""
+    stub = SimpleNamespace(
+        _TASK_OBJECT_ATTRS_SCENE=SafetyBiGymEnv._TASK_OBJECT_ATTRS_SCENE,
+    )
+    if task_name is not None:
+        stub.task_name = task_name
+    return stub
+
+
+def test_scene_attrs_default_order_for_unknown_task():
+    """Non-WallCupboard tasks use the static ``_TASK_OBJECT_ATTRS_SCENE``."""
+    stub = _scene_attrs_stub(task_name="SafetySaucepanToHob")
+    order = SafetyBiGymEnv._scene_attrs_for_task(stub)
+    assert order == SafetyBiGymEnv._TASK_OBJECT_ATTRS_SCENE
+
+
+def test_scene_attrs_prefer_cabinet_wall_for_wallcupboard_close():
+    """WallCupboardClose has BOTH cabinet_drawers and cabinet_wall set; the
+    workspace-shaping lookup must pick cabinet_wall first (the task target),
+    not cabinet_drawers (the base counter)."""
+    stub = _scene_attrs_stub(task_name="SafetyWallCupboardClose")
+    order = SafetyBiGymEnv._scene_attrs_for_task(stub)
+    assert order[0] == "cabinet_wall"
+    # cabinet_drawers must still be in the fallback list (other tasks need it).
+    assert "cabinet_drawers" in order
+
+
+def test_scene_attrs_prefer_cabinet_wall_for_wallcupboard_open():
+    """Same override applies to WallCupboardOpen (mirror-image of close)."""
+    stub = _scene_attrs_stub(task_name="SafetyWallCupboardOpen")
+    order = SafetyBiGymEnv._scene_attrs_for_task(stub)
+    assert order[0] == "cabinet_wall"
+
+
+def test_scene_attrs_missing_task_name_falls_back():
+    """No task_name attribute -> default order (defensive)."""
+    stub = _scene_attrs_stub(task_name=None)
+    order = SafetyBiGymEnv._scene_attrs_for_task(stub)
+    assert order == SafetyBiGymEnv._TASK_OBJECT_ATTRS_SCENE
+
+
 def test_config_defaults_are_base_validation_fix_values():
     """Defaults updated 2026-05-20: beta lowered + bounded penalty.
 

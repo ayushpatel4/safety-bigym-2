@@ -45,28 +45,28 @@ TEST_SCENE_XML = """
     <!-- Human body parts (simplified) -->
     <body name="human_torso" pos="0 0 1">
       <freejoint name="human_root"/>
-      <geom name="Pelvis_col" type="capsule" size="0.1" fromto="0 -0.1 0 0 0.1 0"/>
+      <geom name="pelvis_col" type="capsule" size="0.1" fromto="0 -0.1 0 0 0.1 0"/>
       <body name="human_chest" pos="0 0 0.3">
-        <geom name="Chest_col" type="capsule" size="0.12" fromto="0 -0.12 0 0 0.12 0"/>
+        <geom name="torso_col" type="capsule" size="0.12" fromto="0 -0.12 0 0 0.12 0"/>
         <body name="human_head" pos="0 0 0.3">
-          <geom name="Head_col" type="sphere" size="0.1"/>
+          <geom name="head_col" type="sphere" size="0.1"/>
         </body>
       </body>
       <body name="human_arm" pos="0.25 0 0.3">
         <joint name="shoulder" type="ball"/>
-        <geom name="R_Shoulder_col" type="capsule" size="0.04" fromto="0 0 0 0.15 0 0"/>
+        <geom name="right_shoulder_roll_link_col" type="capsule" size="0.04" fromto="0 0 0 0.15 0 0"/>
         <body name="human_forearm" pos="0.2 0 0">
           <joint name="elbow" type="hinge" axis="0 1 0"/>
-          <geom name="R_Elbow_col" type="capsule" size="0.035" fromto="0 0 0 0.15 0 0"/>
+          <geom name="right_elbow_link_col" type="capsule" size="0.035" fromto="0 0 0 0.15 0 0"/>
           <body name="human_hand" pos="0.18 0 0">
             <joint name="wrist" type="hinge" axis="0 1 0"/>
-            <geom name="R_Wrist_col" type="capsule" size="0.025" fromto="0 0 0 0.08 0 0"/>
+            <geom name="right_wrist_yaw_link_col" type="capsule" size="0.025" fromto="0 0 0 0.08 0 0"/>
           </body>
         </body>
       </body>
       <body name="human_thigh" pos="0.1 0 -0.2">
         <joint name="hip" type="hinge" axis="0 1 0"/>
-        <geom name="R_Knee_col" type="capsule" size="0.06" fromto="0 0 0 0 0 -0.4"/>
+        <geom name="right_hip_yaw_link_col" type="capsule" size="0.06" fromto="0 0 0 0 0 -0.4"/>
       </body>
     </body>
     
@@ -207,7 +207,7 @@ class TestPFLTransient:
         """Forearm transient limit should be 320N."""
         model, data, wrapper = setup_model
         
-        limits = get_limits_for_geom("R_Elbow_col")
+        limits = get_limits_for_geom("right_elbow_link_col")
         assert limits is not None
         assert limits.transient_force == 320
         assert limits.quasi_static_force == 160
@@ -263,7 +263,7 @@ class TestPFLQuasiStatic:
     
     def test_hand_quasi_static_limit(self):
         """Hand quasi-static limit should be 140N (stricter than 280N transient)."""
-        limits = get_limits_for_geom("R_Wrist_col")
+        limits = get_limits_for_geom("right_wrist_yaw_link_col")
         assert limits is not None
         assert limits.quasi_static_force == 140
         assert limits.transient_force == 280
@@ -281,18 +281,18 @@ class TestPFLQuasiStatic:
         
         # The classifier should return transient when no fixture
         contact_type = wrapper._classify_contact_type(
-            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "R_Wrist_col"),
+            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "right_wrist_yaw_link_col"),
             other_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "robot_ee_geom"),
         )
         assert contact_type == "transient"
         
         # Now simulate hand touching wall
         wall_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "wall")
-        wrapper._human_contacts_this_step["R_Wrist_col"].add("wall")
+        wrapper._human_contacts_this_step["right_wrist_yaw_link_col"].add("wall")
         
         # Now classifier should return quasi_static
         contact_type = wrapper._classify_contact_type(
-            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "R_Wrist_col"),
+            human_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "right_wrist_yaw_link_col"),
             other_geom_id=mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "robot_ee_geom"),
         )
         assert contact_type == "quasi_static"
@@ -304,14 +304,13 @@ class TestBodyRegionMapping:
     def test_all_collision_geoms_mapped(self):
         """All standard collision geoms should have mappings."""
         expected_mappings = {
-            "Head_col": "skull",
-            "Neck_col": "neck",
-            "Chest_col": "chest",
-            "Pelvis_col": "pelvis",
-            "R_Shoulder_col": "upper_arm",
-            "R_Elbow_col": "forearm",
-            "R_Wrist_col": "hand_palm",
-            "R_Knee_col": "thigh",
+            "head_col": "skull",
+            "torso_col": "chest",
+            "pelvis_col": "pelvis",
+            "right_shoulder_roll_link_col": "upper_arm",
+            "right_elbow_link_col": "forearm",
+            "right_wrist_yaw_link_col": "hand_palm",
+            "right_hip_yaw_link_col": "thigh",
         }
         
         for geom_name, expected_region in expected_mappings.items():
@@ -320,7 +319,7 @@ class TestBodyRegionMapping:
     
     def test_head_limits(self):
         """Head should trigger at 130N quasi-static."""
-        limits = get_limits_for_geom("Head_col")
+        limits = get_limits_for_geom("head_col")
         assert limits is not None
         assert limits.quasi_static_force == 130
         assert limits.transient_force == 260
@@ -451,7 +450,7 @@ class TestBuildSafetyInfo:
     def test_pfl_force_ratio_populated_from_single_contact(self):
         wrapper = _make_wrapper()
         contacts = [ContactInfo(
-            geom1_name="R_Elbow_col",
+            geom1_name="right_elbow_link_col",
             geom2_name="robot_ee_geom",
             force=256.0,
             contact_type="transient",
@@ -476,7 +475,7 @@ class TestBuildSafetyInfo:
     def test_pfl_violation_flag_set_when_ratio_over_one(self):
         wrapper = _make_wrapper()
         contacts = [ContactInfo(
-            geom1_name="R_Elbow_col",
+            geom1_name="right_elbow_link_col",
             geom2_name="robot_ee_geom",
             force=400.0,
             contact_type="transient",
@@ -499,15 +498,15 @@ class TestBuildSafetyInfo:
     def test_pfl_force_ratio_takes_max_across_contacts(self):
         wrapper = _make_wrapper()
         contacts = [
-            ContactInfo(geom1_name="R_Elbow_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="right_elbow_link_col", geom2_name="robot_ee_geom",
                         force=96.0, contact_type="transient", body_region="forearm",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.3, force_limit=320.0),
-            ContactInfo(geom1_name="R_Wrist_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="right_wrist_yaw_link_col", geom2_name="robot_ee_geom",
                         force=224.0, contact_type="transient", body_region="hand_palm",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.8, force_limit=280.0),
-            ContactInfo(geom1_name="Head_col", geom2_name="robot_ee_geom",
+            ContactInfo(geom1_name="head_col", geom2_name="robot_ee_geom",
                         force=130.0, contact_type="transient", body_region="skull",
                         is_human_robot=True, is_violation=False,
                         force_ratio=0.5, force_limit=260.0),
@@ -601,3 +600,193 @@ class TestSSMClosestJoint:
         assert info.closest_human_joint == "wrist"
         assert info.closest_robot_link == "ee"
         assert info.min_separation == pytest.approx(0.1, abs=0.01)
+
+
+class TestProximityViolation:
+    """
+    proximity_violation is the canonical "robot was geometrically too close
+    to the human" metric. It MUST fire iff min_separation < threshold, with
+    no velocity dependency.
+    """
+
+    def test_fires_when_inside_threshold(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.3, 0.0, 0.0]]),  # 0.3 m apart
+            human_vel=0.0,
+        )
+        # Default SSMConfig.proximity_threshold = 0.5
+        assert info.proximity_violation is True
+        assert info.proximity_threshold == pytest.approx(0.5)
+        assert info.min_separation == pytest.approx(0.3, abs=1e-6)
+
+    def test_does_not_fire_outside_threshold(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[1.2, 0.0, 0.0]]),  # 1.2 m apart
+            human_vel=0.0,
+        )
+        assert info.proximity_violation is False
+
+    def test_threshold_configurable_from_ssm_config(self):
+        from safety_bigym import SSMConfig
+
+        wrapper = _make_wrapper()
+        wrapper.ssm_config = SSMConfig(proximity_threshold=1.0)
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.8, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        # 0.8 m < 1.0 m → violation under wider threshold
+        assert info.proximity_violation is True
+        assert info.proximity_threshold == pytest.approx(1.0)
+
+    def test_independent_of_velocities(self):
+        """proximity is purely geometric — velocities must not change it."""
+        wrapper = _make_wrapper()
+        slow = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=0.0,
+        )
+        fast = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=5.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=1.6,
+        )
+        assert slow.proximity_violation is True
+        assert fast.proximity_violation is True
+        assert slow.proximity_threshold == fast.proximity_threshold
+
+
+class TestVelocityAdaptiveSSM:
+    """
+    ssm_violation_actual uses the same compute_separation_distance as
+    ssm_violation but with the OBSERVED human velocity instead of the
+    worst-case cap. It should be at least as lenient — never stricter.
+    """
+
+    def test_actual_equals_conservative_when_actual_velocities_are_at_cap(self):
+        wrapper = _make_wrapper()
+        # Both flavours use v_h_max → identical S_p, identical margins.
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[2.0, 0.0, 0.0]]),
+            human_vel=1.6,  # at v_h_max
+            human_vel_actual=1.6,
+            robot_vel_actual=0.5,
+        )
+        assert info.ssm_margin == pytest.approx(info.ssm_margin_actual, abs=1e-9)
+        assert info.ssm_violation == info.ssm_violation_actual
+
+    def test_actual_more_lenient_when_observed_is_below_cap(self):
+        wrapper = _make_wrapper()
+        # Conservative: v_h = 1.6 → S_h = 1.6 * 0.15 = 0.24
+        # Robot v = 1.0 → S_r = 0.1 + 0.1 = 0.2 → S_p = 0.24+0.2+0.1 = 0.54
+        # Actual:       v_h = 0.0 → S_h = 0       → S_p = 0+0.2+0.1 = 0.3
+        # At d = 0.4 m: conservative margin = -0.14 (violation),
+        #               actual margin = +0.1 (no violation).
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=1.0,
+            human_positions=np.array([[0.4, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.0,
+            robot_vel_actual=1.0,
+        )
+        assert info.ssm_violation is True
+        assert info.ssm_violation_actual is False
+        assert info.ssm_margin < 0
+        assert info.ssm_margin_actual > 0
+        assert info.ssm_margin_actual > info.ssm_margin
+
+    def test_actual_defaults_to_conservative_when_not_provided(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[2.0, 0.0, 0.0]]),
+            human_vel=1.0,
+            # no *_actual kwargs → defaults to the conservative values.
+        )
+        assert info.ssm_margin == pytest.approx(info.ssm_margin_actual, abs=1e-9)
+        assert info.ssm_violation == info.ssm_violation_actual
+
+    def test_min_separation_unchanged_by_velocity_choice(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=2.0,
+            human_positions=np.array([[0.7, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.1,
+            robot_vel_actual=2.0,
+        )
+        # min_separation is a pure geometric quantity — the two SSM compute
+        # paths must agree on it.
+        assert info.min_separation == pytest.approx(0.7, abs=1e-6)
+
+
+class TestSafetyInfoNewFieldsRoundtrip:
+    """to_dict must export the new fields with the right types."""
+
+    def test_new_keys_present_in_to_dict(self):
+        wrapper = _make_wrapper()
+        info = wrapper.build_safety_info(
+            contacts=[],
+            robot_positions=np.array([[0.0, 0.0, 0.0]]),
+            robot_vel=0.5,
+            human_positions=np.array([[0.3, 0.0, 0.0]]),
+            human_vel=1.6,
+            human_vel_actual=0.2,
+            robot_vel_actual=0.5,
+        )
+        d = info.to_dict()
+        # Keys
+        for key in (
+            "proximity_violation",
+            "ssm_violation_actual",
+            "ssm_margin_actual",
+            "proximity_threshold",
+            "robot_vel",
+            "human_vel",
+        ):
+            assert key in d, f"missing key {key} in to_dict()"
+        # Types
+        assert isinstance(d["proximity_violation"], bool)
+        assert isinstance(d["ssm_violation_actual"], bool)
+        assert isinstance(d["ssm_margin_actual"], float)
+        assert isinstance(d["proximity_threshold"], float)
+        assert isinstance(d["robot_vel"], float)
+        assert isinstance(d["human_vel"], float)
+        # Sanity: the observed velocities should be the *_actual ones we
+        # passed in, not the worst-case caps.
+        assert d["human_vel"] == pytest.approx(0.2)
+        assert d["robot_vel"] == pytest.approx(0.5)
+
+    def test_default_values(self):
+        info = SafetyInfo()
+        assert info.proximity_violation is False
+        assert info.ssm_violation_actual is False
+        assert info.ssm_margin_actual == float("inf")
+        assert info.proximity_threshold == 0.0
+        assert info.robot_vel == 0.0
+        assert info.human_vel == 0.0

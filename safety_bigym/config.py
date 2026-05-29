@@ -95,6 +95,18 @@ class SafetyConfig:
     workspace_beta: float = 0.05
     workspace_excess_cap: Optional[float] = 1.0
 
+    # G1 bisection diagnostic (2026-05-24). When True, _configure_collision_bits
+    # skips the floor's cross-paired bit promotion, so human <-> floor contacts
+    # are filtered out by MuJoCo's contype/conaffinity intersection (floor stays
+    # on its default bit-0 channel; human emits on bit 1, accepts bit 2 — no
+    # overlap -> no contact). Tests the hypothesis that G1's foot-floor contacts
+    # (which SMPL-H avoided because its pelvis was welded to world / weldid=0)
+    # are injecting solver noise that propagates to the robot via the shared
+    # floor contact graph and causes the policy to flee the workspace in stage 0.
+    # Human <-> robot contacts are UNAFFECTED (robot still gets the cross-pair).
+    # SSM is unaffected (it reads body xpos, not geom contacts).
+    disable_human_floor_collision: bool = False
+
     # Logging
     log_violations: bool = True
     log_all_contacts: bool = False

@@ -1,45 +1,47 @@
 """
-Inverse Kinematics for SMPL-H Humanoid
+Inverse Kinematics for the Unitree G1 coworker
 
-Implements Jacobian-based Inverse Kinematics (IK) to allow the human model
-to reach for targets (e.g., robot end-effector or objects).
+Implements Jacobian-based Inverse Kinematics (IK) to let the G1 reach for
+targets (e.g., robot end-effector or task objects) during COWORKER loiter.
 
-Uses Damped Least Squares (DLS) method for numerical stability near singularities.
+Uses Damped Least Squares (DLS) for numerical stability near singularities.
 
 Key features:
 - Position-only IK (3D target, not 6D pose)
 - Joint limit enforcement
-- Works on data copy to avoid disturbing simulation state
-- Supports both left and right arm chains
+- Works on a data copy to avoid disturbing simulation state
+- Left and right arm chains (shoulder pitch/roll/yaw + elbow)
 """
 
 import numpy as np
 import mujoco
 from typing import List, Optional, Tuple, Dict
 
+from safety_bigym.human import g1_spec
+
 
 class HumanIK:
     """
-    Jacobian-based IK solver for SMPL-H model.
-    
-    Supports reaching with arm chains (Shoulder -> Elbow -> Wrist).
-    Only the arm chain is controlled by IK; body stays on AMASS playback.
+    Jacobian-based IK solver for the G1 arms.
+
+    Supports reaching with arm chains (shoulder -> elbow). Only the active arm
+    is controlled by IK; the rest of the body stays at the standing pose.
     """
-    
+
     def __init__(self, model: mujoco.MjModel, data: mujoco.MjData):
         """
         Initialize IK solver.
-        
+
         Args:
             model: MuJoCo model
             data: MuJoCo data (used as reference for copying)
         """
         self.model = model
         self.data = data
-        
+
         # Create a working copy of data for IK iterations
         self._ik_data = mujoco.MjData(model)
-        
+
         # Cache for joint/DoF indices
         self._chain_cache: Dict[str, dict] = {}
         
@@ -65,30 +67,27 @@ class HumanIK:
         # Pre-compute chain data
         for chain_name in self.chains:
             self._build_chain_cache(chain_name)
-    
+
     def _build_chain_cache(self, chain_name: str):
         """Build and cache joint indices for a chain."""
         chain = self.chains[chain_name]
         joint_names = chain["joints"]
-        
+
         joint_ids = []
         dof_indices = []
         qpos_indices = []
-        
-        for name in joint_names:
-            # Each SMPL-H joint has 3 hinge sub-joints (x, y, z)
-            for axis in ["x", "y", "z"]:
-                full_name = f"{name}_{axis}"
-                jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, full_name)
-                if jid >= 0:
-                    joint_ids.append(jid)
-                    dof_indices.append(self.model.jnt_dofadr[jid])
-                    qpos_indices.append(self.model.jnt_qposadr[jid])
-        
+
+        for full_name in joint_names:
+            jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, full_name)
+            if jid >= 0:
+                joint_ids.append(jid)
+                dof_indices.append(self.model.jnt_dofadr[jid])
+                qpos_indices.append(self.model.jnt_qposadr[jid])
+
         # Get end-effector body ID
         ee_name = chain["end_effector"]
         ee_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, ee_name)
-        
+
         self._chain_cache[chain_name] = {
             "joint_ids": joint_ids,
             "dof_indices": dof_indices,
@@ -112,8 +111,8 @@ class HumanIK:
         Returns:
             'right_arm' or 'left_arm'
         """
-        # Get current pelvis position to determine human facing direction
-        pelvis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "Pelvis")
+        # Get current pelvis position to determine facing direction
+        pelvis_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, g1_spec.PELVIS_BODY)
         if pelvis_id < 0:
             return "right_arm"  # Fallback
         

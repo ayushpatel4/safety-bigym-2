@@ -13,7 +13,8 @@ env:
   render_mode: rgb_array
   enable_all_floating_dof: false
 
-  # Safety-specific settings
+  # Safety-specific settings. The coworker is a Unitree G1 humanoid driven by
+  # scripted COWORKER trajectories — no AMASS motion clips.
   inject_human: true
   # Which humanoid plays the coworker role. "smplh" uses the SMPL-H asset;
   # "g1" uses a Unitree G1 standing-pose mannequin with procedural arm IK.
@@ -42,6 +43,13 @@ env:
   safety:
     add_violation_penalty: false
     violation_penalty: 0.05
+    # Geometric proximity threshold (meters) for the canonical
+    # `proximity_violation` metric. ISO 15066's S_p formula at kitchen-
+    # scale robot speeds requires ~5m clearance which over-fires the
+    # ssm_violation metric; the thesis reports proximity_violation_rate
+    # as the load-bearing "robot was too close to the human" number.
+    # Mirrors the Phase 2 SVF production label bar (filters/labeling.py).
+    proximity_threshold: 0.5
     # P3.0a workspace reward shaping. Penalises the EE for drifting outside a
     # radius around the task-relevant object — counters the C2 evacuation mode
     # where the agent learns to flee the human because the violation penalty
@@ -56,21 +64,24 @@ env:
     workspace_radius: 0.4
     workspace_beta: 0.05
     workspace_excess_cap: 1.0
+    # G1 bisection diagnostic (2026-05-24). When true, the env skips the
+    # floor's collision-bit promotion in _configure_collision_bits so
+    # human <-> floor contacts are filtered out. Tests whether G1 foot-floor
+    # contacts are the regression mechanism since the G1 swap (SMPL-H's pelvis
+    # was welded to world / weldid=0, so its floor contacts were already
+    # filtered by mjOPT_FILTERPARENT — G1's feet are not).
+    disable_human_floor_collision: false
 
+  # COWORKER is the only disruption type for the G1 coworker. The five
+  # continuous COWORKER axes can be widened/narrowed here.
   disruptions:
     weights:
-      INCIDENTAL: 0.15
-      SHARED_GOAL: 0.15
-      DIRECT: 0.20
-      OBSTRUCTION: 0.20
-      RANDOM_PERTURBED: 0.10
-      CONTACT: 0.20
-    closest_approach_range: [0.0, 0.8]
-    pass_by_offset_range: [0.05, 1.2]
-    loiter_duration_range: [4.0, 10.0]
-    embed_distance_range: [0.0, 0.05]
-    walk_speed_range: [1.0, 2.0]
-    spawn_distance_range: [0.8, 1.8]
-    arc_radius_range: [0.5, 1.8]
+      COWORKER: 1.0
+    coworker_closest_approach_range: [0.9, 1.4]
+    coworker_reach_period_range: [4.5, 6.5]
+    coworker_target_mix_p_ee_range: [0.4, 0.6]
+    coworker_near_loiter_range: [7.0, 11.0]
+    # Slowed ~25 % from [1.0, 1.6] on 2026-05-26 (matches coworker_train.yaml).
+    coworker_walk_speed_range: [0.8, 1.3]
 
 demos: !!float .inf

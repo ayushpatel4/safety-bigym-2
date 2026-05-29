@@ -27,6 +27,7 @@ from demonstrations.demo_store import DemoStore
 from demonstrations.utils import Metadata
 
 from safety_bigym import make_safety_env, SafetyConfig, HumanConfig
+from safety_bigym.config import SSMConfig
 from safety_bigym.perception import (
     AMASSDemoPositionProvider,
     BodySLAMWrapper,
@@ -167,7 +168,17 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
         # the pre-Phase-1.4 behaviour (penalty off). Phase 3 P3.0a adds the
         # workspace shaping triple (add_workspace_penalty / radius / beta).
         safety_cfg_block = cfg.env.get("safety", {}) or {}
+        # SSMConfig defaults are the single source of truth for ISO 15066
+        # parameters; we only override proximity_threshold from yaml. Other
+        # fields (T_r, T_s, a_max, C, v_h_max) intentionally stay at their
+        # defaults — they're tied to ISO standards, not per-experiment knobs.
+        ssm_config = SSMConfig(
+            proximity_threshold=float(
+                safety_cfg_block.get("proximity_threshold", 0.5)
+            ),
+        )
         safety_config = SafetyConfig(
+            ssm=ssm_config,
             log_violations=False,
             terminate_on_violation=False,
             add_violation_penalty=bool(
@@ -189,6 +200,9 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 None
                 if safety_cfg_block.get("workspace_excess_cap", 1.0) is None
                 else float(safety_cfg_block.get("workspace_excess_cap", 1.0))
+            ),
+            disable_human_floor_collision=bool(
+                safety_cfg_block.get("disable_human_floor_collision", False)
             ),
         )
 
@@ -250,6 +264,12 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 ) from e
             param_space_kwargs["disruption_weights"] = {dtype: 1.0}
             logger.info(f"Forcing disruption_type={dtype.name} for every episode.")
+        elif "disruption_weights" not in param_space_kwargs:
+            # G1 coworker only supports the COWORKER disruption (the other
+            # types relied on AMASS gait, which has been dropped). Default to
+            # COWORKER-only unless a YAML explicitly overrides the weights.
+            param_space_kwargs["disruption_weights"] = {DisruptionType.COWORKER: 1.0}
+            logger.info("Defaulting to COWORKER-only disruptions (G1 coworker).")
 
         scenario_sampler = ScenarioSampler(
             parameter_space=ParameterSpace(**param_space_kwargs),

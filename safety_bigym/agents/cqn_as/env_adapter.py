@@ -285,6 +285,13 @@ class SafetyBiGymCQNAdapter:
         )
         cam_shape = cfg.get("visual_observation_shape", [84, 84])
         self._camera_shape: Tuple[int, int] = (int(cam_shape[0]), int(cam_shape[1]))
+        # Diagnostic: when true, the rgb_obs returned to the agent is zeroed
+        # AFTER the stack is built (so num_views / shapes match the trained
+        # encoder, but the CNN sees no task signal in RGB). Used for the
+        # G1 base-curriculum CNN-bottleneck ablation. cfg.pixels=false would
+        # produce num_views=0 and crash MultiViewCNNEncoder; this flag is
+        # the safe alternative that keeps the architecture identical.
+        self._mask_pixels = bool(cfg.get("mask_pixels", False))
 
         self._step_counter = 0
         self._episode_length = int(cfg.env.episode_length)
@@ -447,6 +454,23 @@ class SafetyBiGymCQNAdapter:
     # Demo conversion internals (ported from CQN-AS/bigym_src/bigym_env.py)
     # ------------------------------------------------------------------
 
+    # Canonical AMASS clip set for demo-replay coworker synthesis. These five
+    # clips lived in the env yaml pre-G1 and drove the AMASS-injected demo
+    # human_pos that the stage-1 / stage-2 curriculum runs saw. G1 dropped
+    # AMASS from the live env (the coworker is now scripted), but the demo
+    # replay still needs *some* human trajectory to fabricate the bodyslam
+    # channel — and the matched-comparison invariant for P3.1 requires demos
+    # be treated exactly as the unconstrained baseline treated them. So when
+    # the env yaml empties motion_clip_paths / motion_clip_dir (the G1
+    # default), the adapter falls back to these. The live env is unaffected.
+    _DEFAULT_DEMO_CLIP_PATHS = (
+        "74/74_01_poses.npz",
+        "74/74_02_poses.npz",
+        "09/09_01_poses.npz",
+        "09/09_03_poses.npz",
+        "122/122_04_poses.npz",
+    )
+
     def _inject_human_pos_into_demos(self, demos: list) -> None:
         """Mutate each demostep.observation to add ``human_pos_estimate``.
 
@@ -455,16 +479,30 @@ class SafetyBiGymCQNAdapter:
         the factory's ``_maybe_wrap_demo_bodyslam``. A fresh provider clip +
         root transform is sampled per demo (the wrapper's reset() calls
         ``provider.reset()``).
+
+        Post-G1 the env yaml has ``motion_clip_dir: null`` and
+        ``motion_clip_paths: []`` (G1 doesn't use AMASS for the live
+        coworker). The demo-replay path still needs an AMASS provider though
+        — falling back to ``AMASS_DATA_DIR`` + a canonical 5-clip set keeps
+        the demo treatment identical to what the curriculum baselines saw.
         """
         bs = self._cfg.env.get("bodyslam") if hasattr(self._cfg, "env") else None
-        motion_dir = self._cfg.env.get(
-            "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+        # Don't use .get(key, default): a yaml `motion_clip_dir: null` value
+        # IS present and returns None, masking the env-var fallback. Use `or`
+        # so any falsy yaml value falls through.
+        motion_dir = (
+            self._cfg.env.get("motion_clip_dir", None)
+            or os.environ.get("AMASS_DATA_DIR")
         )
-        clip_paths = list(self._cfg.env.get("motion_clip_paths", []))
-        if not motion_dir or not clip_paths:
+        clip_paths = list(self._cfg.env.get("motion_clip_paths", []) or ())
+        if not clip_paths:
+            clip_paths = list(self._DEFAULT_DEMO_CLIP_PATHS)
+        if not motion_dir:
             raise RuntimeError(
-                "Demo human_pos injection requires motion_clip_dir + "
-                "motion_clip_paths in env config (or AMASS_DATA_DIR env var)."
+                "Demo human_pos injection requires motion_clip_dir in env "
+                "config or AMASS_DATA_DIR env var (a coworker trajectory "
+                "must be fabricated for demos; the canonical 5-clip default "
+                "is used only if motion_clip_paths is empty)."
             )
         provider = AMASSDemoPositionProvider(
             clip_paths=clip_paths,
@@ -743,6 +781,13 @@ class SafetyBiGymCQNAdapter:
         else:
             # Empty pixel placeholder so downstream code can still index it
             out["rgb_obs"] = np.zeros(self.rgb_observation_space.shape, np.uint8)
+
+        # CNN-bottleneck diagnostic: replace the rgb stack with zeros so the
+        # encoder architecture is unchanged but the CNN gets no RGB signal.
+        # Mutation is in place — frame_stack deques still hold real frames for
+        # subsequent timesteps, only the *emitted* obs is zeroed.
+        if self._mask_pixels:
+            out["rgb_obs"] = np.zeros_like(out["rgb_obs"])
 
         return out
 

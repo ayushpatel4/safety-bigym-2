@@ -31,6 +31,7 @@ import mujoco
 import numpy as np
 
 from safety_bigym.human.human_ik import HumanIK
+from safety_bigym.human import g1_spec
 from safety_bigym.scenarios.disruption_types import DisruptionConfig
 from safety_bigym.scenarios.scenario_sampler import ScenarioParams
 

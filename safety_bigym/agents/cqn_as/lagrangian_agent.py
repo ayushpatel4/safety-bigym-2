@@ -155,10 +155,22 @@ class LagrangianCQNASAgent(CQNASAgent):
         return sd
 
     def load_state_dict(self, state_dict):
+        """Load -- including warm-start from a plain CQN-AS (no-cost) snapshot.
+
+        Cost-side keys (``cost_encoder``, ``cost_critic``, ``cost_critic_target``,
+        their opts, ``lagrangian_pid``, ``lambda``, ``rolling_cost``) are
+        OPTIONAL. When absent (the snapshot was produced by ``agent=cqn_as``,
+        not ``cqn_as_lagrangian``), the reward side is restored from the base
+        snapshot and the cost critic + lambda stay at their fresh init -- the
+        intended P3.1 warm-start path (load the stage-1 base policy, then learn
+        Q_c + lambda from scratch under the full disruption). When present, the
+        full constrained-agent state is restored (snapshot resume).
+        """
         super().load_state_dict(state_dict)
-        self.cost_encoder.load_state_dict(state_dict["cost_encoder"])
-        self.cost_critic.load_state_dict(state_dict["cost_critic"])
-        self.cost_critic_target.load_state_dict(state_dict["cost_critic_target"])
+        if "cost_critic" in state_dict:
+            self.cost_encoder.load_state_dict(state_dict["cost_encoder"])
+            self.cost_critic.load_state_dict(state_dict["cost_critic"])
+            self.cost_critic_target.load_state_dict(state_dict["cost_critic_target"])
         for key, opt in (
             ("cost_encoder_opt", self.cost_encoder_opt),
             ("cost_critic_opt", self.cost_critic_opt),

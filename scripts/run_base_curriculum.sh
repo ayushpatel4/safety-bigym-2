@@ -30,7 +30,7 @@
 # Usage:
 #   scripts/run_base_curriculum.sh                 # full run (stages 0->1->2)
 #   SMOKE=1 scripts/run_base_curriculum.sh         # ≤2000-frame stage-0 smoke only
-#   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
+#   STAGE0_FRAMES=60000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
 #
 # Auto RUN_TAG (when unset): base_<human>_<frames>_<YYYYMMDD_HHMMSS>
@@ -113,6 +113,12 @@ OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
 mkdir -p "${OUTDIR}"
 echo "== RUN_TAG=${RUN_TAG} OUTDIR=${OUTDIR} =="
 
+# Task selector (2026-05-25). The curriculum has been validated on
+# `saucepan_to_hob` (the anchor task). Use `TASK=<name>` to point at any other
+# yaml under cfgs/env/safety_bigym/ — e.g. `TASK=wall_cupboard_close` to
+# confirm generality of the G1 operating config across tasks.
+TASK="${TASK:-saucepan_to_hob}"
+
 # Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
 COMMON=(
   env=safety_bigym/saucepan_to_hob
@@ -120,9 +126,6 @@ COMMON=(
   "env.smplh_motion=${SMPLH_MOTION}"
   bodyslam=oracle
   num_demos=36
-  env.safety.add_workspace_penalty=true
-  env.safety.workspace_beta=0.05
-  env.safety.workspace_excess_cap=1.0
   agent.v_min=-6.0
   agent.v_max=2.0
   agent.atoms=101

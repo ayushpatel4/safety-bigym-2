@@ -35,7 +35,11 @@ use_compile: false
 
 # Eval
 eval_every_frames: 2500
-num_eval_episodes: 10
+# 2026-05-26 bumped from 10 → 20 for finer-grained success_rate metric. At 10
+# episodes the success_rate granularity is 10pp which is hard to read off the
+# noisy stage-0 baseline; 20 episodes give 5pp granularity at the cost of ~2x
+# eval wall-clock per cycle (negligible vs train cost).
+num_eval_episodes: 20
 
 # Snapshot — saved after each eval cycle (eval_every_frames), not on a
 # separate cadence. train_cqn_as copies the peak-by-success_rate checkpoint
@@ -58,6 +62,12 @@ num_demos: 0
 # Pixels — required True for CQN-AS (CNN encoder).
 pixels: true
 visual_observation_shape: [84, 84]
+# Diagnostic toggle: when true, the adapter zeros the rgb_obs after building
+# it (architecture/encoder unchanged, but the CNN sees no RGB signal). Used
+# for the G1 base-curriculum CNN-bottleneck ablation (see plan Step 1). Off
+# by default. Setting cfg.pixels=false directly would feed num_views=0 to
+# MultiViewCNNEncoder and crash; this flag is the safe alternative.
+mask_pixels: false
 
 # Misc
 seed: 1

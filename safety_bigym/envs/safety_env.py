@@ -271,9 +271,9 @@ class SafetyBiGymEnv(BiGymEnv):
         """Find human body/joint indices after model is loaded."""
         model = self._mojo.model
 
-        # Find Pelvis body
+        # Find the mocap root (G1 pelvis)
         self._human_pelvis_id = mujoco.mj_name2id(
-            model, mujoco.mjtObj.mjOBJ_BODY, "Pelvis"
+            model, mujoco.mjtObj.mjOBJ_BODY, g1_spec.PELVIS_BODY
         )
 
         # Pelvis is a mocap body; resolve its index into data.mocap_pos /
@@ -377,7 +377,11 @@ class SafetyBiGymEnv(BiGymEnv):
         model = self._mojo.model
         h_emit = self._HUMAN_EMIT_BIT
         r_emit = self._ROBOT_EMIT_BIT
+        skip_floor = bool(getattr(
+            self.safety_config, "disable_human_floor_collision", False
+        ))
         promoted = 0
+        floors_skipped = 0
         humans_repaired = 0
         for gid in range(model.ngeom):
             name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, gid)
@@ -394,6 +398,13 @@ class SafetyBiGymEnv(BiGymEnv):
                 continue
             is_robot = self._is_robot_geom(name)
             is_floor = name == "floor" or name.endswith("/floor") or "ground" in name.lower()
+            if is_floor and skip_floor:
+                # G1 bisection: leave the floor on its default bit-0 channel,
+                # so human <-> floor contacts are filtered out by MuJoCo's
+                # contype/conaffinity intersection. Robot <-> floor is
+                # unaffected (robot's bit-0 channel still overlaps the floor's).
+                floors_skipped += 1
+                continue
             if is_robot or is_floor:
                 # Cross-pair: emit on bit 2 (so human accepts), accept bit 1
                 # (so the human's emit reaches us). OR'd onto existing bits.
@@ -404,6 +415,8 @@ class SafetyBiGymEnv(BiGymEnv):
             f"Promoted {promoted} geoms onto human collision channel "
             f"(human_emit=bit1, robot_emit=bit2); reset {humans_repaired} "
             "human collision geoms onto the cross-paired channel."
+            + (f"; skipped {floors_skipped} floor geoms (disable_human_floor_collision=True)"
+               if floors_skipped else "")
         )
 
     # Backwards-compat alias: old code/tests may still read this constant.
@@ -498,7 +511,8 @@ class SafetyBiGymEnv(BiGymEnv):
                 _, root_trans, _ = self.human_controller.clip.get_frame(0)
                 initial_z = root_trans[2]  # Z from AMASS first frame
 
-        # Set root offset in human controller (shifts AMASS motion to spawn pos)
+        # Tell the controller where the coworker spawned (XY anchor for the
+        # scripted trajectory).
         if self.human_controller is not None:
             self.human_controller.set_root_offset(pos)
 
@@ -815,6 +829,27 @@ class SafetyBiGymEnv(BiGymEnv):
         "cabinet_door_left", "cabinet_door_right", "shelf", "tray",
     )
 
+    def _scene_attrs_for_task(self) -> tuple:
+        """Return the SCENE-attr scan order for workspace shaping.
+
+        The default order in ``_TASK_OBJECT_ATTRS_SCENE`` is fine for most
+        tasks but wrong for ``WallCupboardOpen/Close``: those tasks have
+        BOTH ``cabinet_drawers`` (base counter, unused by the task) AND
+        ``cabinet_wall`` (the wall cupboard, the actual target) attached to
+        the env, and the static list picks ``cabinet_drawers`` first —
+        which would pull the workspace shaping toward the wrong cabinet.
+
+        Look up the task name and override the order for known cases.
+        """
+        name = (getattr(self, "task_name", "") or "").lower()
+        if "wallcupboard" in name:
+            return (
+                "cabinet_wall", "cabinet_drawers", "cabinet_base",
+                "cabinet_door_left", "cabinet_door_right",
+                "dishwasher", "shelf", "tray",
+            )
+        return self._TASK_OBJECT_ATTRS_SCENE
+
     def _lookup_task_object_pos(self) -> Optional[np.ndarray]:
         # ReachTarget-style tasks: a list of TargetSphere objects.
         try:
@@ -844,7 +879,7 @@ class SafetyBiGymEnv(BiGymEnv):
             if pos is not None:
                 return pos
 
-        for attr in self._TASK_OBJECT_ATTRS_SCENE:
+        for attr in self._scene_attrs_for_task():
             obj = getattr(self, attr, None)
             if obj is None:
                 continue
@@ -885,14 +920,22 @@ class SafetyBiGymEnv(BiGymEnv):
         robot_positions, robot_names, robot_vel = self._robot_ssm_state()
         human_positions, human_names, human_vel = self._human_ssm_state()
 
+        # ssm_violation uses the worst-case ISO assumption (v_h = v_h_max);
+        # ssm_violation_actual uses the observed human velocity. The robot
+        # side passes its observed speed for both — SSMConfig has no v_r_max
+        # so there is no "worst-case" robot value to substitute. See
+        # docs/safety_metrics.md for the thesis-reporting roles.
+        v_h_max = float(self.safety_config.ssm.v_h_max)
         self._step_safety_info = self.safety_wrapper.build_safety_info(
             contacts=self._step_contacts,
             robot_positions=robot_positions,
             robot_vel=robot_vel,
             human_positions=human_positions,
-            human_vel=human_vel,
+            human_vel=v_h_max,
             human_names=human_names,
             robot_names=robot_names,
+            human_vel_actual=human_vel,
+            robot_vel_actual=robot_vel,
         )
         return
 
@@ -934,7 +977,7 @@ class SafetyBiGymEnv(BiGymEnv):
         if not body_ids:
             if self._human_pelvis_id is not None:
                 pos = data.xpos[self._human_pelvis_id].copy()
-                return np.stack([pos]), ["Pelvis"], 0.0
+                return np.stack([pos]), [g1_spec.PELVIS_BODY], 0.0
             return np.zeros((1, 3)), ["unknown"], 0.0
         positions = [data.xpos[bid].copy() for bid in body_ids]
         names = list(self._human_body_names)

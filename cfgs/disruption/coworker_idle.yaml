@@ -22,4 +22,7 @@ env:
     coworker_reach_period_range: [30.0, 40.0]
     coworker_target_mix_p_ee_range: [0.0, 0.0]
     coworker_near_loiter_range: [1.0, 2.0]
-    coworker_walk_speed_range: [0.5, 0.8]
+    # walk_speed slowed ~25 % from [0.5, 0.8] on 2026-05-26 to keep the
+    # idle stage strictly slower than coworker_easy after the global G1
+    # slowdown.
+    coworker_walk_speed_range: [0.4, 0.6]

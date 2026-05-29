@@ -60,6 +60,27 @@ def make_agent(rgb_obs_spec, low_dim_obs_spec, action_spec, action_sequence, cfg
     return hydra.utils.instantiate(cfg)
 
 
+def step_marks_task_success(time_step) -> bool:
+    """Did this time_step's env-info dict signal a task-success?
+
+    Reads ``info["task_success"]`` (populated by BiGym's base env at
+    ``bigym_env.py:329`` as ``float(self.success)`` — 1.0 on the success
+    step, 0.0 otherwise; the env terminates immediately after a success
+    fires, so any True observation during an episode means the episode
+    completed the task). Used by both train() and eval() to log a clean,
+    shaping-independent task-quality metric (workspace shaping makes
+    episode_reward strongly negative even for successful eps, so reward is
+    no longer a reliable success indicator).
+    """
+    info = getattr(time_step, "info", None)
+    if not isinstance(info, dict):
+        return False
+    try:
+        return float(info.get("task_success", 0.0)) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 class Workspace:
     def __init__(self, cfg: DictConfig):
         self.work_dir = Path.cwd()
@@ -218,22 +239,36 @@ class Workspace:
 
     def _log(self, metrics, step: int, ty: str = "train") -> None:
         # `metrics` may be a TensorDict (returned by agent.update()) or a
-        # plain dict. Two things need handling:
-        #  1. TensorDict refuses bool conversion — check length explicitly.
-        #  2. TensorDict.items() can be a single-use generator (the dict
+        # plain dict. Three things need handling:
+        #  1. TensorDict refuses bool conversion — can't use ``if not metrics``.
+        #  2. ``len(TensorDict)`` returns the first batch-size dim, not the
+        #     number of keys. ``agent.update()`` returns a TD built from 0-d
+        #     ``.detach()`` tensors, so its ``batch_size == torch.Size([])``
+        #     and ``len(td) == 0`` even when 4+ keys are present. Using
+        #     ``len(metrics) == 0`` as an emptiness check silently swallows
+        #     every per-update train log — that's the regression flagged in
+        #     ``docs/IMPLEMENTATION_STATUS.md`` 2026-05-23 notes
+        #     (``grep q_critic_loss`` returning nothing). Check ``items()``.
+        #  3. ``TensorDict.items()`` can be a single-use generator (the dict
         #     comprehension below would exhaust it, leaving the format-
         #     string join silent). Materialise items into a list once.
-        if metrics is None or len(metrics) == 0:
+        if metrics is None:
             return
-        items = []
-        for k, v in metrics.items():
+        try:
+            items = list(metrics.items())
+        except Exception:
+            return
+        if not items:
+            return
+        materialised = []
+        for k, v in items:
             if hasattr(v, "item"):  # 0-d tensor → python scalar
                 try:
                     v = v.item()
                 except (ValueError, RuntimeError):
                     pass  # non-scalar tensor; format() will str() it
-            items.append((k, v))
-        prefixed = {f"{ty}/{k}": v for k, v in items}
+            materialised.append((k, v))
+        prefixed = {f"{ty}/{k}": v for k, v in materialised}
         if self._wandb_run is not None:
             self._wandb_run.log(prefixed, step=step)
 
@@ -402,6 +437,17 @@ class Workspace:
 
         episode_step = 0
         episode_reward = 0.0
+        # Cumulative per-step cost c_t over the episode. Computed by the env
+        # adapter (filters/cost_signal.compute_cost), attached to TimeStep,
+        # and surfaced as `episode/episode_cost_integral` for the Pareto plot.
+        episode_cost_integral = 0.0
+        # Per-episode task-success tracker. info["task_success"] = 1.0 only on
+        # the success step; the env terminates immediately after, so any True
+        # observation during the episode means it completed the task. Logged
+        # at episode-end as train/episode_success — read this rather than
+        # train/episode_reward when judging task progress under workspace
+        # shaping (which makes episode_reward negative even for successful eps).
+        episode_success = False
         action = None
         metrics: dict = {}
 
@@ -414,10 +460,20 @@ class Workspace:
                 ep_safety_metrics.update(self._lagrangian_payload())
                 if ep_safety_metrics:
                     self._log(ep_safety_metrics, self.global_step, ty="episode")
+                # Lagrangian-specific episode-end logging (no-op when the
+                # active agent isn't the Lagrangian subclass).
+                lagrangian_metrics = self._lagrangian_payload(
+                    episode_cost_integral
+                )
+                if lagrangian_metrics:
+                    self._log(
+                        lagrangian_metrics, self.global_step, ty="episode"
+                    )
                 self._log(
                     {
                         "episode_reward": episode_reward,
                         "episode_length": episode_step,
+                        "episode_success": float(episode_success),
                         "episode": self._global_episode,
                         "buffer_size": len(self.replay_storage),
                     },
@@ -438,6 +494,8 @@ class Workspace:
                     self.demo_replay_storage.add(time_step)
                 episode_step = 0
                 episode_reward = 0.0
+                episode_cost_integral = 0.0
+                episode_success = False
 
             if (
                 self.global_step >= self.cfg.eval_every_frames
@@ -545,13 +603,121 @@ class Workspace:
         # Headline summary for the thesis writeup (docs/safety_metrics.md).
         self._write_final_metrics()
 
+        # Final summary JSON — aggregates the streaming metrics.jsonl into
+        # a single headline-numbers file for easy post-hoc comparison
+        # across runs (best success rate, mean/last safety axes, etc.).
+        self._write_final_summary()
+
+    def _write_final_summary(self) -> None:
+        """Aggregate metrics.jsonl into <work_dir>/final_metrics.json with
+        the thesis headline numbers: last + best eval reward / success rate
+        / safety axes, and last training-side state (lambda, cost integral)."""
+        jsonl = self.work_dir / "metrics.jsonl"
+        out_path = self.work_dir / "final_metrics.json"
+        if not jsonl.exists():
+            return
+        try:
+            rows: list = []
+            with jsonl.open() as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rows.append(json.loads(line))
+                    except (TypeError, ValueError):
+                        continue
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"failed to read metrics.jsonl for summary: {exc}")
+            return
+
+        def _last_by_ty(ty: str) -> dict:
+            for row in reversed(rows):
+                if row.get("ty") == ty:
+                    return row
+            return {}
+
+        def _best_eval(key: str, prefer: str = "max") -> float | None:
+            vals: list = []
+            for row in rows:
+                if row.get("ty") != "eval":
+                    continue
+                v = row.get(f"eval/{key}")
+                if isinstance(v, (int, float)):
+                    vals.append(float(v))
+            if not vals:
+                return None
+            return max(vals) if prefer == "max" else min(vals)
+
+        summary: dict = {
+            "global_step": self._global_step,
+            "global_episode": self._global_episode,
+            "config": {
+                "task": str(self.cfg.env.get("task_name", "")),
+                "disruption": str(self.cfg.get("disruption", "")),
+                "num_train_frames": int(self.cfg.num_train_frames),
+                "num_demos": int(self.cfg.get("num_demos", 0)),
+                "agent_v_min": float(self.cfg.agent.get("v_min", 0.0)),
+                "agent_v_max": float(self.cfg.agent.get("v_max", 0.0)),
+                "wandb_name": str(self.cfg.wandb.get("name", ""))
+                if "wandb" in self.cfg else "",
+                "wandb_tags": list(self.cfg.wandb.get("tags", []) or [])
+                if "wandb" in self.cfg else [],
+            },
+            "last_train_episode": {
+                k: v for k, v in _last_by_ty("train").items()
+                if k not in ("step", "ty")
+            },
+            "last_episode_safety": {
+                k: v for k, v in _last_by_ty("episode").items()
+                if k not in ("step", "ty")
+            },
+            "last_eval": {
+                k: v for k, v in _last_by_ty("eval").items()
+                if k not in ("step", "ty")
+            },
+            "best_eval": {
+                "success_rate":  _best_eval("success_rate", prefer="max"),
+                "episode_reward": _best_eval("episode_reward", prefer="max"),
+                # Lower is better for the safety axes.
+                "ep_proximity_violation_rate":
+                    _best_eval("ep_proximity_violation_rate", prefer="min"),
+                "ep_ssm_violation_actual_rate":
+                    _best_eval("ep_ssm_violation_actual_rate", prefer="min"),
+                "ep_min_separation_lowest":
+                    _best_eval("ep_min_separation", prefer="min"),
+            },
+        }
+        try:
+            with out_path.open("w") as f:
+                json.dump(summary, f, indent=2, default=repr)
+            logger.info(f"wrote final summary: {out_path}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"failed to write final_metrics.json: {exc}")
+
     # ------------------------------------------------------------------
     # Eval
     # ------------------------------------------------------------------
 
     def eval(self) -> None:
         step, episode, total_reward = 0, 0, 0.0
+        # Task-success rate is the ground-truth quality metric — eval/episode_reward
+        # is contaminated by the workspace-shaping dense penalty (a fully-successful
+        # episode under shaping can still log a strongly negative episode_reward
+        # because of the accumulated -beta·excess per-step term). BiGym already
+        # emits ``info["task_success"] = float(self.success)`` at each step
+        # (bigym_env.py:329) and the env_adapter forwards it onto time_step.info.
+        # An episode counts as a success if any step had task_success > 0.
+        total_success = 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
+        # Per-eval safety aggregation. EpisodeSafetyMetrics emits
+        # info["episode_safety"] every step (running) and at episode-end
+        # (final). We capture the terminal payload per eval episode and
+        # mean across episodes so eval/* in W&B + metrics.jsonl carries
+        # the safety axis alongside reward/success — the headline pair for
+        # the thesis Pareto plot.
+        ep_safety_sum: dict = {}
+        ep_safety_count = 0
 
         # cfg.save_video gates per-eval-cycle video recording. Only the first
         # eval episode is captured per cycle (disk is cheap but not infinite,
@@ -573,6 +739,7 @@ class Workspace:
 
         while eval_until_episode(episode):
             episode_step = 0
+            episode_success = False
             time_step = self.train_env.reset()
             if self.cfg.temporal_ensemble:
                 self.eval_temporal_ensemble.reset()
@@ -604,6 +771,8 @@ class Workspace:
                 total_reward += time_step.reward
                 step += 1
                 episode_step += 1
+                if step_marks_task_success(time_step):
+                    episode_success = True
                 if record_video and episode == 0:
                     frame = render_frame(self.train_env, global_step=self.global_step)
                     if frame is not None:
@@ -637,6 +806,15 @@ class Workspace:
             )):
                 success_count += 1
             episode += 1
+            # Capture terminal-step episode_safety for this eval episode.
+            ep_safety = (time_step.info or {}).get("episode_safety") or {}
+            if ep_safety:
+                ep_safety_count += 1
+                for key, val in ep_safety.items():
+                    if isinstance(val, (int, float, bool)):
+                        ep_safety_sum[key] = (
+                            ep_safety_sum.get(key, 0.0) + float(val)
+                        )
 
         if record_video and frames:
             write_eval_video(

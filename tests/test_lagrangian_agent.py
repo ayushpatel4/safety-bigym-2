@@ -152,3 +152,45 @@ def test_state_dict_roundtrip_includes_cost_nets_and_lambda():
         agent.cost_critic.parameters(), fresh.cost_critic.parameters()
     ):
         assert torch.equal(a, b)
+
+
+def test_warm_start_from_plain_cqn_as_snapshot():
+    """The Lagrangian agent can load a base CQN-AS snapshot for warm-starting.
+
+    P3.1 launches by loading the stage-1 curriculum base policy (which was
+    trained with ``agent=cqn_as``, so its snapshot has no cost-side keys) into
+    the constrained agent. The reward side must be restored exactly; the cost
+    critic + lambda must stay at their fresh init so Q_c learns from scratch
+    under the full disruption.
+    """
+    # Train a plain CQN-AS to get an interesting (non-init) reward-side state.
+    base = CQNASAgent(**_base_kwargs())
+    for _ in range(3):
+        base.update(_make_batch(cost_value=0.0))  # plain agent ignores 'cost'
+    base_sd = base.state_dict()
+    assert "cost_critic" not in base_sd  # sanity: it's a no-cost snapshot
+
+    # Fresh Lagrangian agent with a memorized initial cost-critic state.
+    lagr = LagrangianCQNASAgent(**_base_kwargs())
+    cost_critic_init = [p.detach().clone() for p in lagr.cost_critic.parameters()]
+    cost_target_init = [
+        p.detach().clone() for p in lagr.cost_critic_target.parameters()
+    ]
+    lam_init = lagr.lam
+
+    # Warm-start: load the no-cost base snapshot. Must NOT raise.
+    lagr.load_state_dict(base_sd)
+
+    # Reward side restored exactly from the base snapshot.
+    for a, b in zip(base.encoder.parameters(), lagr.encoder.parameters()):
+        assert torch.equal(a, b)
+    for a, b in zip(base.critic.parameters(), lagr.critic.parameters()):
+        assert torch.equal(a, b)
+
+    # Cost side untouched -- still at fresh init.
+    for ref, p in zip(cost_critic_init, lagr.cost_critic.parameters()):
+        assert torch.equal(ref, p)
+    for ref, p in zip(cost_target_init, lagr.cost_critic_target.parameters()):
+        assert torch.equal(ref, p)
+    assert lagr.lam == lam_init
+    assert lagr._rolling_cost == 0.0

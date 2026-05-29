@@ -19,3 +19,15 @@ env:
   demos: 36
   # Demos were recorded with 4 floating DOFs (pelvis_x, y, z, rz).
   enable_all_floating_dof: true
+
+  # Per-task workspace shaping override (2026-05-26).
+  # The base SafetyConfig defaults `workspace_radius=0.4` — too tight for
+  # saucepan_to_hob, whose EE has to travel ~0.5-0.7m from the cabinet
+  # (saucepan pickup) to the hob (place) without any single point of the
+  # trajectory falling outside the shaping radius. The 2026-05-25 stage-0
+  # eval plateaued at success_rate≈0.1-0.2 in part because the dense
+  # per-step penalty fired throughout the place phase. Bumping to 0.8m
+  # encompasses both the saucepan start position (≈0.85m from origin) and
+  # the hob deposit zone with a small margin.
+  safety:
+    workspace_radius: 0.8

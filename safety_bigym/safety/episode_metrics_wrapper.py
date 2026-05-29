@@ -30,6 +30,16 @@ import gymnasium as gym
 import numpy as np
 
 
+# Time-in-proximity probe thresholds (meters). Keys are formatted into the
+# emitted dict as ``ep_time_in_proximity_{label}`` (e.g. ``0p3m``); the floats
+# below are the actual comparison thresholds.
+_PROXIMITY_PROBE_THRESHOLDS = (
+    ("0p3m", 0.3),
+    ("0p5m", 0.5),
+    ("1p0m", 1.0),
+)
+
+
 class EpisodeSafetyMetrics(gym.Wrapper):
     # Proximity-dwell sample distances (m). Order is reflected in the
     # generated key name (e.g. 0.3 → ``ep_time_in_proximity_0p3m``).
@@ -59,6 +69,13 @@ class EpisodeSafetyMetrics(gym.Wrapper):
         self._sum_robot_vel = 0.0
         self._first_violation_step = -1
         self._region_counts: Dict[str, int] = {}
+        # Distance / velocity samples we need quantiles + means of.
+        self._separations: List[float] = []
+        self._robot_vels: List[float] = []
+        # Counters for the time-in-proximity probes.
+        self._proximity_counts: Dict[str, int] = {
+            label: 0 for label, _ in _PROXIMITY_PROBE_THRESHOLDS
+        }
 
     def reset(self, **kwargs):
         self._reset_state()

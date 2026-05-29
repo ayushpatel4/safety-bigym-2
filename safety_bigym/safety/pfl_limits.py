@@ -223,19 +223,28 @@ GEOM_TO_REGION: Dict[str, str] = {
     'L_Foot_col': 'foot',    'R_Foot_col': 'foot',
     'L_Hand_col': 'hand_palm', 'R_Hand_col': 'hand_palm',
 }
+for _side in ('left', 'right'):
+    for _base, _region in _G1_LIMB_REGIONS.items():
+        GEOM_TO_REGION[f'{_side}_{_base}_col'] = _region
 
 
 def get_region_for_geom(geom_name: str) -> Optional[str]:
     """
     Get the ISO body region for a collision geom.
-    
+
     Args:
         geom_name: Name of the collision geom
-        
+
     Returns:
-        ISO region name, or None if not a human body part
+        ISO region name, or None if not a coworker body part
     """
-    return GEOM_TO_REGION.get(geom_name)
+    region = GEOM_TO_REGION.get(geom_name)
+    if region is not None:
+        return region
+    # Strip a trailing numeric suffix (e.g. `..._col2` -> `..._col`) so the
+    # multi-geom links (feet) resolve to their base region.
+    base = re.sub(r"\d+$", "", geom_name)
+    return GEOM_TO_REGION.get(base)
 
 
 def get_limits_for_geom(geom_name: str) -> Optional[BodyRegionLimits]:

@@ -25,4 +25,7 @@ env:
     coworker_reach_period_range: [8.0, 11.0]
     coworker_target_mix_p_ee_range: [0.1, 0.25]
     coworker_near_loiter_range: [3.0, 5.0]
-    coworker_walk_speed_range: [0.7, 1.1]
+    # walk_speed slowed ~25 % from [0.7, 1.1] on 2026-05-26 to give the
+    # CQN-AS actor more room to react under shaping. See
+    # docs/IMPLEMENTATION_STATUS "SSM-semantics change" note.
+    coworker_walk_speed_range: [0.5, 0.9]

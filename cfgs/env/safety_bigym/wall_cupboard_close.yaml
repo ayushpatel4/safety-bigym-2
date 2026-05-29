@@ -1,0 +1,29 @@
+# @package _global_
+
+defaults:
+  - safety_bigym
+  - _self_
+
+env:
+  task_name: wall_cupboard_close
+  # WallCupboardClose: close the wall cupboard doors. Short single-object task.
+  # CQN-AS upstream runs at episode_length=3000 / demo_down_sample_rate=10 (300
+  # control-rate steps at 50 Hz). We mirror those base values; the bump to 5000
+  # gives ~1.7x headroom for the human-disruption slowdown (matches the
+  # saucepan_to_hob headroom philosophy in this directory).
+  #
+  # demo_down_sample_rate=10 -> 50 Hz control (above BiGym's CONTROL_FREQUENCY_MIN=20).
+  # demos=36 matches the saucepan_to_hob curriculum so apples-to-apples with
+  # the G1 base-curriculum experiment (locked 2026-05-25; see
+  # docs/IMPLEMENTATION_STATUS.md).
+  #
+  # NOTE on workspace shaping: WallCupboardClose's base class
+  # (_CupboardsInteractionEnv) sets both `cabinet_drawers` (base counter) AND
+  # `cabinet_wall` (the actual task target) on the env. SafetyBiGymEnv's
+  # _lookup_task_object_pos now picks `cabinet_wall` first for any task whose
+  # name contains "wallcupboard" — without that override, workspace shaping
+  # would pull the EE toward the wrong cabinet.
+  episode_length: 5000
+  demo_down_sample_rate: 10
+  demos: 36
+  enable_all_floating_dof: true
