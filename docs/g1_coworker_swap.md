@@ -13,16 +13,16 @@ The thesis pitch is "a safety-aware robot coworker"; using a second humanoid (G1
 
 ### Selector
 
-A single Hydra config key — `env.human_model` — picks the model. Default is `smplh` (so existing runs are byte-untouched).
+A single Hydra config key — `env.human_model` — picks the model. Default is `g1`; use `env.human_model=smplh` for SMPL-H + AMASS.
 
 ```yaml
 # cfgs/env/safety_bigym.yaml
 env:
   inject_human: true
-  human_model: smplh   # values: smplh | g1
+  human_model: g1      # values: g1 | smplh
 ```
 
-Override via Hydra (`env.human_model=g1`) or the curriculum env-var (`HUMAN_MODEL=g1 scripts/run_base_curriculum.sh`).
+Override via Hydra (`env.human_model=smplh`) or the curriculum env-var (`HUMAN_MODEL=smplh scripts/run_base_curriculum.sh`).
 
 ### Asset
 
@@ -73,9 +73,9 @@ Modified existing modules:
 - **`safety_bigym/human/human_ik.py`** — added `shoulder_body` field to `chains` entries so `CoworkerArmController` can read the active arm's shoulder body name uniformly across both solvers.
 - **`safety_bigym/scenarios/coworker_behavior.py`** — `CoworkerArmController(..., ik_solver=None)` accepts an injected IK solver; defaults to `HumanIK` when None. Hard-coded `"R_Shoulder"` / `"L_Shoulder"` literals replaced with `ik_solver.chains[arm]["shoulder_body"]` lookups.
 - **`safety_bigym/safety/pfl_limits.py`** — 8 new G1-specific `<Region>_col` entries.
-- **`safety_bigym/config.py`** — `HumanConfig.human_model: str = "smplh"`; `HumanConfig.g1_standing_pelvis_z: float = 0.95`.
-- **`safety_bigym/cfgs/env/safety_bigym.yaml`** — adds `human_model: smplh` default.
-- **`safety_bigym/scripts/run_base_curriculum.sh`** — `HUMAN_MODEL` env var (default `smplh`); conditional AMASS validation; W&B tag emission includes `human:<model>`.
+- **`safety_bigym/config.py`** — `HumanConfig.human_model: str = "g1"`; `HumanConfig.g1_standing_pelvis_z: float = 0.95`.
+- **`safety_bigym/cfgs/env/safety_bigym.yaml`** — `human_model: g1` default.
+- **`safety_bigym/scripts/run_base_curriculum.sh`** — `HUMAN_MODEL` env var (default `g1`); conditional AMASS validation; W&B tag emission includes `human:<model>`.
 
 ### Visual strategy
 

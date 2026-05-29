@@ -210,7 +210,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--human",
-        default="smplh",
+        default="g1",
         choices=["smplh", "g1"],
         help="Coworker humanoid model (g1 skips AMASS).",
     )

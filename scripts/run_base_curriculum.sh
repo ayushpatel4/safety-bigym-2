@@ -23,7 +23,7 @@
 # NOT launched from inside the agent — a human runs this on the GPU box.
 #
 # Prereqs:
-#   export AMASS_DATA_DIR=/path/to/CMU/CMU
+#   export AMASS_DATA_DIR=/path/to/CMU/CMU   # only if HUMAN_MODEL=smplh (default is g1)
 #   export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0   # headless GPU
 #   cd safety_bigym && source venv/bin/activate    # needs tensordict
 #
@@ -51,11 +51,9 @@
 set -euo pipefail
 
 # HUMAN_MODEL selects which humanoid plays the coworker role.
-#   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR unless
-#                    SMPLH_MOTION=procedural).
-#   g1            : Unitree G1 standing-pose mannequin (no AMASS). Asset is
-#                   strategy α (skin-toned _col capsules only, commit 2683b67).
-HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
+#   g1 (default)  : Unitree G1 standing-pose mannequin (no AMASS).
+#   smplh         : SMPL-H human (requires AMASS_DATA_DIR unless SMPLH_MOTION=procedural).
+HUMAN_MODEL="${HUMAN_MODEL:-g1}"
 SMPLH_MOTION="${SMPLH_MOTION:-amass}"
 case "${HUMAN_MODEL}" in
   smplh|g1) ;;

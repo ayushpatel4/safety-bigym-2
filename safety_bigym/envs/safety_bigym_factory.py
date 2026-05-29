@@ -135,7 +135,7 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
             )
 
         # Human config from Hydra config
-        human_model = cfg.env.get("human_model", "smplh")
+        human_model = cfg.env.get("human_model", "g1")
         smplh_motion = cfg.env.get("smplh_motion", "amass")
         if human_model == "g1" or (
             human_model == "smplh" and smplh_motion == "procedural"

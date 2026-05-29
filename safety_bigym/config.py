@@ -120,11 +120,11 @@ class HumanConfig:
     pd_kp: float = 200.0  # Position gain
     pd_kd: float = 20.0   # Derivative gain
 
-    # Which humanoid model plays the coworker role. "smplh" (default) loads
-    # the SMPL-H AMASS-driven human; "g1" loads the Unitree G1 standing-pose
-    # mannequin with procedural arm IK. AMASS fields above are ignored when
-    # human_model == "g1".
-    human_model: str = "smplh"
+    # Which humanoid model plays the coworker role. "g1" (default) loads the
+    # Unitree G1 standing-pose mannequin with procedural arm IK; "smplh" loads
+    # SMPL-H (AMASS or procedural per smplh_motion). AMASS fields above are
+    # ignored when human_model == "g1".
+    human_model: str = "g1"
     # SMPL-H motion source when human_model == "smplh":
     #   "amass"       — AMASS clip playback + trajectory planner (default)
     #   "procedural"  — fixed standing pose + planner + COWORKER IK (G1-style)
