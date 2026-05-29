@@ -1,6 +1,6 @@
 # Phase 1 — Observation Ablation Results (E1.1, BC-only)
 
-**Status: E1.1 closed; E1.4 pending.** This doc reports the E1.1 (BC obs-ablation) result only. The master-plan contingency depends on E1.4 (RL reward-on pilot) — see [phase1_reward_pilot.md](phase1_reward_pilot.md) — which has not run yet.
+**Status: E1.1 closed; E1.4 folded into Phase 3.** This doc reports the E1.1 (BC obs-ablation) result only. The standalone E1.4 reward-on pilot was superseded by the CQN-AS Phase 3 path; the off/oracle/noisy observation-channel question now lives in Phase 3 E3.6.
 
 **E1.1 result: oracle does not help under pure BC.** The oracle observation does **not** clear the [≥20% SSM-rate-reduction success criterion](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) on any of the four ACT cells we tested.
 
@@ -9,9 +9,9 @@
 1. The `human_pos_estimate` channel itself is not useful for safety (regardless of training algorithm).
 2. The channel is useful in principle, but pure BC has no gradient that would teach the policy to attend to it — the demos were collected without a human, so demo `action` and `human_pos_estimate` are statistically uncorrelated; BC marginalises the channel away.
 
-E1.1 cannot distinguish (1) from (2). **E1.4 is the disambiguation:** train DrQ-V2+ with `add_violation_penalty=true` on `reach_target_single` × `{off, oracle, noisy}` and measure the same SSM-rate-reduction. E1.4's decision rule and rationale are in [phase1_reward_pilot.md §How this differs from E1.1](phase1_reward_pilot.md).
+E1.1 cannot distinguish (1) from (2). The original E1.4 plan was to disambiguate with reward-on RL, but that standalone gate is no longer active. A demo-free CQN-AS attempt degenerated, so the user moved this question into Phase 3 E3.6, where it will be tested under a non-degenerate demo+workspace-shaped constrained policy.
 
-**Until E1.4 runs, treat the master-plan contingency (HYBRID_SAFETY_CRITIC_PLAN.md lines 51, 248) as PENDING.** The contingency triggers only if E1.4 *also* fails to clear the bar.
+The master-plan contingency is no longer pending on E1.4. The cost-signal / Lagrangian path is the thesis lever, and Phase 1's result should be cited as historical evidence that the channel alone does not make BC safety-aware.
 
 Phase 1 downstream sweeps (E1.2 noise sweep, E1.3 temporal ablation) remain parked — they were predicated on finding a strong cell, and E1.1 didn't produce one. They become unblocked only if E1.4 surfaces a strong cell, or if a different policy class is tested and clears the bar.
 
@@ -176,8 +176,8 @@ If a reviewer pushes back, run DP on the strongest of the four ACT cells (drawer
 
 - Phase 1 wrapper (`BodySLAMWrapper`, `bodyslam=off|oracle|noisy`): in main, working. See [`docs/phase1_bodyslam_wrapper.md`](phase1_bodyslam_wrapper.md).
 - E1.1 (BC obs-ablation, ACT): **complete**. Negative under pure BC on all 4 tasks.
-- E1.4 (RL reward-on pilot, DrQ-V2+): **pending**. Plan: [phase1_reward_pilot.md](phase1_reward_pilot.md). This is the gating experiment for the master-plan contingency — until it runs, do not treat Phase 1 as conclusively closed.
-- E1.2 (noise sweep): **parked**. No strong cell to sweep against under BC; revisit after E1.4.
+- E1.4 (reward-on RL observation ablation): **folded into Phase 3 E3.6**. The old DrQ-V2+ plan in [phase1_reward_pilot.md](phase1_reward_pilot.md) is historical.
+- E1.2 (noise sweep): **parked**. No strong cell to sweep against under BC; any future observation-channel sweep should be attached to Phase 3 results.
 - E1.3 (temporal ablation): **parked**. Same reason.
 - DP coverage under E1.1: explicitly skipped per the rationale above.
 

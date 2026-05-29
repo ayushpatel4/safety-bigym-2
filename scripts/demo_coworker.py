@@ -14,6 +14,14 @@ Usage::
     mjpython scripts/demo_coworker.py --spawn walk_in --reach-target alternate
     mjpython scripts/demo_coworker.py --spawn in_place --arm left --reach-target ee
 
+    # G1 patrol with stage-2 train disruption knobs (no AMASS needed):
+    mjpython scripts/demo_coworker.py --human g1 --spawn patrol --stage train \\
+        --task saucepan --seed 0
+
+    # SMPL-H capsules, procedural motion (no AMASS — walks like G1):
+    mjpython scripts/demo_coworker.py --human smplh --smplh-motion procedural \\
+        --spawn patrol --stage train --task saucepan --seed 0
+
 The script prints reach-phase transitions to stdout so the user can
 correlate what they see in the viewer with the underlying state machine.
 """
@@ -79,12 +87,45 @@ def _load_task_cls(task_key: str) -> type:
     return getattr(importlib.import_module(module_path), cls_name)
 
 
+# Mirror cfgs/disruption/coworker_*.yaml — same bands as g1_coworker_smoke.py.
+_STAGE_BANDS = {
+    "default": {},
+    "idle": {
+        "coworker_closest_approach_range": (3.0, 3.6),
+        "coworker_reach_period_range": (30.0, 40.0),
+        "coworker_target_mix_p_ee_range": (0.0, 0.0),
+        "coworker_near_loiter_range": (1.0, 2.0),
+        "coworker_walk_speed_range": (0.5, 0.8),
+    },
+    "easy": {
+        "coworker_closest_approach_range": (1.8, 2.5),
+        "coworker_reach_period_range": (8.0, 11.0),
+        "coworker_target_mix_p_ee_range": (0.1, 0.25),
+        "coworker_near_loiter_range": (3.0, 5.0),
+        "coworker_walk_speed_range": (0.7, 1.1),
+    },
+    "train": {
+        "coworker_closest_approach_range": (0.55, 0.85),
+        "coworker_reach_period_range": (0.9, 1.6),
+        "coworker_target_mix_p_ee_range": (0.55, 0.85),
+        "coworker_near_loiter_range": (12.0, 18.0),
+        "coworker_walk_speed_range": (1.0, 1.5),
+        "coworker_trajectory_weights": {
+            "COWORKER_PATROL": 8.0,
+            "APPROACH_LOITER_DEPART": 1.0,
+            "STATIONARY": 1.0,
+        },
+    },
+}
+
+
 def _make_sampler(
-    motion_dir: str,
+    motion_dir: Optional[str],
     motion_clip_paths,
     spawn_mode: str,
     arm: Optional[str],
     reach_target: str,
+    stage: str,
 ) -> ScenarioSampler:
     """Build a sampler that forces COWORKER and biases the chosen knobs.
 
@@ -97,6 +138,7 @@ def _make_sampler(
         parameter_space=ParameterSpace(
             clip_paths=motion_clip_paths,
             disruption_weights={DisruptionType.COWORKER: 1.0},
+            **_STAGE_BANDS.get(stage, {}),
         ),
         motion_dir=motion_dir,
     )
@@ -110,6 +152,11 @@ def _override_scenario(scenario, spawn_mode: str, arm: Optional[str], reach_targ
         scenario.trajectory_type = "STATIONARY"
     elif spawn_mode == "patrol":
         scenario.trajectory_type = "COWORKER_PATROL"
+        # Ensure at least two away-and-back cycles fit in one viewing session.
+        scenario.patrol_excursions = max(int(getattr(scenario, "patrol_excursions", 1)), 2)
+        scenario.patrol_near_loiter = min(
+            float(getattr(scenario, "patrol_near_loiter", 8.0)), 7.0
+        )
     # else "alternate": let the sampler's choice stand
 
     if arm in ("left", "right"):
@@ -161,6 +208,24 @@ def main() -> None:
         help="Always reach for EE, always for task object, or alternate "
         "between them across cycles.",
     )
+    parser.add_argument(
+        "--human",
+        default="smplh",
+        choices=["smplh", "g1"],
+        help="Coworker humanoid model (g1 skips AMASS).",
+    )
+    parser.add_argument(
+        "--smplh-motion",
+        default="amass",
+        choices=["amass", "procedural"],
+        help="SMPL-H body motion: amass clip playback or procedural (G1-style).",
+    )
+    parser.add_argument(
+        "--stage",
+        default="default",
+        choices=list(_STAGE_BANDS),
+        help="Curriculum disruption band (train = stage-2 coworker_train knobs).",
+    )
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -174,33 +239,43 @@ def main() -> None:
         return
 
     amass_dir = os.environ.get("AMASS_DATA_DIR")
-    if not amass_dir:
+    if args.human == "smplh" and args.smplh_motion == "amass" and not amass_dir:
         raise RuntimeError(
             "AMASS_DATA_DIR is not set. Export it to the CMU AMASS root, e.g.\n"
-            "  export AMASS_DATA_DIR=/Users/ayushpatel/Documents/FYP3/CMU/CMU"
+            "  export AMASS_DATA_DIR=/Users/ayushpatel/Documents/FYP3/CMU/CMU\n"
+            "Or pass --smplh-motion procedural to skip AMASS."
         )
 
     task_cls = _load_task_cls(args.task)
     print("=" * 60)
-    print(f"COWORKER demo  |  task={task_cls.__name__}  spawn={args.spawn}  "
+    print(f"COWORKER demo  |  task={task_cls.__name__}  human={args.human}  "
+          f"smplh_motion={args.smplh_motion}  "
+          f"stage={args.stage}  spawn={args.spawn}  "
           f"arm={args.arm}  target={args.reach_target}")
     print("=" * 60)
 
+    clip_paths = (
+        ["74/74_01_poses.npz"]
+        if args.human == "smplh" and args.smplh_motion == "amass"
+        else []
+    )
     human_config = HumanConfig(
-        motion_clip_dir=amass_dir,
-        # A walking clip — used only during APPROACH_LOITER_DEPART approach.
-        motion_clip_paths=["74/74_01_poses.npz"],
+        human_model=args.human,
+        smplh_motion=args.smplh_motion,
+        motion_clip_dir=amass_dir if clip_paths else None,
+        motion_clip_paths=clip_paths,
     )
     safety_config = SafetyConfig(
         log_violations=False, terminate_on_violation=False,
     )
 
     sampler = _make_sampler(
-        amass_dir,
+        amass_dir if clip_paths else None,
         human_config.motion_clip_paths,
         args.spawn,
         args.arm if args.arm != "auto" else None,
         args.reach_target,
+        args.stage,
     )
 
     env = make_safety_env(
@@ -232,6 +307,10 @@ def main() -> None:
     obs, info = env.reset(seed=args.seed)
     scenario = env._current_scenario
     print(f"scenario.trajectory_type = {scenario.trajectory_type}")
+    print(f"scenario.closest_approach = {scenario.closest_approach:.2f} m")
+    if scenario.trajectory_type == "COWORKER_PATROL":
+        print(f"scenario.patrol_excursions = {scenario.patrol_excursions}")
+        print(f"scenario.patrol_away_distance = {scenario.patrol_away_distance:.2f} m")
     print(f"scenario.coworker_active_arm = {scenario.disruption_config.coworker_active_arm}")
     print(f"scenario.coworker_target_mix = {scenario.disruption_config.coworker_target_mix}")
 

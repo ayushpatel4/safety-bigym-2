@@ -1,5 +1,9 @@
 # How Diffusion Policies Are Trained in safety_bigym
 
+> **Historical reference.** This explains the ACT/DP-era RoboBase training path
+> and remains useful for snapshot/debug context. Current Phase 3 work uses the
+> CQN-AS path in `train_cqn_as.py`; see [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md).
+
 ## 1. Entry point & config composition
 
 [train_safety.py](../train_safety.py) is a thin Hydra wrapper: it instantiates RoboBase's `Workspace` and calls `workspace.train()`. The config stack composes bottom-up:

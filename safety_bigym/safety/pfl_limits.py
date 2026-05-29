@@ -178,40 +178,50 @@ PFL_LIMITS: Dict[str, BodyRegionLimits] = {
 }
 
 
-import re
-
-# Mapping from Unitree G1 collision geom names (the `_col` geoms in
-# assets/g1_human_body.xml) to ISO 15066 Annex A body regions. The G1 plays
-# the coworker role the SMPL-H human used to; PFL force limits are unchanged,
-# only the geom->region keys are remapped. Names that carry a trailing index
-# (e.g. the four foot spheres `left_ankle_roll_link_col[0-3]`) are normalised
-# by get_region_for_geom, so only the base name needs an entry here.
-_G1_BASE_REGIONS: Dict[str, str] = {
-    # Trunk / head
-    'pelvis': 'pelvis',
-    'torso': 'chest',
-    'torso_logo': 'chest',
-    'head': 'skull',
-}
-# Per-side limbs (left_/right_ prefixes share the same region).
-_G1_LIMB_REGIONS: Dict[str, str] = {
-    'hip_pitch_link': 'pelvis',
-    'hip_roll_link': 'pelvis',
-    'hip_yaw_link': 'thigh',
-    'knee_link': 'shin',
-    'ankle_pitch_link': 'foot',
-    'ankle_roll_link': 'foot',
-    'shoulder_pitch_link': 'upper_arm',
-    'shoulder_roll_link': 'upper_arm',
-    'shoulder_yaw_link': 'upper_arm',
-    'elbow_link': 'forearm',
-    'wrist_roll_link': 'hand_palm',
-    'wrist_pitch_link': 'hand_palm',
-    'wrist_yaw_link': 'hand_palm',
-}
-
+# Mapping from collision geom names to ISO body regions. Covers the SMPL-H
+# ``smplh_human_body.xml`` geom names AND the G1 ``g1_human_body.xml`` geom
+# names (produced by ``scripts/build_g1_human_body.py``). Overlapping names
+# (Head/Chest/Pelvis/L_Shoulder/L_Elbow/L_Wrist/...) reuse a single entry.
 GEOM_TO_REGION: Dict[str, str] = {
-    f'{base}_col': region for base, region in _G1_BASE_REGIONS.items()
+    # Head
+    'Head_col': 'skull',
+    'Neck_col': 'neck',
+
+    # Torso
+    'Spine_col': 'back_shoulders',
+    'Chest_col': 'chest',
+    'Torso_col': 'abdomen',
+    'Pelvis_col': 'pelvis',
+    'L_Thorax_col': 'chest',
+    'R_Thorax_col': 'chest',
+
+    # Left arm
+    'L_Shoulder_col': 'upper_arm',
+    'L_Elbow_col': 'forearm',
+    'L_Wrist_col': 'hand_palm',
+
+    # Right arm
+    'R_Shoulder_col': 'upper_arm',
+    'R_Elbow_col': 'forearm',
+    'R_Wrist_col': 'hand_palm',
+
+    # Left leg (SMPL-H names use Hip/Knee/Ankle/Toe; G1 uses Thigh/Shin/Foot)
+    'L_Hip_col': 'pelvis',
+    'L_Knee_col': 'thigh',
+    'L_Ankle_col': 'shin',
+    'L_Toe_col': 'foot',
+
+    # Right leg
+    'R_Hip_col': 'pelvis',
+    'R_Knee_col': 'thigh',
+    'R_Ankle_col': 'shin',
+    'R_Toe_col': 'foot',
+
+    # G1-specific anatomical geom names (added 2026-05-27 for G1 coworker).
+    'L_Thigh_col': 'thigh',  'R_Thigh_col': 'thigh',
+    'L_Shin_col': 'shin',    'R_Shin_col': 'shin',
+    'L_Foot_col': 'foot',    'R_Foot_col': 'foot',
+    'L_Hand_col': 'hand_palm', 'R_Hand_col': 'hand_palm',
 }
 for _side in ('left', 'right'):
     for _base, _region in _G1_LIMB_REGIONS.items():

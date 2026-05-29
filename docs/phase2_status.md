@@ -1,5 +1,11 @@
 # Phase 2 — Status
 
+> **Historical reference.** This was the module-level Phase 2 status snapshot before the
+> COWORKER dataset collection, training, eval, and B5.5 follow-up closed. Do
+> not use this as the current Phase 2 run guide. Current result/writeup:
+> [phase2_results.md](phase2_results.md). Live next action:
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 **Goal** (from [.claude/HYBRID_SAFETY_CRITIC_PLAN.md §Phase 2](../.claude/HYBRID_SAFETY_CRITIC_PLAN.md)):
 build the runtime safety filter as a standalone, decoupled module — a CQL-trained
 `Q_safe(s, a)` that vetoes unsafe proposed actions through a `gym.Wrapper`,

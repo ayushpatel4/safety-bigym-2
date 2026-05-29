@@ -1,5 +1,11 @@
 # Dataset Collection Guide
 
+> **Legacy guide.** This describes the old `scripts/collect_dataset.py` HDF5
+> utility and legacy disruption metadata. It is not the current Phase 2 SVF
+> dataset pipeline. For SVF collection/training results, use
+> [phase2_results.md](phase2_results.md); for live experiment state, use
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 This guide explains how to use `scripts/collect_dataset.py` to generate diverse human-robot interaction datasets using Safety BiGym.
 
 ## script: `collect_dataset.py`

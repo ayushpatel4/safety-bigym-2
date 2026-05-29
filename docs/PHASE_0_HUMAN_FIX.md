@@ -1,5 +1,9 @@
 # Phase 0 — Human Collision & SSM Velocity Fix
 
+> **Historical/reference doc.** The Phase 0 fixes remain load-bearing, but this
+> is not a current task list. Current gotchas and next actions live in
+> [CLAUDE.md](CLAUDE.md) and [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 Branch: `safety-critic/phase-0-human-fix` (off `main`).
 
 Fixes for two defects that made `safety_bigym` unusable for diffusion-policy

@@ -1,5 +1,11 @@
 # Handoff — CQN-AS demo pipeline (Workstream D)
 
+> **Historical handoff.** Workstream D is implemented and smoked. This file is
+> kept to explain the original task and design decisions, not as current next
+> steps. For current Phase 3/G1 gates, use
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
+> [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md).
+
 Created 2026-05-20. Single-session task. Read this top-to-bottom before touching code.
 
 Companion docs (all in `safety_bigym/docs/`): [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) (status + decision log), [cqn_as_integration_notes.md](cqn_as_integration_notes.md) (CQN-AS vendor gotchas), [CLAUDE.md](CLAUDE.md) (workspace orientation), [UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md) (Phase 3 design).

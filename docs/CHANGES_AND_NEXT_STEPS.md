@@ -6,106 +6,18 @@ Generated alongside the updates to `UPDATED_PROJECT_PLAN.md`, `HYBRID_SAFETY_CRI
 
 ---
 
-## 2026-05-26 — Thesis-grade safety + task metrics (Workstreams A/B/C)
-
-Three coordinated additions to the safety-metric surface, motivated by the
-thesis evaluation needing per-task headline tables, success-vs-safety Pareto
-plots, per-curriculum-stage convergence curves, and Lagrangian-specific
-diagnostics. Full reference: [safety_metrics.md](safety_metrics.md). PFL
-fix deferred (separate session — documented as a thesis limitation).
-
-### A. SSM/proximity metric expansion
-
-`info["safety"]` now emits three flavours of "safety violation":
-
-| flavour                 | velocity used                  | meaning                                                                            |
-| ----------------------- | ------------------------------ | ---------------------------------------------------------------------------------- |
-| `ssm_violation`         | worst-case (`v_h = v_h_max`)   | conservative ISO 15066 bound (semantics changed from the prior "observed-capped")  |
-| `ssm_violation_actual`  | observed human velocity        | velocity-adaptive ISO 15066; typically fires less often                            |
-| `proximity_violation`   | (no velocity)                  | `min_separation < proximity_threshold` (default 0.5 m, matches Phase 2 SVF label)  |
-
-Wiring: `SSMConfig.proximity_threshold` (new field), `SafetyInfo` gets
-`proximity_violation` / `ssm_violation_actual` / `ssm_margin_actual` /
-`proximity_threshold` / `robot_vel` / `human_vel` + `to_dict` exports;
-`build_safety_info` accepts new `human_vel_actual` / `robot_vel_actual`
-kwargs (default to the conservative values). Env passes `human_vel=v_h_max`
-+ `human_vel_actual=observed_capped`. Yaml: `env.safety.proximity_threshold:
-0.5` declared in `cfgs/env/safety_bigym.yaml`; factory plumbs through to
-`SSMConfig`. 12 new unit tests in `tests/test_iso15066.py`.
-
-### B. Per-episode aggregates
-
-`EpisodeSafetyMetrics` now emits, alongside existing `ep_steps` /
-`ep_*_violation_rate` / `ep_min_ssm_margin` / `ep_max_pfl_force_ratio` /
-`ep_max_contact_force` / `ep_time_to_first_violation` / `ep_region_*`:
-
-- `ep_proximity_violation_rate`, `ep_ssm_violation_actual_rate`
-- `ep_time_in_proximity_{0p3,0p5,1p0}m` (fraction of episode steps under each threshold — the thesis's risk-integral metrics)
-- `ep_min_separation` (existing), `ep_mean_separation`, `ep_p5_separation`, `ep_p25_separation`
-- `ep_min_ssm_margin_actual`
-- `ep_max_robot_vel`, `ep_mean_robot_vel`
-
-7 new unit tests in `tests/test_episode_safety_metrics.py`.
-
-### C. W&B tagging + Lagrangian episode logging
-
-- `scripts/run_base_curriculum.sh` emits `+wandb.tags=[stage{0,1,2},method=unconstrained,task=${TASK}]` per stage.
-- `train_cqn_as.py::_setup_wandb` forwards `wandb.tags` to `wandb.init(tags=...)`.
-- New `train_cqn_as.py::_lagrangian_payload` emits at episode-end: `episode_lambda` (running λ; only on the Lagrangian agent) + `episode_cost_integral` (Σ c_t — emitted on the unconstrained baseline too).
-- Per-step `_safety_payload` extended to also surface `ssm_margin_actual`, `ssm_violation_actual`, `proximity_violation`, `min_separation`, `robot_vel`, `human_vel`.
-
-### D. Local JSON dumps + per-eval safety aggregation (added 2026-05-26)
-
-Two additions for offline analysis + W&B-downtime resilience:
-
-- **`<run_dir>/metrics.jsonl`** — streaming, one JSON object per `_log` call. All four ty's (`train`, `episode`, `safety`, `eval`) interleave. Load with `pandas.read_json(..., lines=True)`.
-- **`<run_dir>/final_metrics.json`** — written at end of `train()`. Carries the headline numbers: `config`, `last_train_episode`, `last_episode_safety`, `last_eval`, and `best_eval` (max-prefer for success / reward; min-prefer for safety axes).
-- **Per-eval safety aggregation** — `eval()` now collects `info["episode_safety"]` per eval episode and emits the means (`eval/ep_proximity_violation_rate`, `eval/ep_ssm_violation_actual_rate`, `eval/ep_min_separation`, …) alongside `eval/success_rate` and `eval/episode_reward`. Previously only the reward/success axes landed in `eval/*`.
-
-4 new unit tests in `tests/test_metrics_dump.py` (385 passed total).
-
-### Test/baseline shifts
-
-Full suite now 385 passed / 39 skipped (was 364 / 20). Hydra compose check
-confirms `env.safety.proximity_threshold` reaches `SSMConfig` end-to-end.
-
-### Deliberately deferred
-
-- PFL contact-detection bug — still open; `pfl_*` fields stay zero in practice. Schema is forward-compatible so a future fix retrofits for free.
-- `Q_c` calibration scatter plot — post-training one-off, no live-logging change needed.
-- W&B dashboard / panel UI work.
-- Velocity-adaptive PFL force limits — ISO table is tabulated; only the contact-force measurement is broken.
-
----
-
-## TL;DR — three structural changes (status as of 2026-05-25)
+## TL;DR — six structural changes (status as of 2026-05-27)
 
 | Change | Status of corresponding code | Status of corresponding writing |
 |---|---|---|
 | **(1) Single COWORKER disruption** | DONE (3 trajectory modes, 5 param axes, train/eval factories, 19 tests) | Documented |
-| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation deferred to E3.6. | Documented as the target architecture; value-based equations |
+| **(2) DrQ-V2+ → CQN-AS** | DONE — vendored + smoke-green (A6) + merged to main (A8). E1.4 ablation folded into Phase 3 eval (E3.6). | Documented as the target architecture; value-based equations |
 | **(3) Workspace reward shaping** | DONE — `SafetyConfig.add_workspace_penalty` wired through factory + `_reward()` (P3.0a). β-sweep (E3.X.workspace) still pending. | Documented as a method subsection + experiment E3.X.workspace |
+| **(4) G1 humanoid as COWORKER stand-in** | DONE 2026-05-27 (on `retryg1`) — `env.human_model=g1` dispatch, parallel `G1HumanController` / `G1HumanIK` / `g1_human_spec.py`, generated `g1_human_body.xml`, real Unitree STL visuals. Verification curriculum run pending. | New writeup at [g1_coworker_swap.md](g1_coworker_swap.md) |
+| **(5) Three-flavour safety metrics** | DONE 2026-05-27 — `info["safety"]` emits `ssm_violation` / `ssm_violation_actual` / `proximity_violation` plus margins, observed velocities, threshold echo. `EpisodeSafetyMetrics` emits the full thesis `ep_*` schema. `train_cqn_as` writes `metrics.jsonl` + `final_metrics.json`, forwards W&B tags, aggregates eval `info["episode_safety"]`. | [safety_metrics.md](safety_metrics.md) is the schema spec; now load-bearing in code. |
+| **(6) Stage 2 disruption tighten** | DONE 2026-05-27 — `coworker_train.yaml` knobs reset so the arm reliably reaches into the robot's workspace (~87 % proximity-violation rate in smoke vs 13-24 % previously). | Documented in [g1_coworker_swap.md](g1_coworker_swap.md) and the Workstream S2 entry in IMPLEMENTATION_STATUS. |
 
-All three structural changes are now implemented. **G1 base-curriculum bisection complete (2026-05-25):** the operating config is `MASK_PIXELS=1 + WORKSPACE_PENALTY=1` (both now defaults in `scripts/run_base_curriculum.sh`). Stage 0 cleared the gate on `saucepan_to_hob` at `ep_reward = -5.8`. Visual axis (RGB encoder feeding the actor + critic) is intentionally muted on G1 — the bisection couldn't recover the CNN's task-feature extraction with the G1 humanoid in frame, and the matched Lagrangian P3.1 A/B holds under any input config as long as both sides use the same one. See [IMPLEMENTATION_STATUS](IMPLEMENTATION_STATUS.md) "Next session" for the stage 1 → stage 2 → P3.1 launch sequence.
-
-### G1 base-curriculum bisection (2026-05-22 → 2026-05-25)
-
-Six failed G1 stage-0 attempts after the G1 merge (`9add427`) revealed that
-the CQN-AS CNN encoder couldn't extract task features from RGB with the G1
-humanoid visible. The bisection ruled out:
-
-- **Visual appearance (color):** G1 mesh recolor to skin-tone (`0.90/0.78/0.65` materials in `g1_human_body.xml`, `MATERIAL_RECOLOR` in `scripts/build_g1_human_body.py`). Didn't help. Tests pin the values: `tests/test_g1_safety_tracking.py::test_g1_materials_recolored_to_skin_tone`.
-- **Floor contacts:** SMPL-H's pelvis was welded to world (weldid=0) so its floor contacts were filtered by `mjOPT_FILTERPARENT`; G1's feet are not. Added `SafetyConfig.disable_human_floor_collision` + threading + `DISABLE_FLOOR_COLLISION=1` toggle on the curriculum script. Tests cover the filter behaviour. Didn't help.
-
-The fix that worked: zero `rgb_obs` at the env_adapter boundary
-(`mask_pixels=true`), keeping the encoder architecture identical
-(`num_views=3`) but feeding the CNN uniform zeros. Confirmed end-to-end:
-`ep_reward = -5.8` beats the pre-G1 SMPL-H baseline's `-7.2` best at the
-same anchor. Side wins from this work:
-
-- **`train_cqn_as.py::_log` regression fix** — per-update metrics (`q_critic_loss`, `bc_fosd_loss`, `bc_margin_loss`, `batch_reward`) were being silently swallowed because `len(TensorDict)` returns the batch-size first dim (0 for our empty-batch metric TDs), not the key count. Replaced with `list(metrics.items())`. Regression test: `tests/test_cqn_as_log_metrics.py` (4 tests).
-- **`scripts/diagnose_g1_camera_visibility.py`** — Renders the policy head/wrist cams (separate from `env.render()`'s third-person view) so we can see what the CNN sees.
-- **`scripts/diagnose_human_pos_channel_mismatch.py`** — Compares demo (AMASS-injected) vs live G1 `human_pos_estimate` distributions side by side. Quantified the demo↔live channel gap (y-mean 3.2m, 22x std ratio) which existed for SMPL-H too — confirming the channel mismatch was not the cause.
+The remaining Phase-3 work is the Lagrangian glue (P3.1: λ PID + dual-Q `argmax_a [Q_r − λ·Q_c]` + Q_c training-loop integration); the immediate gate is the next G1 base curriculum run (see IMPLEMENTATION_STATUS "Next session — start here").
 
 ---
 
@@ -189,7 +101,12 @@ same anchor. Side wins from this work:
 
 ---
 
-## Things you may need to redo
+## Historical redo list from 2026-05-15
+
+The table below is preserved as the plan-rewrite snapshot. It is **not** the
+current action list: Phase 2 dataset regen is complete, the standalone Phase
+1.4 gate was folded into Phase 3 E3.6, and the ACT snapshot refresh has already
+fed the SVF/CQN-AS workstreams.
 
 | Item | Why | Priority |
 |---|---|---|
@@ -206,7 +123,11 @@ same anchor. Side wins from this work:
 
 ---
 
-## Things to do next (ordered)
+## Historical "things to do next" from 2026-05-15
+
+Use [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for the live next
+action. The sequence below records the original rewrite plan and is retained
+only for traceability.
 
 ### P0 — Gate everything else
 
@@ -272,13 +193,15 @@ The old `A` / `B-mean` / `B-CVaR` names refer to the actor-critic variants that 
 
 | Axis | Train | Eval | Hydra key |
 |---|---|---|---|
-| Closest-approach distance | 0.9–1.4 m | 0.6–1.8 m | `coworker_closest_approach_range` |
-| Reach period | 4.5–6.5 s | 3.0–9.0 s | `coworker_reach_period_range` |
-| P(reach EE) | 0.4–0.6 | 0.1–0.9 | `coworker_target_mix_p_ee_range` |
-| NEAR dwell | 7–11 s | 4–16 s | `coworker_near_loiter_range` |
+| Closest-approach distance | 0.55–0.85 m | 0.6–1.8 m | `coworker_closest_approach_range` |
+| Reach period | 3.0–5.0 s | 3.0–9.0 s | `coworker_reach_period_range` |
+| P(reach EE) | 0.55–0.85 | 0.1–0.9 | `coworker_target_mix_p_ee_range` |
+| NEAR dwell | 12–18 s | 4–16 s | `coworker_near_loiter_range` |
 | Walk speed | 1.0–1.6 m/s | 0.6–2.2 m/s | `coworker_walk_speed_range` |
 
-Factories: `make_coworker_train_space()` / `make_coworker_eval_space()`. Hydra presets: `cfgs/disruptions/coworker_{train,eval}.yaml`.
+The train band above is the tightened 2026-05-27 stage-2 distribution. It is intentionally more aggressive than the original moderate band, so the eval band is no longer a clean strict superset on every endpoint. Report OOD by parameter bins when needed.
+
+Factories: `make_coworker_train_space()` / `make_coworker_eval_space()`. Hydra presets: `cfgs/disruption/coworker_{train,eval}.yaml`.
 
 Trajectory modes (sampled uniformly per episode): `STATIONARY`, `APPROACH_LOITER_DEPART`, `COWORKER_PATROL`.
 

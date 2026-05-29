@@ -135,16 +135,33 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 floating_base=True,
             )
 
-        # The coworker is a G1 humanoid driven by scripted trajectories — no
-        # AMASS motion clips. These remain as (empty) config knobs only for
-        # backward compatibility with old YAMLs that still set them.
-        motion_clip_dir = cfg.env.get("motion_clip_dir", None)
-        motion_clip_paths = list(cfg.env.get("motion_clip_paths", []))
+        # Human config from Hydra config
+        human_model = cfg.env.get("human_model", "smplh")
+        smplh_motion = cfg.env.get("smplh_motion", "amass")
+        if human_model == "g1" or (
+            human_model == "smplh" and smplh_motion == "procedural"
+        ):
+            # No AMASS clip playback at runtime.
+            motion_clip_dir = None
+            motion_clip_paths = []
+        else:
+            motion_clip_dir = cfg.env.get(
+                "motion_clip_dir", os.environ.get("AMASS_DATA_DIR")
+            )
+            motion_clip_paths = list(cfg.env.get("motion_clip_paths", [
+                "74/74_01_poses.npz",
+                "74/74_02_poses.npz",
+                "09/09_01_poses.npz",
+                "09/09_03_poses.npz",
+                "122/122_04_poses.npz",
+            ]))
         inject_human = cfg.env.get("inject_human", True)
 
         human_config = HumanConfig(
             motion_clip_dir=motion_clip_dir,
             motion_clip_paths=motion_clip_paths,
+            human_model=human_model,
+            smplh_motion=smplh_motion,
         )
 
         # Read reward-shaping fields from cfg.env.safety; defaults preserve
@@ -227,6 +244,11 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 value = disruptions_cfg.get(range_field, None)
                 if value is not None:
                     param_space_kwargs[range_field] = tuple(value)
+            traj_weights = disruptions_cfg.get("coworker_trajectory_weights", None)
+            if traj_weights is not None:
+                param_space_kwargs["coworker_trajectory_weights"] = {
+                    str(k): float(v) for k, v in traj_weights.items()
+                }
 
         # Optional eval knob: force every episode to use one disruption type.
         # Used by baseline_sweep.py to evaluate a trained DP against each

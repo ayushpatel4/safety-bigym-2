@@ -33,6 +33,12 @@
 #   STAGE0_FRAMES=60000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
 #       scripts/run_base_curriculum.sh             # override per-stage budgets
 #
+# Auto RUN_TAG (when unset): base_<human>_<frames>_<YYYYMMDD_HHMMSS>
+#   e.g. base_smplh_proc_30k_30k_40k_20260528_153045
+# Manual RUN_TAG=... also gets _<YYYYMMDD_HHMMSS> appended unless already present.
+#
+#   RUN_TAG=my_label scripts/run_base_curriculum.sh
+#
 #   # Resume ONLY stage 2 (e.g. after a machine crash) — skips stages 0/1 and
 #   # restarts stage 2 from the newest snapshot it can find. Point RESUME_DIR at
 #   # the prior run dir; the resumed run writes to <RESUME_DIR>/stage2_full_resume.
@@ -44,100 +50,29 @@
 
 set -euo pipefail
 
-if [[ -z "${AMASS_DATA_DIR:-}" ]]; then
-  echo "ERROR: export AMASS_DATA_DIR before running (see CLAUDE.md)." >&2
+# HUMAN_MODEL selects which humanoid plays the coworker role.
+#   smplh (default): AMASS-driven SMPL-H human (requires AMASS_DATA_DIR unless
+#                    SMPLH_MOTION=procedural).
+#   g1            : Unitree G1 standing-pose mannequin (no AMASS). Asset is
+#                   strategy α (skin-toned _col capsules only, commit 2683b67).
+HUMAN_MODEL="${HUMAN_MODEL:-smplh}"
+SMPLH_MOTION="${SMPLH_MOTION:-amass}"
+case "${HUMAN_MODEL}" in
+  smplh|g1) ;;
+  *) echo "ERROR: HUMAN_MODEL must be 'smplh' or 'g1', got '${HUMAN_MODEL}'" >&2; exit 1 ;;
+esac
+case "${SMPLH_MOTION}" in
+  amass|procedural) ;;
+  *) echo "ERROR: SMPLH_MOTION must be 'amass' or 'procedural', got '${SMPLH_MOTION}'" >&2; exit 1 ;;
+esac
+
+if [[ "${HUMAN_MODEL}" == "smplh" && "${SMPLH_MOTION}" == "amass" && -z "${AMASS_DATA_DIR:-}" ]]; then
+  echo "ERROR: export AMASS_DATA_DIR before running smplh+amass curriculum (see CLAUDE.md)." >&2
   exit 1
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
-
-RUN_TAG="${RUN_TAG:-base_curriculum_$(date +%Y%m%d_%H%M%S)}"
-OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
-mkdir -p "${OUTDIR}"
-
-# Task selector (2026-05-25). The curriculum has been validated on
-# `saucepan_to_hob` (the anchor task). Use `TASK=<name>` to point at any other
-# yaml under cfgs/env/safety_bigym/ — e.g. `TASK=wall_cupboard_close` to
-# confirm generality of the G1 operating config across tasks.
-TASK="${TASK:-saucepan_to_hob}"
-
-# Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
-COMMON=(
-  env=safety_bigym/${TASK}
-  bodyslam=oracle
-  num_demos=36
-  agent.v_min=-6.0
-  agent.v_max=2.0
-  agent.atoms=101
-  save_snapshot=true
-  save_video=true
-)
-
-# G1 OPERATING CONFIG (locked 2026-05-25).
-# The G1 base-curriculum bisection (attempts 1–6 over 2026-05-22 → 2026-05-25)
-# established that:
-#   - G1 RGB in the CNN encoder caused the policy to flee the workspace
-#     under any reward signal (workspace shaping ON -> race-to-fail at the
-#     10m fail() boundary, eps collapse to 300; shaping OFF -> long drift,
-#     no task engagement). Recoloring G1 (skin-tone), disabling G1<->floor
-#     contacts, neither closed the gap to the SMPL-H baseline.
-#   - The one G1 stage-0 config that converges to task-attempting behaviour
-#     with stable 800-1000 step episodes is MASK_PIXELS=1 (rgb_obs zeroed to
-#     the agent) + WORKSPACE_PENALTY=1 (bounded shaping pulls the EE back
-#     toward the task centre). At 30k frames it reached ep_reward -5.8,
-#     beating the SMPL-H baseline's -7.2 best on the same anchor.
-# DEFAULTS BELOW are set for that config. Override to 0 if you ever want to
-# revisit the RGB / shaping-off paths. The visual axis being absent is a
-# documented limitation, not a transient toggle — actor + critic are blind
-# to RGB during G1 training, by design.
-#
-# Toggles:
-#   WORKSPACE_PENALTY=1  (default) add_workspace_penalty=true (beta=0.05, cap=1.0)
-#   WORKSPACE_PENALTY=0           add_workspace_penalty=false
-#   MASK_PIXELS=1        (default) env_adapter zeros rgb_obs (encoder shape unchanged)
-#   MASK_PIXELS=0                 rgb_obs passes through (re-enables CNN on G1; degenerate)
-if [[ "${WORKSPACE_PENALTY:-1}" == "1" ]]; then
-  COMMON+=(
-    env.safety.add_workspace_penalty=true
-    env.safety.workspace_beta=0.05
-    env.safety.workspace_excess_cap=1.0
-  )
-else
-  COMMON+=(
-    env.safety.add_workspace_penalty=false
-  )
-fi
-
-if [[ "${MASK_PIXELS:-1}" == "1" ]]; then
-  COMMON+=(
-    mask_pixels=true
-  )
-else
-  COMMON+=(
-    mask_pixels=false
-  )
-fi
-
-# G1 floor-contact bisection toggle (2026-05-24). G1's feet contact the floor
-# every step (SMPL-H's pelvis was welded to world / weldid=0, so its floor
-# contacts were filtered by mjOPT_FILTERPARENT — G1 has no such weld). When
-# DISABLE_FLOOR_COLLISION=1, _configure_collision_bits leaves the floor on
-# its default bit-0 channel so human<->floor pairs become collision-filtered.
-# Tests whether G1 foot-floor contacts inject solver noise that propagates to
-# the robot and causes it to flee the workspace in stage 0.
-# Human<->robot contacts and SSM tracking are unaffected.
-#   DISABLE_FLOOR_COLLISION=0  -> default (G1 feet collide with floor)
-#   DISABLE_FLOOR_COLLISION=1  -> human<->floor contacts filtered out
-if [[ "${DISABLE_FLOOR_COLLISION:-0}" == "1" ]]; then
-  COMMON+=(
-    env.safety.disable_human_floor_collision=true
-  )
-else
-  COMMON+=(
-    env.safety.disable_human_floor_collision=false
-  )
-fi
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   STAGE0_FRAMES="${STAGE0_FRAMES:-2000}"
@@ -148,21 +83,76 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   # (smoke is short; the slowdown is irrelevant here).
   export CUDA_LAUNCH_BLOCKING=1
 else
-  # Stage budgets (2026-05-26 bump): the 2026-05-25 saucepan_to_hob run with
-  # stage0=30k plateaued at success_rate≈0.1-0.2 throughout stage 0 — base
-  # policy wasn't task-competent before stage 1 ramped the disruption.
-  # Doubling stage 0 to 60k gives the policy time to lock in the grasp/place
-  # sequence under the easy distribution before the human approaches.
-  STAGE0_FRAMES="${STAGE0_FRAMES:-60000}"
+  STAGE0_FRAMES="${STAGE0_FRAMES:-30000}"
   STAGE1_FRAMES="${STAGE1_FRAMES:-30000}"
   STAGE2_FRAMES="${STAGE2_FRAMES:-40000}"
   WANDB=(wandb.use=true)
 fi
 
-# Latest snapshot (by mtime) in a stage dir; the final-state save at loop exit
-# is the newest snapshot_<step>.pt.
+# Auto RUN_TAG encodes human variant + stage budgets + launch stamp so exp_local/
+# and W&B names are grep-friendly and unique per invocation.
+_RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
+if [[ -z "${RUN_TAG:-}" ]]; then
+  if [[ "${HUMAN_MODEL}" == "g1" ]]; then
+    _human_tag="g1"
+  elif [[ "${SMPLH_MOTION}" == "procedural" ]]; then
+    _human_tag="smplh_proc"
+  else
+    _human_tag="smplh_amass"
+  fi
+  if [[ "${SMOKE:-0}" == "1" ]]; then
+    _frames_tag="smoke${STAGE0_FRAMES}"
+  else
+    _frames_tag="$(( STAGE0_FRAMES / 1000 ))k_$(( STAGE1_FRAMES / 1000 ))k_$(( STAGE2_FRAMES / 1000 ))k"
+  fi
+  RUN_TAG="base_${_human_tag}_${_frames_tag}_${_RUN_STAMP}"
+elif [[ ! "${RUN_TAG}" =~ _[0-9]{8}_[0-9]{6}$ ]]; then
+  RUN_TAG="${RUN_TAG}_${_RUN_STAMP}"
+fi
+OUTDIR="${OUTDIR:-${REPO_ROOT}/exp_local/cqn_as_base_curriculum/${RUN_TAG}}"
+mkdir -p "${OUTDIR}"
+echo "== RUN_TAG=${RUN_TAG} OUTDIR=${OUTDIR} =="
+
+# Task selector (2026-05-25). The curriculum has been validated on
+# `saucepan_to_hob` (the anchor task). Use `TASK=<name>` to point at any other
+# yaml under cfgs/env/safety_bigym/ — e.g. `TASK=wall_cupboard_close` to
+# confirm generality of the G1 operating config across tasks.
+TASK="${TASK:-saucepan_to_hob}"
+
+# Shared overrides — the reward/support fix (levers 1-3) + cadence/logging.
+COMMON=(
+  env=safety_bigym/saucepan_to_hob
+  "env.human_model=${HUMAN_MODEL}"
+  "env.smplh_motion=${SMPLH_MOTION}"
+  bodyslam=oracle
+  num_demos=36
+  agent.v_min=-6.0
+  agent.v_max=2.0
+  agent.atoms=101
+  save_snapshot=true
+  save_video=true
+)
+
+# Curriculum resume checkpoint. Default matches commit 2683b67 (newest
+# snapshot_*.pt by mtime — typically the final save at num_train_frames).
+# Set CURRICULUM_SNAPSHOT=best to resume from peak eval success_rate
+# (snapshot_best.pt / pick_best_snapshot.py) instead.
 latest_snapshot() {
-  ls -t "$1"/snapshot_*.pt 2>/dev/null | head -1
+  ls -t "$1"/snapshot_*.pt 2>/dev/null | grep -v snapshot_best.pt | head -1
+}
+
+best_snapshot() {
+  local stage_dir="$1"
+  python scripts/pick_best_snapshot.py "${stage_dir}" 2>/dev/null || true
+}
+
+pick_stage_snapshot() {
+  local stage_dir="$1"
+  if [[ "${CURRICULUM_SNAPSHOT:-latest}" == "best" ]]; then
+    best_snapshot "${stage_dir}"
+  else
+    latest_snapshot "${stage_dir}"
+  fi
 }
 
 run_stage() {
@@ -175,31 +165,25 @@ run_stage() {
   echo "== ${name}: disruption=${disruption} frames=${frames} -> ${stage_dir} =="
   local extra=()
   [[ -n "${resume_from}" ]] && extra+=("+snapshot_path=${resume_from}")
-  # W&B run tags grouped by (curriculum stage, method, task) so the thesis
-  # plots — convergence curves per stage, Pareto frontier per method, etc.
-  # — can be filtered with the W&B UI. `stageN` is the canonical stage
-  # axis; `unconstrained` is hard-coded here because the base curriculum
-  # trains the vendored CQN-AS reward critic only (P3.1's Lagrangian
-  # launcher is a separate script that uses `lagrangian` / `hybrid`).
-  #
-  # Tags must NOT contain `=` — Hydra's override grammar treats `=` as the
-  # key-value separator and fails to parse `[stage0,method=foo]`. So we
-  # use flat labels (`unconstrained`, `task-${TASK}`) instead.
-  local stage_tag
-  case "${name}" in
-    stage0*) stage_tag="stage0" ;;
-    stage1*) stage_tag="stage1" ;;
-    stage2*) stage_tag="stage2" ;;
-    *)       stage_tag="${name}" ;;
-  esac
-  local wandb_tags="+wandb.tags=[${stage_tag},unconstrained,task-${TASK}]"
+  # Thesis run-tagging scheme (docs/safety_metrics.md). Hydra's override
+  # grammar reserves `=` and `,` as syntax, so we use `:` as the key/value
+  # separator inside tag strings (W&B accepts any string as a tag).
+  #   tags=[stage<n>, method:<unconstrained|lagrangian|hybrid>,
+  #         task:<name>, human:<smplh|g1>]
+  # `name` is one of `stage0_idle`, `stage1_easy`, `stage2_full` so the
+  # leading prefix becomes the stage tag. METHOD defaults to
+  # `unconstrained`; the Lagrangian launcher overrides this.
+  local stage_tag="${name%%_*}"  # stage0_idle -> stage0
+  local method_tag="${METHOD:-unconstrained}"
+  local task_tag="${TASK_TAG:-saucepan_to_hob}"
+  local wb_tags="+wandb.tags=[${stage_tag},method:${method_tag},task:${task_tag},human:${HUMAN_MODEL}]"
   python train_cqn_as.py \
     "${COMMON[@]}" "${WANDB[@]}" \
     "disruption=${disruption}" \
     num_train_frames="${frames}" \
     "hydra.run.dir=${stage_dir}" \
     "wandb.name=${RUN_TAG}_${name}" \
-    "${wandb_tags}" \
+    "${wb_tags}" \
     "${extra[@]}"
 }
 
@@ -211,13 +195,17 @@ if [[ "${RESUME_STAGE2:-0}" == "1" ]]; then
   fi
   OUTDIR="${RESUME_DIR}"
   RUN_TAG="${RUN_TAG:-$(basename "${OUTDIR}")}"
-  # Explicit snapshot wins; else newest from a prior stage-2 (resume or not),
-  # else fall back to stage 1's final snapshot.
+  # Explicit snapshot wins; else best from a prior stage-2 dir (crash resume),
+  # else best from stage 1.
   SNAP="${RESUME_SNAPSHOT:-}"
   if [[ -z "${SNAP}" ]]; then
-    SNAP="$(ls -t "${OUTDIR}"/stage2_full*/snapshot_*.pt 2>/dev/null | head -1)"
+    for d in "${OUTDIR}"/stage2_full*; do
+      [[ -d "${d}" ]] || continue
+      SNAP="$(pick_stage_snapshot "${d}")"
+      [[ -n "${SNAP}" ]] && break
+    done
   fi
-  [[ -z "${SNAP}" ]] && SNAP="$(latest_snapshot "${OUTDIR}/stage1_easy")"
+  [[ -z "${SNAP}" ]] && SNAP="$(pick_stage_snapshot "${OUTDIR}/stage1_easy")"
   if [[ -z "${SNAP}" ]]; then
     echo "ERROR: no snapshot found under ${OUTDIR} (stage2_full*/ or stage1_easy/)." >&2
     exit 1
@@ -233,10 +221,20 @@ fi
 # is the GATE — episode_reward must climb >0 on some episodes with returns inside
 # [-6, 2]. If it fails, the problem is demos/CQN-AS, not safety: stop and reassess.
 run_stage stage0_idle coworker_idle "${STAGE0_FRAMES}"
-SNAP0="$(latest_snapshot "${OUTDIR}/stage0_idle")"
+SNAP0="$(pick_stage_snapshot "${OUTDIR}/stage0_idle")"
+if [[ -z "${SNAP0}" ]]; then
+  echo "ERROR: no snapshot found under ${OUTDIR}/stage0_idle" >&2
+  exit 1
+fi
+echo "== stage 1 resumes from stage-0 snapshot (${CURRICULUM_SNAPSHOT:-latest}): ${SNAP0} =="
 
 run_stage stage1_easy coworker_easy "${STAGE1_FRAMES}" "${SNAP0}"
-SNAP1="$(latest_snapshot "${OUTDIR}/stage1_easy")"
+SNAP1="$(pick_stage_snapshot "${OUTDIR}/stage1_easy")"
+if [[ -z "${SNAP1}" ]]; then
+  echo "ERROR: no snapshot found under ${OUTDIR}/stage1_easy" >&2
+  exit 1
+fi
+echo "== stage 2 resumes from stage-1 snapshot (${CURRICULUM_SNAPSHOT:-latest}): ${SNAP1} =="
 
 run_stage stage2_full coworker_train "${STAGE2_FRAMES}" "${SNAP1}"
 

@@ -11,14 +11,17 @@ filter will face most often, and it's the dominant failure mode the
 hybrid safety critic (`.claude/HYBRID_SAFETY_CRITIC_PLAN.md` Phase 2/3)
 needs robust training coverage on.
 
-Contrast with the six other disruption types — `INCIDENTAL`,
+Contrast with the legacy one-shot disruption types — `INCIDENTAL`,
 `SHARED_GOAL`, `DIRECT`, `OBSTRUCTION`, `RANDOM_PERTURBED`, `CONTACT` —
-which all encode a single intrusion event per episode.
+which all encode a single intrusion event per episode and are no longer the
+primary training/evaluation distribution for the Hybrid Safety Critic.
 
 ## Three spawn / trajectory modes
 
-For COWORKER scenarios the sampler picks uniformly among three trajectory
-types ([scenario_sampler.py:_select_trajectory_type](../safety_bigym/scenarios/scenario_sampler.py)):
+For COWORKER scenarios the sampler picks among three trajectory types
+([scenario_sampler.py:_select_trajectory_type](../safety_bigym/scenarios/scenario_sampler.py)).
+**Training** (`coworker_train`) weights patrol heavily (~80%); **eval**
+and the generic `ParameterSpace` default remain uniform unless overridden:
 
 | Trajectory | What the human does | When the arm reaches |
 | --- | --- | --- |
@@ -106,17 +109,19 @@ generalisation experiments:
 
 | Knob | ParameterSpace field | Train (moderate) | Eval (wider) |
 | --- | --- | --- | --- |
-| Closest-approach distance | `coworker_closest_approach_range` | `0.9 – 1.4 m` | `0.6 – 1.8 m` |
-| Reach period *(= 1 / frequency)* | `coworker_reach_period_range` | `4.5 – 6.5 s` | `3.0 – 9.0 s` |
-| P(reach EE) *(vs task obj)* | `coworker_target_mix_p_ee_range` | `0.4 – 0.6` | `0.1 – 0.9` |
-| Dwell time at NEAR | `coworker_near_loiter_range` | `7 – 11 s` | `4 – 16 s` |
-| Walk speed | `coworker_walk_speed_range` | `1.0 – 1.6 m/s` | `0.6 – 2.2 m/s` |
+| Closest-approach distance | `coworker_closest_approach_range` | `0.55 – 0.85 m` | `0.6 – 1.8 m` |
+| Reach period *(= 1 / frequency)* | `coworker_reach_period_range` | `3.0 – 5.0 s` | `3.0 – 9.0 s` |
+| P(reach EE) *(vs task obj)* | `coworker_target_mix_p_ee_range` | `0.55 – 0.85` | `0.1 – 0.9` |
+| Dwell time at NEAR | `coworker_near_loiter_range` | `12 – 18 s` | `4 – 16 s` |
+| Walk speed | `coworker_walk_speed_range` | `0.8 – 1.3 m/s` | `0.6 – 2.2 m/s` |
+| Patrol trajectory weight | `coworker_trajectory_weights.COWORKER_PATROL` | **8** (vs 1 each for other modes → ~80 % patrol) | uniform (1:1:1) |
 
-The eval range is a strict superset of the train range on every axis,
-so eval rollouts probe both in-distribution and out-of-distribution
-conditions. The test suite (`test_coworker_eval_is_strict_superset_of_train`,
-`test_eval_space_samples_outside_train_ranges`) enforces this invariant
-and verifies ≥10% of eval samples per axis land OOD.
+The train band was tightened on 2026-05-27 so stage 2 reliably brings the
+human's active arm into the robot workspace. The 0.55 m closest-approach floor
+is the smallest body distance that keeps the mocap pelvis capsule clear of the
+robot pelvis collision. Eval remains the broader stress distribution; where the
+train band reaches the eval boundary, OOD analysis should be reported by
+parameter bins rather than assuming every axis is a strict superset with margin.
 
 ### Python API
 
@@ -155,11 +160,11 @@ per-axis:
 
 ```
 python train_safety.py \\
-    env.disruptions.coworker_closest_approach_range='[0.9, 1.4]' \\
-    env.disruptions.coworker_reach_period_range='[4.5, 6.5]' \\
-    env.disruptions.coworker_target_mix_p_ee_range='[0.4, 0.6]' \\
-    env.disruptions.coworker_near_loiter_range='[7.0, 11.0]' \\
-    env.disruptions.coworker_walk_speed_range='[1.0, 1.6]'
+    env.disruptions.coworker_closest_approach_range='[0.55, 0.85]' \\
+    env.disruptions.coworker_reach_period_range='[3.0, 5.0]' \\
+    env.disruptions.coworker_target_mix_p_ee_range='[0.55, 0.85]' \\
+    env.disruptions.coworker_near_loiter_range='[12.0, 18.0]' \\
+    env.disruptions.coworker_walk_speed_range='[0.8, 1.3]'
 ```
 
 The factory ([safety_bigym_factory.py](../safety_bigym/envs/safety_bigym_factory.py))

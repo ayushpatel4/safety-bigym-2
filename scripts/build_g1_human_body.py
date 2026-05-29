@@ -1,211 +1,350 @@
-"""Generate ``assets/g1_human_body.xml`` from the vendored mujoco_menagerie
-Unitree G1 model (``assets/g1/g1.xml``).
+"""Derive ``assets/g1_human_body.xml`` from upstream ``assets/g1/g1.xml``.
 
-The output is a drop-in replacement for ``smplh_human_body.xml`` that slots
-into ``SafetyBiGymEnv``'s injection contract:
+The output is the merge-into-world fragment loaded by ``SafetyBiGymEnv``
+when ``human_model == "g1"``. The script is deterministic and idempotent:
+re-running on the same upstream input produces a byte-identical output.
 
-* the ``pelvis`` root is converted from a ``<freejoint>`` to ``mocap="true"``
-  so the trajectory planner can teleport it via ``data.mocap_pos/quat``;
-* every collision geom is given a unique name ending in ``_col`` and a
-  non-zero contype/conaffinity (so ``_configure_collision_bits`` re-homes it
-  onto the cross-paired human<->robot channel rather than skipping it);
-* visual geoms keep ``contype=0 conaffinity=0`` so they never collide;
-* each position actuator is renamed ``act_<joint>`` so ``PDController`` (which
-  filters on the ``act_`` prefix) drives it;
-* mesh/material names are prefixed ``g1_`` to avoid colliding with BiGym scene
-  asset names when merged;
-* ``<compiler meshdir="g1/assets">`` stays *relative* so the committed file is
-  portable; ``SafetyBiGymEnv._create_merged_world`` rewrites mesh paths to
-  absolute at merge time.
+Transformations applied:
 
-Run from the repo root: ``python scripts/build_g1_human_body.py``.
+1. Rename root body ``pelvis`` → ``Pelvis``, drop the ``childclass="g1"``
+   attribute, replace ``<freejoint>`` with ``mocap="true"``, set
+   ``pos="0 0 0"`` (the controller writes runtime position to mocap_pos).
+2. **Keep** every ``class="visual"`` geom so the silhouette remains a
+   real G1, but remap all visual geoms to one matte skin-toned material.
+   This preserves the robot shape while reducing the high-contrast
+   black/metal visual shift that can destabilise the pixel encoder. Strip
+   the upstream ``class="collision"`` mesh geoms and ``class="foot"``
+   proxies — they are replaced by the hand-authored ``_col`` capsule
+   primitives.
+3. **Keep** the ``<asset>`` block (mesh refs are needed by the visual
+   geoms). Rewrite each ``<mesh file="...">`` to a path relative to the
+   output XML; ``SafetyBiGymEnv._create_merged_world`` absolutises those
+   paths when copying the asset block into the temp merged XML.
+4. Strip the upstream ``<keyframe>`` (it referenced the now-removed
+   freejoint) and the upstream ``<actuator>`` / ``<sensor>`` blocks.
+   Regenerate ``<actuator>`` with one ``class="position_actuator"``
+   entry per body joint in ``g1_human_spec.BODY_JOINT_NAMES``.
+5. Insert ``<default>`` blocks for ``human`` / ``human_collision`` /
+   ``position_actuator`` matching ``assets/smplh_human_body.xml`` so the
+   existing env wrappers (collision-bits, PFL geom suffix) work unchanged.
+   Also declare ``g1_matte_skin``, a low-specular material used by every
+   visual mesh geom.
+6. Stamp ``class="human"`` on every joint so they inherit human damping /
+   armature defaults.
+7. Insert hand-authored collision capsules on the chosen carrier bodies,
+   each named ``<Region>_col`` so ``ISO15066Wrapper`` and
+   ``_configure_collision_bits`` find them by suffix.
+
+Trade-off: mesh shape still introduces more visual detail than the all-capsule
+strategy α, but the material is deliberately low-contrast to keep the pixel
+distribution closer to the SMPL-H baseline. The collision capsules use the
+connected layout from the successful capsule trial, but are hidden from render.
+
+Run from the repo root:
+    cd safety_bigym && python scripts/build_g1_human_body.py
 """
 
 from __future__ import annotations
 
-import copy
+import sys
 from pathlib import Path
 
 from lxml import etree
 
-ASSETS = Path(__file__).resolve().parent.parent / "safety_bigym" / "assets"
-SRC = ASSETS / "g1" / "g1.xml"
-OUT = ASSETS / "g1_human_body.xml"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+UPSTREAM_PATH = REPO_ROOT / "safety_bigym" / "assets" / "g1" / "g1.xml"
+OUTPUT_PATH = REPO_ROOT / "safety_bigym" / "assets" / "g1_human_body.xml"
 
-# ISO-region-friendly collision geom names keyed by the source mesh name.
-# Non-mesh collision geoms (shoulder cylinders, foot spheres) are named after
-# their parent body. Names must end in "_col".
-MESH_COL_NAME = {
-    "pelvis_contour_link": "pelvis",
-    "torso_link": "torso",
-    "logo_link": "torso_logo",
-    "head_link": "head",
-}
+# Load the spec module directly to avoid triggering ``safety_bigym.human``'s
+# transitive imports (mujoco/mojo) at build time.
+import importlib.util  # noqa: E402
 
-# Material recolor (2026-05-24). The vendored Unitree mujoco_menagerie model
-# renders the G1 as dark/metallic (`black` rgba 0.2/0.2/0.2, `metal` rgba
-# 0.7/0.7/0.7). On the saucepan_to_hob G1 base-curriculum the high-contrast
-# dark silhouette disrupted the CQN-AS CNN encoder enough to break task
-# learning (robot retreated from workspace); MASK_PIXELS=1 confirmed the CNN
-# was in the failure path. Recoloring to warm skin-tones moves G1 closer to
-# the kitchen-background distribution the CNN learned from coworker-free
-# demos, so it can extract task features without the encoder being dominated
-# by the G1 blob. Keyed by ORIGINAL menagerie material name (the script
-# prefixes ``g1_`` after the recolor map is applied).
-MATERIAL_RECOLOR = {
-    "black": "0.90 0.78 0.65 1",   # warm light skin (was 0.2 0.2 0.2)
-    "metal": "0.78 0.66 0.55 1",   # slightly darker accent (was 0.7 0.7 0.7)
-}
+_SPEC_PATH = REPO_ROOT / "safety_bigym" / "human" / "g1_human_spec.py"
+_spec = importlib.util.spec_from_file_location("g1_human_spec", _SPEC_PATH)
+g1_human_spec = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(g1_human_spec)
+BODY_JOINT_NAMES = g1_human_spec.BODY_JOINT_NAMES
+VISUAL_MATERIAL_NAME = "g1_matte_skin"
 
 
-def _strip_ns(tag: str) -> str:
-    return tag.rsplit("}", 1)[-1]
+# (carrier_body, geom_name, geom_attrs) — appended in document order on the
+# matching body. Sizes / fromto coords are body-LOCAL.
+COLLISION_CAPSULES: list[tuple[str, str, dict[str, str]]] = [
+    # Root + trunk (mocap-driven). Vertical pelvis reaches hip-joint level.
+    ("Pelvis", "Pelvis_col", {"fromto": "0 0 0.02  0 0 -0.10", "size": "0.10"}),
+    ("waist_yaw_link", "Spine_col", {"fromto": "0 0 0  0 0 0.10", "size": "0.08"}),
+    ("torso_link", "Chest_col", {"fromto": "0 0 0.05  0 0 0.30", "size": "0.13"}),
+    ("torso_link", "Head_col", {"pos": "0 0 0.48", "size": "0.10", "type": "sphere"}),
+
+    # Hip bridges — pelvis blob to thigh.
+    ("left_hip_pitch_link", "L_Hip_col",
+     {"fromto": "0 0 0.02  0 0 -0.08", "size": "0.075"}),
+    ("right_hip_pitch_link", "R_Hip_col",
+     {"fromto": "0 0 0.02  0 0 -0.08", "size": "0.075"}),
+
+    # Legs.
+    ("left_hip_yaw_link", "L_Thigh_col",
+     {"fromto": "0 0 0  -0.078 0.002 -0.177", "size": "0.075"}),
+    ("left_knee_link", "L_Shin_col",
+     {"fromto": "0 0 0  0 0 -0.30", "size": "0.06"}),
+    ("left_ankle_roll_link", "L_Foot_col",
+     {"fromto": "-0.04 0 -0.025  0.12 0 -0.025", "size": "0.04"}),
+    ("right_hip_yaw_link", "R_Thigh_col",
+     {"fromto": "0 0 0  -0.078 -0.002 -0.177", "size": "0.075"}),
+    ("right_knee_link", "R_Shin_col",
+     {"fromto": "0 0 0  0 0 -0.30", "size": "0.06"}),
+    ("right_ankle_roll_link", "R_Foot_col",
+     {"fromto": "-0.04 0 -0.025  0.12 0 -0.025", "size": "0.04"}),
+
+    # Clavicle bridges — chest to shoulder_pitch origin.
+    ("torso_link", "L_Thorax_col",
+     {"fromto": "0 0.00 0.28  0.004 0.10 0.248", "size": "0.065"}),
+    ("torso_link", "R_Thorax_col",
+     {"fromto": "0 0.00 0.28  0.004 -0.10 0.248", "size": "0.065"}),
+
+    # Arms — upper-arm capsule on shoulder_yaw_link tracks pitch/roll/yaw.
+    ("left_shoulder_yaw_link", "L_Shoulder_col",
+     {"fromto": "0 0 0.04  0.016 0 -0.081", "size": "0.055"}),
+    ("left_elbow_link", "L_Elbow_col",
+     {"fromto": "0 0 0  0.10 0 -0.01", "size": "0.045"}),
+    ("left_wrist_roll_link", "L_Wrist_col",
+     {"fromto": "0 0 0  0.084 0 0", "size": "0.035"}),
+    ("left_wrist_yaw_link", "L_Hand_col",
+     {"fromto": "0 0 0  0.09 0 0", "size": "0.040"}),
+    ("right_shoulder_yaw_link", "R_Shoulder_col",
+     {"fromto": "0 0 0.04  0.016 0 -0.081", "size": "0.055"}),
+    ("right_elbow_link", "R_Elbow_col",
+     {"fromto": "0 0 0  0.10 0 -0.01", "size": "0.045"}),
+    ("right_wrist_roll_link", "R_Wrist_col",
+     {"fromto": "0 0 0  0.084 0 0", "size": "0.035"}),
+    ("right_wrist_yaw_link", "R_Hand_col",
+     {"fromto": "0 0 0  0.09 0 0", "size": "0.040"}),
+]
 
 
-def main() -> None:
-    parser = etree.XMLParser(remove_blank_text=True)
-    tree = etree.parse(str(SRC), parser)
-    root = tree.getroot()
-    root.set("model", "g1_human_body")
+def build_defaults() -> etree._Element:
+    """Default classes the merged-into-world XML needs.
 
-    # --- compiler: keep meshdir relative to the assets dir ---------------
-    compiler = root.find("compiler")
-    if compiler is None:
-        compiler = etree.SubElement(root, "compiler")
-    compiler.set("angle", "radian")
-    compiler.set("meshdir", "g1/assets")
+    Three from the SMPL-H contract (``human`` / ``human_collision`` /
+    ``position_actuator``) plus an upstream-G1 ``visual`` class so the
+    kept mesh geoms render with the right group / contact bits / texture.
+    """
+    defaults = etree.Element("default")
 
-    # --- drop runtime-only blocks we don't want in the merged world ------
-    for tag in ("option", "sensor", "keyframe"):
-        el = root.find(tag)
-        if el is not None:
-            root.remove(el)
+    human = etree.SubElement(defaults, "default", {"class": "human"})
+    etree.SubElement(human, "joint", {"damping": "50", "armature": "0.01"})
+    etree.SubElement(human, "geom", {
+        "type": "capsule", "condim": "3",
+        "friction": "1 0.5 0.001", "density": "1000",
+    })
 
-    # --- prefix mesh + material names; record rename maps ----------------
-    asset = root.find("asset")
-    mesh_rename: dict[str, str] = {}
-    mat_rename: dict[str, str] = {}
-    for m in asset.findall("mesh"):
-        # derive the implicit name from file when no explicit name is set
-        name = m.get("name")
-        if name is None:
-            name = Path(m.get("file")).stem
-            m.set("name", name)
-        new = f"g1_{name}"
-        mesh_rename[name] = new
-        m.set("name", new)
-    for mat in asset.findall("material"):
-        name = mat.get("name")
-        # Recolor BEFORE prefixing so the lookup key matches the vendored
-        # menagerie name (see MATERIAL_RECOLOR for the why).
-        if name in MATERIAL_RECOLOR:
-            mat.set("rgba", MATERIAL_RECOLOR[name])
-        new = f"g1_{name}"
-        mat_rename[name] = new
-        mat.set("name", new)
+    coll = etree.SubElement(defaults, "default", {"class": "human_collision"})
+    etree.SubElement(coll, "geom", {
+        "type": "capsule",
+        "solref": "0.02 1.0", "solimp": "0.9 0.95 0.001",
+        # Collision capsules stay invisible (group 3) — render is now
+        # carried by the upstream G1 visual meshes. We still need the
+        # capsules for SSM / PFL / collision-channel wiring, but we
+        # don't want them showing up over the rendered mesh.
+        "group": "3", "contype": "2", "conaffinity": "4",
+        "rgba": "0.8 0.6 0.5 0.0",
+    })
 
-    # --- defaults: force non-zero collision bits, keep visual at 0/0 -----
-    # Find the nested <default class="collision"><geom .../> and set bits.
-    for d in root.iter("default"):
-        if d.get("class") == "collision":
-            g = d.find("geom")
-            if g is not None:
-                g.set("contype", "2")
-                g.set("conaffinity", "4")
-                g.set("group", "0")
-        # The menagerie position actuator uses dampratio/inheritrange, which
-        # require MuJoCo >= 3.2. Rewrite to explicit kp/kv so the model loads
-        # on the pinned 3.1.x runtime. PD is done by the position actuator
-        # internally (PDController only writes ctrl=target).
-        if d.get("class") == "g1":
-            pos = d.find("position")
-            if pos is not None:
-                for attr in ("dampratio", "inheritrange"):
-                    if attr in pos.attrib:
-                        del pos.attrib[attr]
-                pos.set("kp", "500")
-                pos.set("kv", "50")
+    pos = etree.SubElement(defaults, "default", {"class": "position_actuator"})
+    etree.SubElement(pos, "position", {"kp": "200", "kv": "20"})
 
-    # --- rewrite mesh/material references inside <default> geoms ----------
-    # (body-geom refs are rewritten in the worldbody pass below, which also
-    # needs the *original* mesh name to build _col names.)
-    default_root = root.find("default")
-    if default_root is not None:
-        for g in default_root.iter("geom"):
-            mesh = g.get("mesh")
-            if mesh in mesh_rename:
-                g.set("mesh", mesh_rename[mesh])
-            mat = g.get("material")
-            if mat in mat_rename:
-                g.set("material", mat_rename[mat])
+    # Keep the real G1 mesh silhouette but make the render closer to the
+    # SMPL-H training distribution: low-contrast, matte, skin-toned, and no
+    # black/metal material split for the CNN encoder to latch onto.
+    vis = etree.SubElement(defaults, "default", {"class": "visual"})
+    etree.SubElement(vis, "geom", {
+        "group": "2", "type": "mesh",
+        "contype": "0", "conaffinity": "0",
+        "density": "0", "material": VISUAL_MATERIAL_NAME,
+    })
 
-    worldbody = root.find("worldbody")
+    return defaults
 
-    # --- pelvis: freejoint -> mocap --------------------------------------
-    pelvis = worldbody.find(".//body[@name='pelvis']")
-    fj = pelvis.find("freejoint")
-    if fj is not None:
-        pelvis.remove(fj)
-    pelvis.set("mocap", "true")
-    # mocap bodies are positioned at the world origin by the controller; the
-    # source pos="0 0 0.793" is irrelevant once mocap-driven, so zero it.
+
+def build_asset_block(upstream_root: etree._Element) -> etree._Element:
+    """Copy the upstream ``<asset>`` block with mesh paths rewritten as
+    paths **relative to** the output ``g1_human_body.xml`` location.
+
+    The output XML lives at ``safety_bigym/assets/g1_human_body.xml`` and
+    the upstream STL files live at ``safety_bigym/assets/g1/assets/*.STL``,
+    so the relative reference is ``g1/assets/<file>``. The env's
+    ``_create_merged_world`` resolves these to absolute paths at runtime
+    (because the merged-into-world XML is written to a temp dir where the
+    relative path would otherwise break). This keeps the checked-in XML
+    portable across machines (no absolute paths baked in).
+    """
+    upstream_asset = upstream_root.find("asset")
+    if upstream_asset is None:
+        return etree.Element("asset")
+
+    out = etree.Element("asset")
+    etree.SubElement(out, "material", {
+        "name": VISUAL_MATERIAL_NAME,
+        "rgba": "0.75 0.58 0.50 1",
+        "specular": "0.05",
+        "shininess": "0.05",
+        "reflectance": "0",
+    })
+
+    for child in upstream_asset:
+        clone = etree.fromstring(etree.tostring(child))
+        if clone.tag == "mesh":
+            file_attr = clone.get("file")
+            if file_attr is not None:
+                # Upstream g1.xml uses ``meshdir="assets"`` so file paths are
+                # bare filenames. The output XML lives one directory above,
+                # so prefix ``g1/assets/`` to get a path relative to the
+                # output XML's parent.
+                clone.set("file", f"g1/assets/{file_attr}")
+        out.append(clone)
+    return out
+
+
+def normalize_visual_materials(body: etree._Element) -> None:
+    """Assign every kept visual mesh the same low-contrast matte material."""
+    for geom in body.findall("geom"):
+        if geom.get("class") == "visual":
+            geom.set("material", VISUAL_MATERIAL_NAME)
+    for child in body.findall("body"):
+        normalize_visual_materials(child)
+
+
+def transform_pelvis(pelvis: etree._Element) -> None:
+    """In-place: rename body, drop childclass, replace freejoint with mocap."""
+    pelvis.set("name", "Pelvis")
     pelvis.set("pos", "0 0 0")
+    pelvis.set("mocap", "true")
+    if "childclass" in pelvis.attrib:
+        del pelvis.attrib["childclass"]
 
-    # --- walk every geom: rename refs, name + bit collision geoms --------
-    col_counts: dict[str, int] = {}
-    for body in worldbody.iter("body"):
-        bname = body.get("name")
-        for g in body.findall("geom"):
-            cls = g.get("class")
-            mesh = g.get("mesh")
-            if mesh in mesh_rename:
-                g.set("mesh", mesh_rename[mesh])
-            mat = g.get("material")
-            if mat in mat_rename:
-                g.set("material", mat_rename[mat])
+    # Remove freejoint child (mocap bodies don't have qpos).
+    for fj in list(pelvis.findall("freejoint")):
+        pelvis.remove(fj)
 
-            is_collision = cls in ("collision", "foot")
-            if not is_collision:
-                continue
 
-            # Build a stable, unique, region-friendly name ending in _col.
-            if mesh is not None:
-                stem = mesh  # original mesh name (pre-prefix lookup)
-                base = MESH_COL_NAME.get(stem, stem)
-            else:
-                base = bname
-            key = f"{base}_col"
-            n = col_counts.get(key, 0)
-            col_counts[key] = n + 1
-            g.set("name", key if n == 0 else f"{key}{n}")
+def strip_collision_geoms_and_sites(body: etree._Element) -> None:
+    """Remove only the upstream collision/foot geoms and all sites.
 
-    # --- actuators: rename to act_<joint> --------------------------------
-    actuator = root.find("actuator")
-    for pos in actuator.findall("position"):
-        joint = pos.get("joint")
-        pos.set("name", f"act_{joint}")
+    Visual mesh geoms are kept so the rendered G1 looks like the real
+    robot. Collision is supplied by hand-authored ``_col`` capsules added
+    later by :func:`insert_collision_capsules`. Sites are stripped because
+    the upstream IMU sites have no role in safety_bigym (and the upstream
+    ``<sensor>`` block they fed is dropped).
+    """
+    for geom in list(body.findall("geom")):
+        cls = geom.get("class")
+        if cls in ("collision", "foot"):
+            body.remove(geom)
+    for site in list(body.findall("site")):
+        body.remove(site)
+    for child in body.findall("body"):
+        strip_collision_geoms_and_sites(child)
 
-    # --- header comment --------------------------------------------------
-    header = etree.Comment(
-        " AUTOGENERATED by scripts/build_g1_human_body.py from assets/g1/g1.xml. "
-        "Do not edit by hand; edit the generator and regenerate. "
-        "Drop-in for smplh_human_body.xml: mocap pelvis, act_<joint> actuators, "
-        "*_col collision geoms on the cross-paired human<->robot channel. "
+
+def stamp_joint_class(body: etree._Element) -> None:
+    """Set class='human' on every <joint> in the body subtree."""
+    for joint in body.findall("joint"):
+        joint.set("class", "human")
+    for child in body.findall("body"):
+        stamp_joint_class(child)
+
+
+def insert_collision_capsules(pelvis: etree._Element) -> None:
+    """Walk the body tree, append the configured _col geom on each carrier."""
+    by_name: dict[str, etree._Element] = {}
+
+    def collect(b: etree._Element) -> None:
+        name = b.get("name")
+        if name:
+            by_name[name] = b
+        for child in b.findall("body"):
+            collect(child)
+
+    collect(pelvis)
+
+    for carrier_name, geom_name, attrs in COLLISION_CAPSULES:
+        body = by_name.get(carrier_name)
+        if body is None:
+            raise RuntimeError(
+                f"build_g1_human_body: carrier body '{carrier_name}' "
+                f"not found in upstream g1.xml — capsule '{geom_name}' "
+                "cannot be placed."
+            )
+        attrib = {"name": geom_name, "class": "human_collision"}
+        attrib.update(attrs)
+        geom = etree.Element("geom", attrib)
+        body.append(geom)
+
+
+def build_actuator_block() -> etree._Element:
+    """One <position class='position_actuator'> per body joint."""
+    actuator = etree.Element("actuator")
+    for joint_name in BODY_JOINT_NAMES:
+        etree.SubElement(actuator, "position", {
+            "name": f"act_{joint_name}",
+            "joint": joint_name,
+            "class": "position_actuator",
+        })
+    return actuator
+
+
+def build() -> str:
+    upstream = etree.parse(str(UPSTREAM_PATH))
+    root = upstream.getroot()
+
+    # Rebuild root with the model name we want and our minimal structure.
+    new_root = etree.Element("mujoco", {"model": "g1_human_body"})
+
+    new_root.append(build_defaults())
+    new_root.append(build_asset_block(root))
+
+    # Worldbody: keep the upstream body tree (including visual mesh geoms),
+    # transform the pelvis, strip only collision proxies + sites.
+    new_world = etree.SubElement(new_root, "worldbody")
+    upstream_world = root.find("worldbody")
+    if upstream_world is None:
+        raise RuntimeError("Upstream g1.xml has no <worldbody>")
+
+    pelvis = upstream_world.find("body[@name='pelvis']")
+    if pelvis is None:
+        raise RuntimeError("Upstream g1.xml has no body named 'pelvis'")
+
+    transform_pelvis(pelvis)
+    strip_collision_geoms_and_sites(pelvis)
+    normalize_visual_materials(pelvis)
+    stamp_joint_class(pelvis)
+    insert_collision_capsules(pelvis)
+
+    new_world.append(pelvis)
+
+    new_root.append(build_actuator_block())
+
+    serialized = etree.tostring(
+        new_root, pretty_print=True, xml_declaration=True, encoding="utf-8"
     )
-    root.insert(0, header)
+    return serialized.decode("utf-8")
 
-    OUT.write_bytes(
-        etree.tostring(root, pretty_print=True, xml_declaration=True, encoding="utf-8")
-    )
 
-    # --- report ----------------------------------------------------------
-    col_names = sorted(col_counts)
-    print(f"wrote {OUT}")
-    print(f"{len(col_names)} distinct _col geom names:")
-    for c in col_names:
-        suffix = f" (x{col_counts[c]})" if col_counts[c] > 1 else ""
-        print(f"  {c}{suffix}")
+def main() -> int:
+    if not UPSTREAM_PATH.exists():
+        print(f"ERROR: upstream g1.xml not found at {UPSTREAM_PATH}", file=sys.stderr)
+        print(
+            "Run: cd safety_bigym && "
+            "git checkout safety-critic/g1-coworker -- safety_bigym/assets/g1/",
+            file=sys.stderr,
+        )
+        return 1
+
+    xml = build()
+    OUTPUT_PATH.write_text(xml)
+    print(f"Wrote {OUTPUT_PATH} ({len(xml)} bytes)")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

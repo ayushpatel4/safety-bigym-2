@@ -81,6 +81,7 @@ class CoworkerArmController:
         scenario: ScenarioParams,
         rng: np.random.Generator,
         rest_qpos: Optional[np.ndarray] = None,
+        ik_solver: Optional[object] = None,
     ):
         self.model = model
         self.data = data
@@ -94,7 +95,10 @@ class CoworkerArmController:
             )
         self.cfg: DisruptionConfig = cfg
 
-        self.ik_solver = HumanIK(model, data)
+        # Accept any IK solver that exposes ``HumanIK``'s interface
+        # (``solve``, ``chains``, ``_chain_cache``, ``_ik_data``). The SMPL-H
+        # ``HumanIK`` is the default; ``G1HumanIK`` is duck-compatible.
+        self.ik_solver = ik_solver if ik_solver is not None else HumanIK(model, data)
 
         if rest_qpos is None:
             # Build a natural arms-down standing pose by IK-solving each
@@ -132,8 +136,10 @@ class CoworkerArmController:
         self._max_reach_dist: float = 0.75
 
         # Cache the active arm's shoulder body id so the reach gate can
-        # query world position cheaply each step.
-        shoulder_name = g1_spec.ARM_CHAINS[self._active_arm()]["shoulder_body"]
+        # query world position cheaply each step. Name comes from the IK
+        # solver's chain definition so SMPL-H and G1 (with different body
+        # naming) work without dispatch here.
+        shoulder_name = self.ik_solver.chains[self._active_arm()]["shoulder_body"]
         self._active_shoulder_bid = int(
             mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, shoulder_name)
         )
@@ -301,7 +307,7 @@ class CoworkerArmController:
         # hip/thigh level on the same side, which is what "arm hanging
         # at the side" looks like.
         for chain in ("right_arm", "left_arm"):
-            shoulder_name = g1_spec.ARM_CHAINS[chain]["shoulder_body"]
+            shoulder_name = self.ik_solver.chains[chain]["shoulder_body"]
             sid = mujoco.mj_name2id(
                 self.model, mujoco.mjtObj.mjOBJ_BODY, shoulder_name
             )

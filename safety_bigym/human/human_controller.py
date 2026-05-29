@@ -203,9 +203,36 @@ class HumanController:
             qpos buffer with the standing body-joint angles set, and root_pose
             is a (7,) array [x, y, z, qw, qx, qy, qz] for data.mocap_pos/quat.
         """
-        targets = self._standing_pose.copy()
-        root_pose = self._root_pose.copy()
+        if self.clip is None:
+            # Standing pose fallback. If a trajectory planner is set,
+            # still drive the pelvis from the planner (XY/yaw) so the
+            # human visits the loiter waypoint even without an AMASS
+            # clip — matches G1HumanController behaviour. Z stays at
+            # the current mocap Z (no clip to source it from).
+            targets = self._standing_pose.copy()
+            root_pose = self._root_pose.copy()
+            if self._mocap_id >= 0:
+                root_pose[0:3] = self.data.mocap_pos[self._mocap_id]
+                root_pose[3:7] = self.data.mocap_quat[self._mocap_id]
+            if self._trajectory_planner is not None:
+                px, py, plan_yaw, _phase = self._trajectory_planner.get_pose(t)
+                root_pose[0] = px
+                root_pose[1] = py
+                root_pose[3:7] = self._quat_from_yaw(plan_yaw)
+            return targets, root_pose
 
+        # Apply speed multiplier
+        speed = self.scenario.speed_multiplier if self.scenario else 1.0
+        frame_idx = self.clip.get_time_frame(t * speed)
+
+        # Get motion data
+        joint_angles, root_trans, root_quat = self.clip.get_frame(frame_idx)
+
+        # Build target qpos for body joints (root not in qpos any more)
+        targets = self.data.qpos.copy()
+        root_pose = np.empty(7)
+
+        # --- Root position and orientation ---
         if self._trajectory_planner is not None:
             px, py, plan_yaw, _phase = self._trajectory_planner.get_pose(t)
             root_pose[0] = px

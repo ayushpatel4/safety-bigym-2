@@ -1,111 +1,80 @@
 # Implementation Status — Hybrid Safety Critic
 
-Last updated: 2026-05-26
-Active branch: `safety-critic/phase-3-constrained-rl` (G1 base curriculum stage 0 unblocked; thesis safety/task metrics expanded 2026-05-26)
+Last updated: 2026-05-27
+Active branch: `retryg1` (forked off `main`; carries G1 coworker swap + 3-flavour safety metrics + stage-2 tighten — not yet committed/pushed)
 Plan: [.claude/UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
 Initial-phase plan: [/Users/ayushpatel/.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md](../../.claude/plans/claude-updated-project-plan-md-is-the-n-precious-bunny.md)
 Changes log: [.claude/CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md)
 Phase 3 orientation: [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md) (goal, what's done/left, contingencies, scope)
 P3.1 handoff: [PHASE3_1_HANDOFF.md](PHASE3_1_HANDOFF.md) (paste-ready prompt for the Lagrangian-glue coding session)
 Phase 2 writeup: [phase2_results.md](phase2_results.md) (implementation + B5 results + B5.5 plan)
-Safety metrics reference: [safety_metrics.md](safety_metrics.md) (which number means what, for thesis-reporting)
-
----
-
-## SSM-semantics change — read before reading old W&B runs (2026-05-26)
-
-**`info["safety"]["ssm_violation"]` is now the conservative ISO 15066
-worst-case bound** (uses `v_h = v_h_max = 1.6 m/s` always). Previously it
-used the observed (capped) human velocity, which is closer to the new
-`ssm_violation_actual`. Two new flags sit alongside:
-
-- `ssm_violation_actual` — ISO 15066 with the **observed** human velocity
-  (typically fires less often than `ssm_violation`).
-- `proximity_violation` — pure geometric `min_separation < proximity_threshold`
-  (default 0.5 m, matches Phase 2 SVF labelling). **The canonical "actually
-  too close" metric — use this as the thesis's primary safety axis.**
-
-Per-episode aggregates also expanded: `ep_proximity_violation_rate`,
-`ep_ssm_violation_actual_rate`, `ep_time_in_proximity_{0p3,0p5,1p0}m`,
-separation quantiles (`p5`, `p25`, mean), and robot-velocity diagnostics
-(`ep_max_robot_vel`, `ep_mean_robot_vel`). W&B run-tag plumbing (per
-curriculum stage / method / task) lives in
-[scripts/run_base_curriculum.sh](../scripts/run_base_curriculum.sh) and
-[train_cqn_as.py](../train_cqn_as.py) (passed through `wandb.init(tags=...)`).
-The Lagrangian episode-end payload adds `episode_lambda` +
-`episode_cost_integral` for the Pareto plot.
-
-Each run now also writes:
-
-- `<hydra.run.dir>/metrics.jsonl` — streaming one-row-per-`_log` trace (all `train`/`episode`/`safety`/`eval` ty's interleaved).
-- `<hydra.run.dir>/final_metrics.json` — headline summary at end-of-training (`config`, `last_*`, `best_eval` of success/reward/safety axes).
-
-`eval()` now also aggregates `info["episode_safety"]` across the eval
-episodes, so `eval/ep_proximity_violation_rate` / `eval/ep_min_separation` /
-`eval/ep_ssm_violation_actual_rate` etc. land in W&B and `metrics.jsonl`
-paired with `eval/success_rate` — the per-eval row of the thesis Pareto plot.
-
-Full reference: [safety_metrics.md](safety_metrics.md). The PFL bug
-remains: `pfl_*` fields are still identically zero (deferred as a thesis
-limitation).
-
-Test baseline: 385 passed / 39 skipped (up from 364 / 20).
+Safety-metrics schema: [safety_metrics.md](safety_metrics.md) (per-step + per-episode + JSON dump contract — now fully implemented)
+G1 swap (this branch): [g1_coworker_swap.md](g1_coworker_swap.md) (design + verification + curriculum hand-off)
 
 ---
 
 ## Next session — start here
 
-**G1 base curriculum stage 0 unblocked (2026-05-25).** After six failed attempts since the G1 swap, the working operating config is **`MASK_PIXELS=1 + WORKSPACE_PENALTY=1`**: the env_adapter zeroes `rgb_obs` after building it (encoder shape unchanged at `num_views=3`, but the CNN sees no task signal in RGB) and the bounded workspace penalty (β=0.05, cap=1.0) pulls the EE back toward the task centre. Stage 0 (30k, `coworker_idle`) reached `episode_reward = -5.8` at step 15871 — **beats** the SMPL-H baseline's -7.2 best on the same anchor — and episode lengths stayed 900–1000 throughout. Videos show consistent task attempts. Working snapshot: `exp_local/cqn_as_base_curriculum/base_curriculum_20260524_232353/stage0_idle/snapshot_30000.pt`.
+**The SMPL-H base curriculum on saucepan_to_hob finished cleanly on 2026-05-27 (run dir `exp_local/cqn_as_base_curriculum/base_curriculum_20260527_015253`).** Stage 1 hit `success=1.0` by step ~11k; stage 2 stayed at 0.8-1.0 throughout. The branch has since landed three structural changes (G1 swap, three-flavour safety metrics, tighter stage 2) and is ready to run with `HUMAN_MODEL=g1`.
 
-**Documented limitation (G1 only):** the CQN-AS actor + critic train **without RGB** on G1. The full bisection (workspace shaping bounded by C51 support, G1 mesh recolor to skin-tone, G1↔floor contact disable) couldn't recover the CNN's task-feature extraction with the G1 humanoid visible in RGB — under shaping ON the policy raced the pelvis past the 10m `fail()` boundary to minimise accrued penalty; under shaping OFF it drifted without task engagement. `MASK_PIXELS=1` is the only config that converged. RGB recovery is deferred (out of scope for the Lagrangian P3.1 comparison; the matched A/B holds under any input config as long as both sides use the same one). See `g1-base-curriculum-degenerate` memory for the bisection log.
+### 🟢 Closed today (2026-05-27)
 
-### Do this first — chain stage 1 → stage 2 on the new G1 base
+1. **G1 humanoid swap landed** on `retryg1` as a fresh implementation (the previous `safety-critic/g1-coworker` attempt is NOT a reference — user instructed clean retry). G1 lives behind `env.human_model=g1` (default stays `smplh`). Parallel classes `G1HumanController` / `G1HumanIK` mirror the SMPL-H interface; SMPL-H code path is byte-untouched. Initial design used skin-toned collision capsules (strategy α); per supervisor feedback the asset now renders with the upstream Unitree STL meshes (real-robot appearance). Asset-merge gap closed (`_create_merged_world` now copies `<asset>` blocks and absolutises mesh paths). Full design + verification: [g1_coworker_swap.md](g1_coworker_swap.md). 23 G1-specific tests + `test_collision_groups` parametrized over both human models.
+2. **Three-flavour safety metrics implemented** (the doc [safety_metrics.md](safety_metrics.md) was prescriptive until today; now in code). `info["safety"]` emits `ssm_violation` / `ssm_violation_actual` / `proximity_violation` plus margins, observed velocities, and `proximity_threshold` echo. `EpisodeSafetyMetrics` now emits the full thesis-grade `ep_*` schema (proximity dwell at 0.3/0.5/1.0 m, separation min/mean/p5/p25, robot-vel max/mean, both SSM-margin troughs, etc.). `train_cqn_as` now writes `metrics.jsonl` (streaming) + `final_metrics.json` (headline + `best_eval`), forwards `wandb.tags` to W&B init, and emits `episode_cost_integral` every episode-end (+ `episode_lambda` when the agent exposes `_lambda` for P3.1). Eval cycles aggregate `info["episode_safety"]` across rollouts into `eval/ep_*`. 8 new tests in `test_safety_metrics_three_flavours.py`.
+3. **Stage 2 disruption tightened** (`cfgs/disruption/coworker_train.yaml`): `closest_approach 0.9-1.4 → 0.55-0.85`, `reach_period 4.5-6.5 → 3.0-5.0`, `target_mix_p_ee 0.4-0.6 → 0.55-0.85`, `near_loiter 7-11 → 12-18`. 60-second smoke at 20 Hz now shows the arm reliably cycles extend/hold/retract, proximity_violation_rate ≈ 87 % (G1) / 88 % (SMPL-H), min separation ~0.02 m. Identical params apply to both human models (body-agnostic).
+4. **SMPL-H controller fallback fix.** `HumanController._get_amass_targets` ignored the trajectory planner when `clip is None`, parking the pelvis at spawn. Now the no-clip path uses planner XY/yaw — matches `G1HumanController`. Doesn't affect production (AMASS is loaded there) but fixes smokes / future no-AMASS contingencies.
+
+### 🔴 Do this first — next curriculum run on the GPU box
+
+The previous run finished and the user wants to (a) test the G1 visuals + tighter stage 2, (b) reallocate stage budget per the prev run's signal. Sequence:
+
+```bash
+cd ~/Documents/safety_bigym
+git pull       # or sync the retryg1 branch files manually if not pushed yet
+python scripts/build_g1_human_body.py     # regenerates the merged-XML (paths in checked-in XML are relative; portable)
+venv/bin/python -m pytest tests/test_g1_asset.py tests/test_g1_human_controller.py \
+  tests/test_g1_safety_tracking.py tests/test_safety_metrics_three_flavours.py -q   # sanity (≤5 s)
+
+export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+export AMASS_DATA_DIR=/path/to/CMU/CMU      # required if HUMAN_MODEL=smplh
+HUMAN_MODEL=g1 \
+STAGE0_FRAMES=20000 STAGE1_FRAMES=15000 STAGE2_FRAMES=60000 \
+CUDA_VISIBLE_DEVICES=2 scripts/run_base_curriculum.sh
+```
+
+**Stage-length rationale** (from the 2026-05-27 run analysis, full reasoning under "Notes / 2026-05-27"):
+- **Stage 0 → 20k** (was 30k). Eval reward peaked at ~step 13-15k then degraded to half by step 28k. 20k captures the peak with margin. If new G1 visuals hit the encoder again, kill early and fall back to strategy α (skin-tone capsules — recoverable from the prior commit on this branch).
+- **Stage 1 → 15k** (was 30k). Hit `success=1.0` by step 10909 in the prior run and stayed there. Saves wall-time.
+- **Stage 2 → 60k** (was 40k). New distribution is structurally harder (closest_approach 0.55-0.85 m, proximity-violation rate ≈ 87 % in smoke vs 13-24 % in the prior run). Give it ~50 % more frames to adapt.
+
+Expectations / tripwires:
+- Stage 0 reward dip vs the prior anchor (`-7.2`) is OK as long as it recovers — the G1 visuals are the new variable. Kill if it's still under -10 by step 15k.
+- Stage 2 early reward will drop below the prior `-1.87` (much harder distribution). Don't compare apples-to-apples on the reward axis; track `ep_proximity_violation_rate` and `success_rate` separately.
+
+### After this run — P3.1 still next
+
+P3.1 code (Lagrangian glue) was code-complete + unit-tested on `safety-critic/phase-3-constrained-rl` as of 2026-05-21. Once the G1 base curriculum lands a usable snapshot, the Lagrangian smoke (`agent=cqn_as_lagrangian`) is the next milestone. The `episode_lambda` / `episode_cost_integral` W&B keys are now wired in `train_cqn_as._lagrangian_payload` (cost integral fires on the unconstrained baseline too — useful for "what would λ have been pushing on").
 
 `scripts/run_base_curriculum.sh` defaults are now **`MASK_PIXELS=1` / `WORKSPACE_PENALTY=1`** (locked 2026-05-25). Running with no flags chains all three stages with snapshot resume:
 
-```bash
-export AMASS_DATA_DIR=... MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
-cd safety_bigym && source venv/bin/activate
-scripts/run_base_curriculum.sh                # stages 0 → 1 → 2 chained
-```
+### Historical — Workstream D GPU smokes (superseded by BASE-FIX + 2026-05-27 curriculum)
 
-Or skip stage 0 (we already have a usable snapshot) and run 1 → 2 only — point the chain at the working snapshot via the `RESUME_*` convention or just rerun stage 0 (~1h on swirl):
+`SafetyBiGymCQNAdapter.get_demos()` is implemented; D0/D1/D2/D3a/D3b-smoke are done. The 2000-frame smoke on the GPU box passed cleanly on 2026-05-20 (10 demos loaded, replay filled, train loop clean, ep1 ran the full 1000-step budget — the smoking-gun signal that demos unblock non-degenerate learning). The original 50k validation failed under unbounded β=0.2 and was superseded by the BASE-FIX curriculum below; do not use this block as the next action.
+- **~30–50k-frame validation** with demos + workspace shaping (single bodyslam mode, oracle):
+  ```bash
+  export AMASS_DATA_DIR=/path/to/CMU/CMU MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
+  python train_cqn_as.py env=safety_bigym/saucepan_to_hob disruption=coworker_train \
+    bodyslam=oracle num_demos=10 num_train_frames=50000 \
+    env.safety.add_workspace_penalty=true \
+    wandb.use=true wandb.name=cqn_as_demos_validation_$(date +%s)
+  ```
+  Expect: non-trivial `episode_reward > 0` on some episodes, episode lengths staying long (not collapsing back to 31-step evacuation), and `safety/ssm_violation` rate trending down or stable.
 
-```bash
-# Quickest: rerun the full chain. Stage 0 reproduces in <1.5h, stages 1+2 chain off it.
-scripts/run_base_curriculum.sh
-```
+Historical note: **we are NOT re-running E1.4 (C2)** as a standalone gate — the off/oracle/noisy obs-channel ablation folds into Phase 3 eval (E3.6) (user decision 2026-05-20; see decision log). The snapshot/video cadence is fixed, so any new CQN-AS run saves `snapshot_<step>.pt` every 10k + a final-state save, and `eval_videos/step_*.mp4` per eval cycle.
 
-**Acceptance gates:**
-- **Stage 1 (`coworker_easy`, 30k):** ep_reward should stay roughly in the stage-0 band (-10 to -5) or improve; ep_length 800–1000; videos show task attempts persist with the gentler coworker. If reward drops below -30 or eps collapse to ~300, the curriculum is regressing — stop and reassess.
-- **Stage 2 (`coworker_train`, 40k):** the unconstrained baseline P3.1 must beat. The pre-G1 SMPL-H stage 2 baseline ran -2.4 → -10.5 under full disruption; G1 stage 2 with the new config should reach similar territory.
+### Historical — abandoned C2 re-run path
 
-### Then P3.1 — warm-start from the new G1 stage-1 snapshot
-
-After stage 1 lands, launch P3.1 from its final snapshot (matched comparison vs the eventual G1 stage-2 unconstrained baseline):
-
-```bash
-SNAP1=exp_local/cqn_as_base_curriculum/<run_tag>/stage1_easy/snapshot_30000.pt
-python train_cqn_as.py +snapshot_path=$SNAP1 \
-  agent=cqn_as_lagrangian env=safety_bigym/saucepan_to_hob \
-  disruption=coworker_train bodyslam=oracle num_demos=36 \
-  num_train_frames=40000 mask_pixels=true \
-  env.safety.add_workspace_penalty=true \
-  env.safety.workspace_beta=0.05 env.safety.workspace_excess_cap=1.0 \
-  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
-  save_snapshot=true save_video=true \
-  wandb.use=true wandb.name=p31_warmstart_$(date +%s)
-```
-
-`LagrangianCQNASAgent.load_state_dict` partial-load (commit `225a2db`) handles the no-cost-keys case: reward side restores from the base, `Q_c`+λ stay at fresh init. `mask_pixels=true` is essential — P3.1's encoder must match the base policy's input distribution.
-
-### Stale entries to ignore (superseded by 2026-05-25 result)
-
-- The "merge main (G1) into phase-3" item — done (`9add427`, 2026-05-23).
-- The "30–50k-frame validation with workspace shaping" (Workstream D D3b) — superseded; the G1 base curriculum is the current validation pathway and stage 0 has passed.
-- Anything in Workstreams B/C/D below referencing G1 stage 0 as "blocking" — the gate is now cleared.
-
-### What to do when the re-run C2 cells finish
+This path is kept only to explain the old plan. C2/E1.4 is no longer a standalone gate; the observation-channel ablation now lives in Phase 3 E3.6. Do not wait for these cells before P3.1.
 
 1. **Harvest snapshot paths** from the 3 hydra run dirs:
    ```bash
@@ -210,21 +179,17 @@ Task selection (2026-05-15, user): `reach_target_single` excluded from training/
   - [x] B5.4 **Threshold sweep** — green 2026-05-18 (v2 results in `results/svf_sweep_{task}_v2.csv`). Q distribution centred at ~3.4 with a narrow safe/unsafe gap; cliff between R=3 (10–22% intervention, residual ≈ 0.93) and R=4 (97–99% intervention, residual 3–8%). **Operating point R≈4.0** trades aggressive intervention for a 30× drop in residual violations vs random. Functional as a hard safety gate; tight for an actor-coupled filter.
   - [x] B5.5 **DONE — negative (2026-05-20).** Ran the full v2 pipeline ([`scripts/run_phase2_b55.sh`](../scripts/run_phase2_b55.sh)): snapshot action-denormalization patch landed (in `bed92f7`; tests `tests/test_svf_collect_snapshot_denorm.py`), v2 collected + trained (`checkpoints/svf_coworker_train_v2.pt`, train `q_mean≈2.96`), eval + sweep complete (`results/svf_{eval,sweep}_v2_*.csv`). **Result:** the patch is a correct fix but is NOT the residual lever. At a partial operating point (~30% intervention) v2 residual is ~87% — unchanged from v1's 74–87%. The intervention/residual tradeoff is ~linear up to the ~90% cliff → residual is dominated by the **structural proximity floor** (human-approach-driven; the robot can't prevent it), not snapshot action-subspace narrowness. Hard-gate residual *did* improve (<1% @ R≈3.5 vs v1's 3–8% @ R=4.0). **Next: change the label, not the data** — tighter-τ relabel and/or robot-controllability-aware label, both offline from the v2 shards. Full analysis: [phase2_results.md §7 + §8](phase2_results.md#results-2026-05-20--patch-fired-hypothesis-not-confirmed).
 
-## Workstream C — E1.4 CQN-AS Observation Ablation
+## Workstream C — E1.4 CQN-AS Observation Ablation (folded into Phase 3 E3.6)
 
-**Anchor task: `saucepan_to_hob`** (user decision 2026-05-15). Chosen because the legacy E1.1 side-finding showed oracle improved task success 0.22 → 0.58 while *worsening* SSM violations — the most informative cell to probe whether an RL reward signal redirects the policy to use the human-state channel for safety rather than progress.
+**Current status:** no standalone C2/E1.4 re-run. The demo-free CQN-AS attempt degenerated, and the user decided on 2026-05-20 to fold the off/oracle/noisy observation-channel ablation into Phase 3 eval as E3.6. Keep the notes below as historical context only.
+
+**Anchor task was `saucepan_to_hob`** (user decision 2026-05-15). Chosen because the legacy E1.1 side-finding showed oracle improved task success 0.22 → 0.58 while *worsening* SSM violations — the most informative cell to probe whether an RL reward signal redirects the policy to use the human-state channel for safety rather than progress.
 
 - [x] C1. Sweep script [`scripts/phase1_reward_pilot_cqn_as.py`](../scripts/phase1_reward_pilot_cqn_as.py) — modelled on `phase1_reward_pilot.py` but invokes `train_cqn_as.py`. 3 train cells (`bodyslam=off|oracle|noisy`) × `saucepan_to_hob` × `disruption=coworker_train`, `env.safety.add_violation_penalty=true env.safety.violation_penalty=0.05`, `num_train_frames=200000`, `num_demos=0`. `--smoke` runs a 2000-frame validation on a single cell. `--eval` prints eval commands against `disruption=coworker_eval` (20 episodes × 3 seeds × 3 modes) once SNAPSHOTS at the top of the script are filled in post-train. Blocks on A6 green (smoke gate validates the same composition path).
 - C2 unblocked 2026-05-18 by replay-buffer collate fix + CQNASAgent state_dict + train_cqn_as `+snapshot_path` eager-load. Eval half also unblocked (snapshot loader now functional).
 - ⚠️ **C2's first run (2026-05-18) is DEAD — must be re-run.** All 3 cells trained to ~190k+ but saved **zero snapshots** due to the snapshot-cadence bug (`6e7fdc1`, see notes 2026-05-19). The run dirs have `buffer/` + `train_cqn_as.log` only, no `snapshot_*.pt`. Kill + restart with current `main` (see "Next session — start here"). The restart also picks up `save_video=true` (eval mp4s).
-- [ ] C2.1 Cell `bodyslam=off` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.2 Cell `bodyslam=oracle` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.3 Cell `bodyslam=noisy` × saucepan_to_hob launched + complete *(re-run pending)*
-- [ ] C2.4 Eval on COWORKER eval space (20 episodes × 3 seeds × 3 cells)
-- [ ] C3. Decision recorded → Phase 3 obs config locked
-  - [ ] If channel helps: `bodyslam=noisy` for Phase 3 actor
-  - [ ] If channel doesn't help: `bodyslam=off` for actor (filter consumes channel only)
-  - [ ] If oracle helps, noisy doesn't: `bodyslam=oracle` + noise-model investigation
+- [x] C2/C3 standalone gate cancelled by user decision (2026-05-20).
+- [ ] E3.6 Phase 3 observation-channel ablation remains downstream: `bodyslam=off|oracle|noisy` under the constrained policy.
 
 ## Workstream P3.0 — Phase 3 Scaffolding (DONE, merged PR #9)
 
@@ -280,6 +245,65 @@ Pre-P3.1 gate: D3b-validation failed (above). The fix de-saturates the critic so
 
 **Once the BASE-FIX re-validation confirms non-degenerate learning:** proceed straight to Phase 3 (P3.1) with `bodyslam=oracle` (or noisy) for the actor and fold the off/oracle/noisy channel ablation into Phase 3 eval (E3.6). **We are NOT re-running E1.4 (C2) as a standalone gate** (user decision 2026-05-20 — see decision log).
 
+## Workstream G — G1 coworker swap (2026-05-27, on `retryg1`)
+
+Replace the SMPL-H humanoid with a Unitree G1 acting as the COWORKER. Fresh implementation; the previous `safety-critic/g1-coworker` attempt is explicitly NOT a reference (user decision: a clean retry — the prior version required `MASK_PIXELS=1` to train, capping task-success ceiling). Full design + smoke + verification protocol in [g1_coworker_swap.md](g1_coworker_swap.md).
+
+- [x] **G1 asset** — pulled upstream Unitree G1 (`safety_bigym/assets/g1/g1.xml` + 51 STLs) via path-scoped checkout from the prior branch (asset content is upstream menagerie; not "previous attempt code"). Generated wrapper `safety_bigym/assets/g1_human_body.xml` via new `scripts/build_g1_human_body.py` (idempotent; rerun on upstream refresh). Mesh paths in the checked-in XML are **relative** (`g1/assets/<file>.STL`); `_create_merged_world` absolutises them at load time so the asset is portable across machines.
+- [x] **Visual strategy decision.** Initial cut was strategy α (skin-toned collision-proxy capsules, all visual meshes stripped) — minimises the visual delta the CNN encoder sees vs SMPL-H. Per supervisor feedback ("SMPLH looks poor"), switched to **rendering the upstream G1 STL meshes** — looks like a real G1 robot. Risk: re-introduces the visual delta that produced the prior attempt's encoder regression. Tripwire if it bites the next curriculum: revert to strategy α (one commit back on this branch) or fall back to MASK_PIXELS=1.
+- [x] **Spec module** `safety_bigym/safety_bigym/human/g1_human_spec.py` — single source of truth for joint names (29 hinge joints), standing pose, SSM body list (14), arm chains. Imported by all G1-aware modules so a model change is a one-file edit.
+- [x] **Parallel controllers, SMPL-H code untouched.** `G1HumanController` + `G1HumanIK` mirror the public surface of the SMPL-H classes; env dispatches on `HumanConfig.human_model`. Selected via Hydra (`env.human_model=g1`, default `smplh`) or env-var in `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`).
+- [x] **Env-wrapper plumbing** — `safety_env.py` `_human_body_path` / `_ssm_body_names` / `_init_human_controller` / COWORKER IK-solver dispatch all branch on `human_model`. `_is_robot_geom` unchanged (G1 `_col` geoms are excluded by suffix). `_create_merged_world` now copies the human XML's `<asset>` block (was a silent gap — only mattered once G1 meshes were re-introduced).
+- [x] **PFL region map** — `safety/pfl_limits.py::GEOM_TO_REGION` extended with 8 G1-specific entries (`L/R_Thigh_col`, `L/R_Shin_col`, `L/R_Foot_col`, `L/R_Hand_col`); overlapping anatomical names (`Pelvis_col`, `Head_col`, `Chest_col`, `L/R_Shoulder_col`, `L/R_Elbow_col`, `L/R_Wrist_col`, `Spine_col`) reuse the SMPL-H entries unchanged.
+- [x] **HumanController no-clip fallback bug** uncovered along the way and fixed: when `clip is None` the SMPL-H controller ignored the trajectory planner and parked the pelvis at spawn. Now respects the planner XY/yaw same as `G1HumanController`. No production impact (AMASS always loaded in training) but fixes smokes / contingencies.
+- [x] **CoworkerArmController generalised.** Hard-coded `"R_Shoulder"` / `"L_Shoulder"` literals replaced with `ik_solver.chains[arm]["shoulder_body"]`. Added `shoulder_body` to `HumanIK.chains` for SMPL-H parity. `CoworkerArmController(..., ik_solver=None)` accepts an injected solver; env passes `G1HumanIK(...)` for G1, `None` (defaults to SMPL-H `HumanIK`) otherwise.
+- [x] **Tests** — `tests/test_g1_asset.py` (10), `tests/test_g1_human_controller.py` (5), `tests/test_g1_safety_tracking.py` (3), and `tests/test_collision_groups.py` parametrized over `[smplh, g1]`. Full suite **351 passed, 37 skipped (AMASS-dependent)**, no SMPL-H regressions.
+- [x] **End-to-end smoke** `scripts/g1_coworker_smoke.py` (extended with `--human {g1,smplh}` and `--stage {idle,easy,train,default}` for direct curriculum-band verification). 60-second smoke at 20 Hz on stage `train` confirms both human models cycle the arm reach (`extend → hold → retract → idle`), achieve sub-2 cm min separation, fire `proximity_violation` 86-88 % of steps.
+- [ ] **G1 base curriculum run** (next GPU-box action — see "Next session — start here"). Acceptance: stage-0 best `ep_reward` within ~10 % of SMPL-H anchor (`-7.2`); stages 1/2 reach `success_rate ≥ 0.8`.
+
+## Workstream M — Three-flavour safety metrics (2026-05-27, on `retryg1`)
+
+[docs/safety_metrics.md](safety_metrics.md) was written 2026-05-26 as the thesis-grade schema spec; the live code only emitted single-flavour SSM until today. This workstream made the spec real.
+
+- [x] **`SSMConfig.proximity_threshold`** (default 0.5 m, configurable via Hydra) — matches Phase 2 SVF production label bar.
+- [x] **`SafetyInfo` extended** — `ssm_violation_actual`, `ssm_margin_actual`, `proximity_violation`, `proximity_threshold`, `robot_vel`, `human_vel` added; `to_dict` carries them.
+- [x] **`ISO15066Wrapper._ssm_into`** computes all three flavours per step. Worst-case SSM uses `v_h = v_h_max`; actual SSM uses the env-capped observed velocity; proximity is pure geometric.
+- [x] **`EpisodeSafetyMetrics`** rewritten — emits the full thesis-grade `ep_*` schema:
+  - rates: `ep_ssm_violation_rate`, `ep_ssm_violation_actual_rate`, `ep_proximity_violation_rate`, `ep_pfl_violation_rate`
+  - dwell: `ep_time_in_proximity_{0p3,0p5,1p0}m`
+  - separation distribution: `ep_min_separation`, `ep_mean_separation`, `ep_p5_separation`, `ep_p25_separation`
+  - margin troughs: `ep_min_ssm_margin`, `ep_min_ssm_margin_actual`
+  - robot kinematics: `ep_max_robot_vel`, `ep_mean_robot_vel`
+  - existing: `ep_max_pfl_force_ratio`, `ep_max_contact_force`, `ep_time_to_first_violation`, `ep_region_<region>`
+  - **Compatibility:** legacy steps that omit the new keys still work (defaults are safe).
+- [x] **`train_cqn_as` logging additions.** `_safety_payload` forwards the full new schema. `_lagrangian_payload` returns `episode_cost_integral` (always; accumulator resets at episode boundary) + `episode_lambda` (only when the active agent has `_lambda`, gates P3.1 cleanly). `_setup_wandb` forwards `cfg.wandb.tags` to `wandb.init(tags=...)`. Streaming `metrics.jsonl` (one row per `_log` call) + `final_metrics.json` at end of `train()` (config + `last_train_episode` / `last_episode_safety` / `last_eval` rows + `best_eval` with max-prefer reward/success, min-prefer safety). Eval cycles aggregate `info["episode_safety"]` across `num_eval_episodes` and emit `eval/ep_*` paired with `success_rate`.
+- [x] **Curriculum tag emission** — `scripts/run_base_curriculum.sh` now emits `+wandb.tags=[stage<n>,method:<m>,task:<t>,human:<h>]` per stage. Uses `:` (not `=`) as key/value separator inside tag strings because Hydra's override grammar reserves `=` and `,`.
+- [x] **Tests** — `tests/test_safety_metrics_three_flavours.py` (8): all three flavours in `to_dict`; doc's three failure-mode regimes (robot-fast/human-distant, robot-still/human-inside, both-still-clear); `proximity_threshold` configurable; every new `ep_*` key emitted; backward-compat with steps missing the new fields.
+
+## Workstream S2 — Stage 2 disruption tighten (2026-05-27, on `retryg1`)
+
+[cfgs/disruption/coworker_train.yaml](../cfgs/disruption/coworker_train.yaml) updated so stage 2 brings the human close enough to put the arm in the robot's workspace and force violations (user request after the previous run's stage-2 metrics showed proximity-violation rate stuck at 0.13-0.24).
+
+| Knob | Was | Now | Why |
+|---|---|---|---|
+| `closest_approach_range` | 0.9-1.4 | **0.55-0.85** | Shoulder→EE must clear the 0.75 m reach gate; 0.55 m floor keeps mocap-pelvis capsule clear of robot pelvis (~0.25 m clearance — penetration would generate spurious huge contact forces since the mocap pelvis can't be pushed back). |
+| `reach_period_range` | 4.5-6.5 | **3.0-5.0** | More reach cycles per episode. |
+| `target_mix_p_ee_range` | 0.4-0.6 | **0.55-0.85** | Mostly target the robot EE (vs task object). |
+| `near_loiter_range` | 7-11 | **12-18** | Longer dwell at NEAR. |
+| `walk_speed_range` | 1.0-1.6 | unchanged | |
+
+Smoke verification at 20 Hz × 60 s (both human models):
+
+| Metric | G1 | SMPL-H |
+|---|---|---|
+| arm cycle (extend/hold/retract/idle) | ✓ | ✓ |
+| trajectory: loiter / approach / depart | 1085 / 65 / 50 | 1085 / 65 / 50 (identical, sampler is body-agnostic) |
+| min separation | 0.019 m | 0.016 m |
+| `proximity_violation_rate` | 86.67 % | 87.75 % |
+| `ssm_violation_actual_rate` | 14.50 % | 54.42 % (higher b/c SMPL-H zero-pose has wider envelope) |
+
+Body knobs flow through the same `ScenarioSampler` → `TrajectoryPlanner` → `CoworkerArmController` for both human models, so the tighter band applies identically.
+
 ---
 
 ## Carried-forward bugs (not in scope for this plan)
@@ -314,12 +338,14 @@ Pre-P3.1 gate: D3b-validation failed (above). The fix de-saturates the critic so
 | 2026-05-20 | **P3.1 `Q_c` Bellman backup evaluates the dual policy `a'=argmax[Q_r−λ·Q_c]` (target nets); reward critic untouched** | `Q_c` should estimate cost of the action the deployed constrained policy actually takes. The vendored reward critic keeps its greedy `argmax Q_r` backup (honors the no-edit-`agent.py` rule). λ stays out of every regression target — it only picks the next action — so both Q-nets keep stationary targets. User-confirmed. |
 | 2026-05-20 | **P3.1 `Q_c` gets its own CNN encoder** (not shared with the reward critic) | Cost gradients never corrupt reward features and vice versa; clean decoupled critic. Costs extra memory/compute, accepted. User-confirmed. |
 | 2026-05-20 | **D3b-validation FAILED; fix the reward/critic-support incompatibility + re-validate with a human curriculum before P3.1** | The 50k base run was degenerate (reward −78→−775, robot parks away from task). Diagnosed: the dense workspace penalty's discounted return (`−β(d−r_ws)/(1−γ)` ≈ −20·(d−0.4)) saturates the C51 critic support [−2,+2] — the Bellman-target clamp kills the pull-back gradient. User decision: apply 4 levers — bound the penalty (β 0.2→0.05, `workspace_excess_cap=1.0`), widen support (v_min −6 / v_max +2 / atoms 101), demos 10→36, staged human curriculum (`run_base_curriculum.sh`). Writeup: [phase3_base_validation_findings.md](phase3_base_validation_findings.md). Durable lesson now in CLAUDE.md. |
-| 2026-05-20 | Open B5.5 (v2 SVF dataset with snapshot tanh-denormalization) | B5.3 in-dist eval confirmed v1 critic narrowness even on `coworker_train` (residual 74–87% at 28–34% intervention). B4.2's snapshot-action denormalization caveat (raw tanh output, env silently clips, body-joint actions stay in [-1, 1]) is the most plausible cause. Pipeline scripted at `scripts/run_phase2_b55.sh`; full plan in [phase2_results.md §B5.5](phase2_results.md#7--b55--v2-dataset-with-snapshot-action-denormalization-active). |
+| 2026-05-20 | Open B5.5 (v2 SVF dataset with snapshot tanh-denormalization) | B5.3 in-dist eval confirmed v1 critic narrowness even on `coworker_train` (residual 74–87% at 28–34% intervention). B4.2's snapshot-action denormalization caveat (raw tanh output, env silently clips, body-joint actions stay in [-1, 1]) was the most plausible cause. It later closed negative; see [phase2_results.md §7](phase2_results.md#7-b55--v2-dataset-with-snapshot-action-denormalization-closed-negative). |
 | 2026-05-20 | Phase 2 implementation + experiment writeup lives at `docs/phase2_results.md` | Single canonical Phase 2 doc to land alongside Phase 3 work — captures B1–B5 design decisions, v1 numbers, B5.5 plan, and a B5.3 in-dist table slot the user fills post-collection. Supersedes the partial `docs/phase2_status.md` (kept for the sub-branch/commit table). |
 | 2026-05-20 | B5.5 closed negative — stop chasing the SVF residual with data, change the label | v2 (denormalized snapshot actions) reproduced v1's residual at a partial operating point (~87% @ ~30% intervention). The intervention/residual curve is ~linear to the ~90% cliff → the critic is a clamp-fraction dial, not a discriminative classifier; residual is set by the structural proximity floor (human-approach-driven). Denormalization was still worth landing (hard-gate residual <1% @ R≈3.5). Next lever is offline label work (tighter-τ relabel / robot-controllability-aware label), not a v3 collection. |
-| 2026-05-22 | G1 coworker swap merged to `main` (PR #10) on a sibling branch while phase-3 ran | User-prioritised: switching SMPL-H → Unitree G1 was independent of phase-3 work and the safer change to land first. Side effect: phase-3 branch is now 13 ahead / 2 behind `main` and never pushed; before any P3.1 GPU launch, merge `main` into phase-3 and resolve the 3-file overlap (workspace shaping + G1 env wiring touch the same plumbing). Recorded as a memory + the "Next session — start here" first action. |
-| 2026-05-23 | P3.1 launches with **warm-start from the stage-1 base snapshot** (matched single-variable comparison vs the stage-2 unconstrained baseline) | The 2026-05-22 stage-2 completion gave us the unconstrained baseline at −2.4 → −10.5 under full `coworker_train`. To attribute any P3.1 improvement to the Lagrangian itself (not to a different starting point), warm-start P3.1 from the same checkpoint stage-2 grew out of — the stage-1 snapshot — so the only delta is whether Q_c + λ + dual-Q is active. Required `LagrangianCQNASAgent.load_state_dict` to accept a plain CQN-AS snapshot (no cost-side keys) and leave Q_c + λ at fresh init; landed in commit `225a2db` (Workstream P3.1f). |
-| 2026-05-23 (later) | Re-run the curriculum on G1 before P3.1 — SMPL-H stage-1/2 snapshots are now distribution-shifted | G1 (PR #10) merged into main while phase-3 was on its branch. Post-merge P3.1 smoke (2000 frames, stage-1 SMPL-H warm-start) ran end-to-end but `episode_reward` started at −18.8 vs the SMPL-H stage-2 baseline's −2.4 from identical weights — the only delta is the G1-vs-SMPL-H coworker appearance in the camera views, which the SMPL-H-trained CNN never saw. Continuing would conflate the Lagrangian's effect with the env swap. Cheapest clean A/B: re-run stages 0→1→2 on G1 (~100k frames) to get a G1-native stage-1 anchor + G1-native unconstrained stage-2 baseline, then warm-start P3.1 from the new stage-1. Total ~140k frames vs the alternative of partial re-runs that leave a residual distribution gap. |
+| 2026-05-27 | **Fresh G1 coworker swap on `retryg1`, NOT a port of `safety-critic/g1-coworker`** | Previous attempt (commit `8beb0ec`) trained stably only with `MASK_PIXELS=1`, capping task-success vs RGB-enabled SMPL-H. User instructed clean retry — implementation error in the prior version, don't carry it forward. SMPL-H code path is byte-untouched; G1 lives in parallel classes selected by `env.human_model`. Default stays `smplh` so existing runs are unaffected. |
+| 2026-05-27 | G1 visual strategy: **real Unitree STL meshes**, not skin-tone capsules | Strategy α (capsules) shipped first; supervisor flagged it as visually unconvincing. Switched to upstream meshes — closes the `_create_merged_world` `<asset>`-merge gap to make this work. Accepts the risk of re-introducing the prior attempt's CNN-encoder visual regression; tripwire = stage-0 reward <-10 by step 15k, fallback = revert to α (one commit back). |
+| 2026-05-27 | Stage-2 `coworker_train` tightened to bring the human into the workspace | Previous run's stage 2 had proximity-violation rate 0.13-0.24 — too easy; the arm rarely reached into the robot. Tightened `closest_approach 0.9-1.4 → 0.55-0.85` (and four other knobs). The 0.55 m floor is the smallest body distance that keeps the mocap-pelvis capsule clear of robot pelvis collision (overlap would produce spurious huge contact forces since mocap can't be pushed back). Body-agnostic — applies identically to SMPL-H and G1. |
+| 2026-05-27 | Stage budget reallocation for next run (20k / 15k / 60k) | Previous run analysis: stage 0 peaked ~step 15k then degraded by 28k (curriculum picks up last snapshot, wasting the back half); stage 1 hit `success=1.0` by step 11k and saturated; stage 2 needs more frames for the new harder distribution. Net frames similar; allocation matches signal density. |
+| 2026-05-27 | `safety_metrics.md` schema fully implemented in code | The doc (2026-05-26) was prescriptive; only single-flavour SSM lived in code. Implementing it now is necessary for the curriculum scripts to log the thesis-headline metrics (`ep_proximity_violation_rate`, `eval/ep_*` aggregates, `final_metrics.json`'s `best_eval`). |
 
 ---
 
@@ -327,47 +353,29 @@ Pre-P3.1 gate: D3b-validation failed (above). The fix de-saturates the critic so
 
 _Append as work proceeds. Each note dated. Most-recent first._
 
-### 2026-05-23 (even later, attempt 3) — Workspace shaping fights G1's CNN; disabling for the from-scratch G1 curriculum
-- The from-scratch G1 curriculum (attempt 2, `base_curriculum_20260523_162757`) also degenerated. 22 episodes / ~13.7k frames in: episode 6 reached **−4.26** (close to task success!) but the policy regressed by ep 9 (−48), then locked in to evacuation by ep 18 — consistent ~278-step episodes at reward ~−13.2 (per-step penalty pinned at workspace floor `−β·cap = −0.05`). Eval videos confirmed: early eps attempt the task and miss, later eps just move away.
-- Diagnosis: the bounded workspace penalty (which fixed the SMPL-H demo-less evacuation) **now fights the BC signal on G1**. Demo RGB has no coworker; live RGB has a hard-edged Unitree humanoid that the CNN can't suppress. The policy briefly finds the workspace, knocks the saucepan around (triggering an early-termination terminal), and Q-learning amplifies "early death" as a way to bound the penalty integral.
-- **Decision (user, 2026-05-23):** disable workspace shaping for the G1 curriculum. 36 demos + sparse task reward should attract the policy without the dense penalty's adversarial gradient.
-- **Tooling change:** `scripts/run_base_curriculum.sh` now has a `WORKSPACE_PENALTY` env var (`0` = off, default; `1` = on with `β=0.05, cap=1.0`). Lets us re-enable per-stage later without script edits if stage 2 ever needs it.
-- Degenerate stage-0 dir renamed to `base_curriculum_20260523_162757.DEGEN_workspace_shaping_too_strong`.
-- Outstanding gap surfaced en route: no per-update metrics in the train log (`grep q_critic_loss|bc_loss` returns nothing). The `_log` fix from 2026-05-18 should have made these visible; a regression to triage next session, doesn't block the curriculum.
+### 2026-05-27 — G1 swap + safety-metrics schema + stage-2 tighten
 
-### 2026-05-23 (even later) — Warm-started G1 curriculum degenerated; restarting from scratch (no warm-start)
-- Fired `scripts/run_base_curriculum.sh` against G1 with the SMPL-H stage-1 snapshot still cached as the warm-start anchor (the curriculum script itself doesn't `+snapshot_path` by default — stage 0 was a clean init in practice, but stages 1/2 would have chained off it). At 18k stage-0 frames, reward bottomed at **−43.8** (ep 9) and oscillated in the **−10 to −22** band with no clear upward trend. **Per-step penalty pinned at the workspace-floor (−0.049 ≈ −β·cap)** = policy parked outside the task workspace nearly every step. Episode lengths decayed 1000 → 200-450 (evacuation pattern resurfacing).
-- Killed at 18k. Diagnosis: G1's appearance in the RGB observation is the obstruction. Demos provide no G1-aware RGB anchor (recorded with no coworker), so BC pretraining can't bridge the gap; the CNN learned features tuned to SMPL-H during the prior curriculum, then never re-tuned for G1.
-- **Action (user, 2026-05-23):** restart from fresh CQN-AS init — drop the SMPL-H warm-start entirely. The curriculum script `run_base_curriculum.sh` already operates this way by default (stage 0 takes no `+snapshot_path`; stages 1/2 chain off stage 0's output). G1 features get learned end-to-end from frame 0 instead of grafted onto SMPL-H-shaped weights.
-- Acceptance gate restated for the restart: **stage 0 must reach episode_reward > 0 on at least one episode by 30k frames**. If lengths collapse below ~400 or reward stays in the −20+ band past 10k, kill and reassess.
-- Degenerate stage-0 dir (`base_curriculum_20260523_141718`) renamed to `*.DEGEN_SMPLH_warmstart` to keep `ls -t` honest for the restart.
+**Previous SMPL-H curriculum finished cleanly** at `exp_local/cqn_as_base_curriculum/base_curriculum_20260527_015253`. Eval-curve highlights per stage:
 
-### 2026-05-23 (later) — G1 merge done, P3.1 smoke green but G1 shift breaks matched comparison; re-running curriculum on G1
-- **Merge:** `origin/main` (G1, PR #10) merged into `safety-critic/phase-3-constrained-rl` (commit `9add427`, pushed). `ort` auto-resolved three overlapping files cleanly (`safety_env.py` G1 wiring + phase-3 `_compute_workspace_penalty`; `safety_bigym_factory.py` G1 motion_clip-None default + phase-3 `workspace_excess_cap` threading; `cfgs/env/safety_bigym.yaml` G1 disruption block + phase-3 workspace block). Local: 335 pytests pass, P3.0 dry-smoke green.
-- **Adapter follow-up patch** (commit `548339c`). The G1 yaml zeros `motion_clip_dir`/`motion_clip_paths` because the live coworker is scripted now, but `_inject_human_pos_into_demos` still needs an AMASS provider (demos were recorded without a coworker; bodyslam channel is fabricated). The original `.get(key, default)` fallback was masked when the yaml's value was an explicit `null`. Fixed with `or`-style fallback + canonical 5-clip default (`74/74_01`, `74/74_02`, `09/09_01`, `09/09_03`, `122/122_04`) — the same set the env yaml used pre-G1, so demo treatment is identical to what the stage-1 / stage-2 baselines saw. Live env unaffected (factory still reads `None`/`[]`; G1 path ignores them). 40 adapter tests still green.
-- **P3.1 smoke on GPU (2000 frames):** pipeline GREEN. Warm-start partial-load fired (stage-1 snapshot @ 30000 steps loaded), 36 demos / 29 successful converted, replay built at 12,619 transitions, 3 full episodes at 535 / 581 / 664 steps (no evacuation collapse), agent updating (12 ms/step → 540 ms/step jump at step ~1150 is the Q_c + 101-atoms cost), `snapshot_2000.pt` saved. No CUDA assert (arange offset fix carries into Q_c's C51 projection).
-- **The matched-comparison problem.** Smoke `episode_reward` started at −18.8 vs the SMPL-H stage-2 baseline's −2.4 from the *same* stage-1 weights. The only thing that changed between the two: **the live coworker swapped from SMPL-H to G1** between when the curriculum was trained and now. The stage-1 CNN encoder learned the SMPL-H human's appearance; G1 in the camera views is a real distribution shift it never saw. P3.1 vs stage-2 (SMPL-H baseline) would conflate the Lagrangian's effect with the env swap — not a clean A/B.
-- **Decision (user, 2026-05-23):** re-run the **full curriculum on G1** (stages 0 → 1 → 2, ~100k frames). Stage 1's new G1-trained snapshot becomes the warm-start anchor for P3.1; stage 2's becomes the unconstrained G1 baseline. ~140k frames total wall-clock; matched comparison is restored.
-- **Next sit-down items (post-curriculum):**
-  1. P3.1 40k warm-started from the new G1 stage-1 snapshot.
-  2. Doc the SMPL-H stage-2 baseline as superseded by the G1 stage-2 once it lands.
-  3. Soften the `_check_amass_dir_or_die` gate in `scripts/phase3_p30_smoke.py` — its error message claims AMASS is needed for the live env, which is no longer true post-G1.
+| Stage | Frames | Best `success_rate` (step) | Best `ep_reward` (step) | Final-snapshot `success_rate` |
+|---|---|---|---|---|
+| 0 idle | 30000 | 0.5 (13185) | -10.31 (5185) | 0.1 (28253) — degraded |
+| 1 easy | 30000 | 1.0 (10909) | -1.76 (10909) | 1.0 (28496) |
+| 2 full | 40000 | 1.0 (20002) | -1.85 (20002) | 0.9 (37626) |
 
-### 2026-05-23 — P3.1 warm-start partial-load landed; phase-3 branch needs G1 merge
-- **P3.1f landed** (commit `225a2db` on `safety-critic/phase-3-constrained-rl`). `LagrangianCQNASAgent.load_state_dict` now treats the cost-side keys as optional, so a plain `agent=cqn_as` snapshot can warm-start P3.1 with the reward side restored and `Q_c`+λ at fresh init. New test `test_warm_start_from_plain_cqn_as_snapshot` covers both invariants (reward params match the base; cost params + λ unchanged from fresh init); like the rest of `test_lagrangian_agent.py` it `importorskip`s `tensordict` so it runs on the GPU box. Local pytest: 25 passed, 4 skipped on the P3.1-adjacent suites (`test_lagrangian_pid.py`, `test_dual_q_selection.py`, `test_workspace_shaping.py`, `test_c51_projection_bounds.py`, `test_lagrangian_agent.py`).
-- **Branch ledger.** `safety-critic/phase-3-constrained-rl` is **13 commits ahead and 2 behind** `origin/main` (which now carries the G1 swap, `8beb0ec` + PR #10 merge `85cbb48`). The branch has **never been pushed**. Three files have overlapping edits:
-  - `safety_bigym/envs/safety_env.py` (G1 robot wiring vs phase-3 `_compute_workspace_penalty` + cap)
-  - `safety_bigym/envs/safety_bigym_factory.py` (G1 env construction vs phase-3 `workspace_excess_cap` threading)
-  - `cfgs/env/safety_bigym.yaml` (G1 defaults vs phase-3 `workspace_beta=0.05` + `workspace_excess_cap=1.0`)
-  Merge `origin/main` into phase-3 + re-run `pytest tests/` + `scripts/phase3_p30_smoke.py` before any P3.1 GPU launch. The workspace shaping path reads the EE through `_get_robot_state` (H1's `link_pos["ee"]` fallback); confirm the analogous G1 path before assuming the penalty fires.
-- **What's still parked behind the merge:**
-  1. P3.1e — 2000-frame GPU-box smoke of `agent=cqn_as_lagrangian` warm-started from the stage-1 snapshot.
-  2. The matched 40k P3.1 run vs the stage-2 unconstrained baseline (decision log 2026-05-23).
-  3. Push `safety-critic/phase-3-constrained-rl` + open a PR for review checkpointing.
+Stage-2 `ep_proximity_violation_rate` hovered at 0.07-0.24 throughout — the agent solves the task but doesn't avoid violations (no Lagrangian; that's P3.1's job; and the OLD `coworker_train` was too easy — the human rarely reached into the workspace).
 
-### 2026-05-22 — stage 2 completed, unconstrained baseline characterised
-- Full curriculum stage-2 (`coworker_train`, the real disruption distribution) ran end-to-end after the machine-crash resume. **`episode_reward` started at ≈ −2.4 and degraded to ≈ −10.5; episode length 362–663.** Videos: the robot completes the task in low-disruption windows but misses grasps (cabinet handle, etc.) when the human gets very close, then drifts away from the workspace. Interpretation: task competence is intact; there is no proactive avoidance strategy under the workspace penalty alone — exactly the gap the P3.1 Lagrangian (Q_c + λ + dual-Q) should close. This is the unconstrained baseline the P3.1 run must beat.
-- This established the matched-comparison setup: P3.1 warm-starts from the **stage-1** snapshot (not stage-2), so the single variable between the runs is the Lagrangian itself. Forces the partial-load path landed on 2026-05-23.
+**Three structural changes landed today** on `retryg1` (workstreams G, M, S2 above). Smokes all green; full test suite **351 passed / 37 skipped**. No SMPL-H regressions.
+
+**Key bugfix uncovered along the way (Workstream G):** `HumanController._get_amass_targets` ignored the trajectory planner when `clip is None`. Caused the SMPL-H smoke-without-AMASS to park the pelvis at spawn — explains why an early stage-2 smoke showed SMPL-H separation stuck at ~0.95 m even with tightened knobs. Fixed; SMPL-H now respects the planner the same way G1 does. No production impact (AMASS is always loaded in training).
+
+**Asset-merge gap closed (Workstream G):** `_create_merged_world` didn't copy `<asset>` blocks. Silent under SMPL-H (empty `<asset>`) and under strategy α (no meshes referenced). The minute G1's STL meshes came back, it was load-bearing — `<mesh>` decls had to flow into the merged-into-world XML, with mesh `file=` paths absolutised so MuJoCo finds them after the merge writes to a temp dir.
+
+**Hydra grammar gotcha (Workstream M):** the curriculum tag string `+wandb.tags=[stage0,method=unconstrained,task=...]` from the safety_metrics.md spec **does not parse** — Hydra's override grammar reserves `,` and `=`. Switched to `:` as the key/value separator inside tag strings. W&B accepts any string as a tag.
+
+**Mesh-path portability (Workstream G):** the checked-in `g1_human_body.xml` stores mesh `file=` attributes as paths **relative to the XML's own directory** (`g1/assets/<file>.STL`). `_create_merged_world` absolutises them at load time using `self._human_body_path().resolve().parent`. So the asset is portable across machines (was originally written with absolute Mac paths; reworked when the user ran it on the GPU box at `/home/ap2322/...`).
+
+**G1 base-curriculum run is the next GPU-box action** (full command + tripwires under "Next session — start here"). Re-running the SMPL-H curriculum **with the tighter stage 2** is also worth considering as a control if the user wants apples-to-apples comparison; the tighter band applies to both models.
 
 ### 2026-05-20 (later, post-smoke) — test-rot cleanup + new baseline
 - **Documented 11 failures fixed** (commit `f550a57`): `test_cql_trainer.py` (7) + `test_svf_train_critic_smoke.py` (3) caught up to the B2.8 `write_shard` schema (added per-step `min_separation`/`pfl_force_ratio` kwargs, consistent with `r_safe`); `test_episode_safety_metrics.py` (1) stale "not until done" assertion replaced (the wrapper intentionally emits `episode_safety` every step). Those 3 files: 17 passed.

@@ -1,5 +1,11 @@
 # Phase 2 — GPU Handoff Guide
 
+> **Historical reference.** This handoff predates the completed COWORKER Phase 2
+> dataset/training/eval work and still contains legacy multi-disruption
+> commands. Do not run it as-is. Current Phase 2 results and any remaining
+> offline relabel ideas live in [phase2_results.md](phase2_results.md); live
+> project status lives in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 This guide takes you from the smoke-validated state at end of session to a closed Phase 2 deliverable (non-empty Pareto curve + writeup). It's meant to be followed top-to-bottom on the GPU box (`swirl`).
 
 Plan: [.claude/plans/read-claude-md-and-claude-hybrid-safety-ethereal-hummingbird.md](../.claude/plans/read-claude-md-and-claude-hybrid-safety-ethereal-hummingbird.md)

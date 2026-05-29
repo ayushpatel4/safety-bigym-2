@@ -20,15 +20,11 @@ class SSMConfig:
     C: float = 0.1          # Intrusion distance / uncertainty (meters)
     v_h_max: float = 1.6    # Maximum assumed human velocity (m/s)
 
-    # Geometric proximity threshold (meters). Drives the canonical
-    # `proximity_violation` metric: min_separation < proximity_threshold.
-    # ISO 15066's SSM formula computes a velocity-dependent S_p which, at
-    # kitchen-scale robot speeds under the worst-case v_h_max assumption,
-    # demands ~5 m clearance — clinically over-fires the ssm_violation
-    # metric. Phase 2 SVF dataset labelling already worked around this
-    # geometrically (filters/labeling.py uses min_separation < 0.5m); this
-    # field promotes the geometric check to a first-class live metric so
-    # the thesis can report a "robot was too close to the human" rate.
+    # Geometric proximity bar for the thesis-primary `proximity_violation`
+    # axis (docs/safety_metrics.md). 0.5 m matches the Phase 2 SVF
+    # production label (`filters/labeling.py`). ISO `S_p` over-fires at
+    # kitchen-scale robot velocities; geometric distance is the defensible
+    # "actually too close" number.
     proximity_threshold: float = 0.5
 
     def compute_separation_distance(
@@ -135,10 +131,35 @@ class HumanConfig:
     # Controller settings
     pd_kp: float = 200.0  # Position gain
     pd_kd: float = 20.0   # Derivative gain
-    
+
+    # Which humanoid model plays the coworker role. "smplh" (default) loads
+    # the SMPL-H AMASS-driven human; "g1" loads the Unitree G1 standing-pose
+    # mannequin with procedural arm IK. AMASS fields above are ignored when
+    # human_model == "g1".
+    human_model: str = "smplh"
+    # SMPL-H motion source when human_model == "smplh":
+    #   "amass"       — AMASS clip playback + trajectory planner (default)
+    #   "procedural"  — fixed standing pose + planner + COWORKER IK (G1-style)
+    smplh_motion: str = "amass"
+    # G1 mocap pelvis height (m). Tuned to put the G1 trunk roughly where
+    # SMPL-H's AMASS standing pelvis lands.
+    g1_standing_pelvis_z: float = 0.95
+    # Procedural SMPL-H pelvis height (m). Used when smplh_motion=procedural.
+    smplh_standing_pelvis_z: float = 1.0
+
     def __post_init__(self):
         if self.motion_clip_dir is not None:
             self.motion_clip_dir = Path(self.motion_clip_dir)
+        if self.human_model not in ("smplh", "g1"):
+            raise ValueError(
+                f"HumanConfig.human_model must be 'smplh' or 'g1', "
+                f"got {self.human_model!r}"
+            )
+        if self.smplh_motion not in ("amass", "procedural"):
+            raise ValueError(
+                f"HumanConfig.smplh_motion must be 'amass' or 'procedural', "
+                f"got {self.smplh_motion!r}"
+            )
 
 
 # Default spawn positions for common BiGym tasks

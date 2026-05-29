@@ -41,9 +41,10 @@ eval_every_frames: 2500
 # eval wall-clock per cycle (negligible vs train cost).
 num_eval_episodes: 20
 
-# Snapshot
+# Snapshot — saved after each eval cycle (eval_every_frames), not on a
+# separate cadence. train_cqn_as copies the peak-by-success_rate checkpoint
+# to snapshot_best.pt for curriculum resume (scripts/run_base_curriculum.sh).
 save_snapshot: true
-snapshot_every_frames: 10000
 
 # Replay buffer
 replay_buffer_size: 1000000
@@ -86,6 +87,10 @@ wandb:
   project: safety-critic
   entity: null
   name: cqn_as_${env.task_name}_${now:%Y%m%d%H%M%S}
+  # Thesis run-tagging scheme (docs/safety_metrics.md): default empty so
+  # nothing's tagged unless a launcher overrides this with
+  # `+wandb.tags=[stage0,method=unconstrained,task=<task>]`.
+  tags: []
 
 hydra:
   run:

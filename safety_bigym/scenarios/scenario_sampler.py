@@ -136,9 +136,17 @@ class ParameterSpace:
     coworker_reach_period_range: tuple = (4.5, 6.5)       # seconds per cycle (1/freq)
     coworker_target_mix_p_ee_range: tuple = (0.4, 0.6)    # P(reach EE); P(task)=1-p
     coworker_near_loiter_range: tuple = (7.0, 11.0)       # dwell at NEAR (s)
-    # walk speed (m/s) — slowed ~25 % on 2026-05-26 (was (1.0, 1.6)). Mirrors
-    # the yaml `coworker_walk_speed_range` in cfgs/disruption/coworker_train.yaml.
-    coworker_walk_speed_range: tuple = (0.8, 1.3)
+    coworker_walk_speed_range: tuple = (1.0, 1.6)         # walk speed (m/s)
+    # Relative weights for COWORKER trajectory modes (normalized per draw).
+    # Default is uniform; ``make_coworker_train_space`` pins patrol-heavy
+    # weights so stage-2 training mostly exercises depart/return cycles.
+    coworker_trajectory_weights: Dict[str, float] = field(
+        default_factory=lambda: {
+            "APPROACH_LOITER_DEPART": 1.0,
+            "STATIONARY": 1.0,
+            "COWORKER_PATROL": 1.0,
+        }
+    )
 
 
 # --- COWORKER train/eval distribution presets ---------------------------
@@ -175,6 +183,15 @@ _COWORKER_EVAL_RANGES: Dict[str, tuple] = {
     "coworker_walk_speed_range": (0.5, 1.7),         # shuffle + brisk walk (slowed 2026-05-26)
 }
 
+# Train distribution: patrol dominates so the robot sees repeated
+# move-away / come-back windows. Eval keeps the uniform default so all
+# three modes remain in the held-out stress distribution.
+_COWORKER_TRAIN_TRAJECTORY_WEIGHTS: Dict[str, float] = {
+    "COWORKER_PATROL": 8.0,
+    "APPROACH_LOITER_DEPART": 1.0,
+    "STATIONARY": 1.0,
+}
+
 
 def _coworker_space(ranges: Dict[str, tuple], **overrides) -> "ParameterSpace":
     """Build a ParameterSpace with COWORKER pinned to the given ranges.
@@ -193,7 +210,11 @@ def _coworker_space(ranges: Dict[str, tuple], **overrides) -> "ParameterSpace":
 def make_coworker_train_space(**overrides) -> "ParameterSpace":
     """Moderate COWORKER distribution for training the safety filter /
     policy. All five continuous knobs sit in their *narrow* bands."""
-    return _coworker_space(_COWORKER_TRAIN_RANGES, **overrides)
+    return _coworker_space(
+        _COWORKER_TRAIN_RANGES,
+        coworker_trajectory_weights=dict(_COWORKER_TRAIN_TRAJECTORY_WEIGHTS),
+        **overrides,
+    )
 
 
 def make_coworker_eval_space(**overrides) -> "ParameterSpace":
@@ -277,7 +298,9 @@ class ScenarioSampler:
         reaching_arm = "right_arm" if 270 < angle or angle < 90 else "left_arm"
         
         # --- Trajectory type selection (based on disruption type) ---
-        trajectory_type = self._select_trajectory_type(disruption_type, rng)
+        trajectory_type = self._select_trajectory_type(
+            disruption_type, rng, self.params.coworker_trajectory_weights
+        )
         
         # Sample trajectory parameters
         pass_by_offset = rng.uniform(*self.params.pass_by_offset_range)
@@ -445,7 +468,9 @@ class ScenarioSampler:
     
     @staticmethod
     def _select_trajectory_type(
-        disruption_type: DisruptionType, rng: np.random.Generator
+        disruption_type: DisruptionType,
+        rng: np.random.Generator,
+        coworker_trajectory_weights: Optional[Dict[str, float]] = None,
     ) -> str:
         """Choose trajectory type based on disruption type."""
         if disruption_type in {
@@ -459,10 +484,19 @@ class ScenarioSampler:
         elif disruption_type == DisruptionType.COWORKER:
             # COWORKER picks among three patterns: walk in and stay,
             # spawn already in place, or walk in then occasionally move
-            # away and return to a different angle.
-            return str(rng.choice(
-                ["APPROACH_LOITER_DEPART", "STATIONARY", "COWORKER_PATROL"]
-            ))
+            # away and return to a different angle. Weights are normalized
+            # per draw (see ParameterSpace.coworker_trajectory_weights).
+            types = ["APPROACH_LOITER_DEPART", "STATIONARY", "COWORKER_PATROL"]
+            weights = coworker_trajectory_weights or {}
+            probs = np.array(
+                [max(float(weights.get(t, 1.0)), 0.0) for t in types],
+                dtype=np.float64,
+            )
+            total = float(probs.sum())
+            if total <= 0.0:
+                probs = np.ones(len(types), dtype=np.float64)
+                total = float(len(types))
+            return str(rng.choice(types, p=probs / total))
         elif disruption_type == DisruptionType.INCIDENTAL:
             # Incidental: walk past (PASS_BY or ARC)
             return rng.choice(["PASS_BY", "ARC"])

@@ -44,10 +44,26 @@ class HumanIK:
 
         # Cache for joint/DoF indices
         self._chain_cache: Dict[str, dict] = {}
-
-        # G1 arm chains (single-DoF hinge joints; no _x/_y/_z sub-joints).
-        self.chains = g1_spec.ARM_CHAINS
-
+        
+        # Define arm chains with explicit joint names
+        # These match the SMPL-H MJCF joint naming convention
+        self.chains = {
+            "right_arm": {
+                "joints": ["R_Shoulder", "R_Elbow", "R_Wrist"],
+                "end_effector": "R_Wrist",
+                # ``shoulder_body`` is read by CoworkerArmController to
+                # locate the active-arm shoulder for the reach gate. Kept
+                # here so the same field exists on G1HumanIK.chains and
+                # the controller can look it up without dispatch.
+                "shoulder_body": "R_Shoulder",
+            },
+            "left_arm": {
+                "joints": ["L_Shoulder", "L_Elbow", "L_Wrist"],
+                "end_effector": "L_Wrist",
+                "shoulder_body": "L_Shoulder",
+            },
+        }
+        
         # Pre-compute chain data
         for chain_name in self.chains:
             self._build_chain_cache(chain_name)

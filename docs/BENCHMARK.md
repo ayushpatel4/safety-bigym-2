@@ -1,5 +1,10 @@
 # Safety Benchmark Guide
 
+> **Legacy guide.** This describes the older `benchmark_policies.py` flow and
+> legacy scenario breakdowns. Current thesis metrics use the three-flavour
+> safety schema in [safety_metrics.md](safety_metrics.md) and the COWORKER/G1
+> evaluation path tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 This guide explains how to use the Safety Benchmark system for evaluating visuomotor policies in `safety-bigym`.
 
 ## 1. Overview

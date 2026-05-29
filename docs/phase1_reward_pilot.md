@@ -1,5 +1,11 @@
 # Phase 1.4 — Reward-on Pilot (DrQ-V2+)
 
+> **Historical reference.** The standalone DrQ-V2+ reward-on pilot is no longer
+> the active path. The CQN-AS E1.4 replacement degenerated when run without
+> demos, and the user moved the off/oracle/noisy observation-channel question
+> into Phase 3 as E3.6. See [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md) and
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 Branch: `safety-critic/phase-1-bodyslam-wrapper` (same branch as the
 BodySLAMWrapper build — this is a follow-on experiment, not a new phase).
 

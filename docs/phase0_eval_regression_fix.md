@@ -1,5 +1,9 @@
 # Phase 0 — Why eval task_success was 0, and what fixed it
 
+> **Historical/reference doc.** This records the DP EMA snapshot regression and
+> RoboBase drift. It remains useful for debugging old snapshots, but current
+> CQN-AS status lives in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+
 ## TL;DR
 
 Training was healthy. Evaluation was effectively running an **untrained** policy because the diffusion-policy EMA weights — the ones actually used at inference — were silently dropped from snapshots. Fixing the serialization of `Actor.ema` turned 0% eval into the same numbers W&B showed during pretrain-eval (e.g. `reach_target_single` 50k snapshot → `R: 0.4000`).

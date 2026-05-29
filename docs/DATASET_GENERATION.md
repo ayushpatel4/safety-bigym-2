@@ -1,5 +1,10 @@
 # Dataset Generation
 
+> **Legacy guide.** This describes the old `scripts/generate_dataset.py`
+> workflow and pre-COWORKER disruption catalogue. It is not the current SVF or
+> CQN-AS data path. For current Phase 2 data/results, use
+> [phase2_results.md](phase2_results.md).
+
 Generate diverse human-robot interaction datasets using `generate_dataset.py`.
 
 ## Quick Start
