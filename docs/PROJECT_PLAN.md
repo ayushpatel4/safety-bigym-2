@@ -58,6 +58,70 @@ guarantees needed for ISO 15066 compliance.
 
 ---
 
+## Perception Mode Policy (oracle vs. noisy)
+
+The `BodySLAMWrapper` exposes three modes — `off`, `oracle`, `noisy`
+— for the `human_pos_estimate` channel. The mode used during
+training and during evaluation materially affects what each
+experiment is testing, so we adopt this per-experiment policy
+(cross-referenced from §setup:perception-mode of the report):
+
+| Experiment | Purpose | Train | Eval |
+|---|---|---|---|
+| P1 — base-policy curriculum | unconstrained baseline reference | `oracle` | `oracle` |
+| P2 — Phase 2 SVF re-eval | filter operating point | (already `noisy`)¹ | `noisy` |
+| P3 — E3.1 cost-signal | methodological architecture comparison | `oracle` | `oracle` |
+| P4 — E3.2 budget Pareto | operating-point selection | `oracle` | `oracle` |
+| **P5 — E4.1 headline** | does the hybrid work? | **`oracle`** | **`oracle`** + 1 `noisy` diagnostic row |
+| P7 — E3.6 obs-channel ablation | **measure the perception gap** | `oracle` | `off / oracle / noisy` (the sweep) |
+| P10 — E5.1 tail risk | post-hoc on P5 rolls | — | — |
+| P10 — E5.2 OOD | wider disruption band | `oracle` | `oracle` on `coworker_eval` |
+
+¹ The Phase 2 SVF dataset was collected with `bodyslam=noisy`
+**by design** — the filter is a runtime safety guarantee, so its
+training distribution must match its deployment distribution.
+This is distinct from the policy, which trains on `oracle` to
+isolate the architecture comparison and is then measured against
+`noisy` evaluation as a sim-to-real diagnostic (see Rationale
+paragraph below).
+
+**Rationale.** Architecture comparisons (P3, P4, P5) use `oracle`
+on both sides to isolate the treatment variable; the headline
+attribution is then "the hybrid architecture works", not "noisy
+training happens to regularise". The dedicated perception-gap
+experiment is E3.6 (P7), which sweeps all three modes. The
+headline table additionally carries one `noisy`-eval diagnostic
+row so the reader sees both the clean methodological result and
+how it degrades under realistic perception.
+
+**The Phase 2 SVF is the one exception: it trains and evaluates
+on `noisy`.** The asymmetry is deliberate. The policy is a soft
+component — it's optimised to do well in expectation, and small
+perception perturbations at deployment degrade its performance
+gracefully (and we measure that degradation explicitly). The
+runtime filter is a hard component — its job is to provide a
+deployment-time veto guarantee. A safety mechanism calibrated to
+observation conditions other than the ones it operates under is
+not providing the guarantee it claims to: CQL's pessimism bounds
+action-conditional error, not observation-conditional error.
+Train-deploy distribution match is therefore load-bearing for the
+filter in a way it is not for the policy. The harness finding on
+the existing SVF checkpoint (`mean_q_value ≈ 0.31 ≪ R=4.0` on G1
+→ ~100% intervention) is the empirical confirmation of exactly
+this: a filter trained on one distribution does not transfer
+cleanly to another, even when both are noisy in the same way.
+
+**Implementation note for the coding agent.** Every long-training
+launch CLI for P1, P3, P4, and P5 row 2 must pass `bodyslam=oracle`
+explicitly (do not rely on a Hydra default that might drift). The
+P7 E3.6 launches are the only ones that train with
+`bodyslam=oracle` and then sweep three eval modes via the
+`benchmark_policy.py` harness. The P2 SVF re-eval inherits its
+`noisy` setting from the existing dataset and must not be changed
+without retraining.
+
+---
+
 ## Phase 0: Preparation and Baselines — COMPLETE
 
 (Carried forward from the original plan; summary only.)
@@ -171,7 +235,7 @@ smoke pipeline runs ~75s.
   on the previous SMPL-H coworker distribution.
 - **Snapshot:** `checkpoints/svf_coworker_train_v1.pt`.
 
-### What's pending — **P2** (re-eval under G1)
+### What's pending — **P2** (re-eval and likely retrain under G1)
 
 The R = 4.0 operating point was calibrated on the SMPL-H coworker
 distribution. The G1 coworker has different geometric extent
@@ -179,41 +243,68 @@ distribution. The G1 coworker has different geometric extent
 kv=20). **The operating point must be re-verified before any
 downstream experiment uses the filter.**
 
+**Update (2026-05-30): the P6 harness has already given us empirical
+evidence the filter does not transfer cleanly.** Running the existing
+`svf_coworker_train_v1.pt` on a G1-coworker rollout produces
+`mean_q_value ≈ 0.31 ≪ R = 4.0`, leading to ~100% filter
+intervention — the filter rejects essentially every proposed
+action. This is exactly the "Intervention rate is 100% everywhere"
+branch of the decision rule below, which means **the expected path
+is now (1) confirm with a brief sweep, then (2) retrain the SVF on
+a freshly-collected G1 + noisy dataset.** The 100%-intervention
+finding rules out a simple threshold re-tune.
+
 #### Tasks
 
-1. Run `python -m safety_bigym.filters.threshold_sweep` on the
-   existing `svf_coworker_train_v1.pt` checkpoint but with
-   `disruption=coworker_train` (the G1-coworker disruption) on the
-   Phase 0 unconstrained ACT snapshot on `saucepan_to_hob`. Sweep
-   `R ∈ {1, 2, 3, 4, 5, 6, 8}`, 3 seeds × 20 eval episodes.
-2. Plot intervention rate (x) vs. `ep_proximity_violation_rate` (y).
-   Identify the knee.
-3. If the knee is no longer near R = 4.0, retrain the SVF on a
-   freshly-collected G1-coworker dataset (~3 GPU-hours dataset
-   collect + ~1 GPU-hour CQL training).
+1. **Sweep R on the existing checkpoint** (~1 GPU-h, was 3 h before
+   we had the harness telling us the answer). Just confirms the
+   harness diagnosis at multiple R values: sweep
+   `R ∈ {0.5, 1, 2, 3, 4}` on `disruption=coworker_train` with the
+   G1 coworker. Expected outcome: no R gives an acceptable
+   intervention-rate / safety trade-off — the filter has to be
+   retrained.
+2. **Recollect dataset on G1 + noisy** (~3 GPU-h). Re-run
+   `python -m safety_bigym.filters.dataset.collect_dataset` with
+   `disruption=coworker_train`, `bodyslam=noisy`, and the same
+   three policy sources (random, BiGym demos, Phase 0 ACT). The
+   label function is unchanged — `proximity_violation` is still
+   computed against MuJoCo's `data.geom_xpos` for the current
+   bodies, so it re-labels correctly against G1 capsules.
+3. **Retrain SVF** (~1 GPU-h). Same hyperparameters as the existing
+   checkpoint: 3-layer MLP [256, 256, 256], α_CQL = 5.0, Polyak
+   τ = 0.005, 200k steps, batch 512, violation-balanced sampler.
+4. **Re-sweep R on the retrained checkpoint** (~1 GPU-h). Identify
+   the new knee. Document in `safety_bigym/filters/snapshots.py`.
 
 #### Acceptance criteria
 
-- Pareto curve shows a clear knee with intervention rate ≤ 25% and
-  `ep_proximity_violation_rate` reduction ≥ 30% relative to the
-  filterless baseline.
-- The headline R operating point is documented in
+- After retraining: Pareto curve shows a clear knee with
+  intervention rate ≤ 25% and `ep_proximity_violation_rate`
+  reduction ≥ 30% relative to the filterless baseline. If not,
+  the issue is deeper than dataset shift (e.g. critic capacity,
+  network architecture) and requires investigation.
+- The new R operating point is documented in
   `safety_bigym/filters/snapshots.py` and consumed by the headline
   E4.1 row 4 and row 5.
+- Filter snapshot file naming: `svf_coworker_train_g1_v1.pt`
+  (preserve `v1` for SMPL-H reproducibility).
 
 #### Decision rule
 
-| Outcome | Action |
+| Sweep outcome | Action |
 |---|---|
-| Knee still at R = 4.0 (within ±0.5) | Use existing checkpoint as-is |
-| Knee shifts to R ∈ {2.5, 3.5} | Use existing checkpoint with updated R |
-| Knee disappears / curve is flat | Retrain SVF on G1-coworker data |
-| Intervention rate is 100% everywhere | Critic is too conservative for G1; α_CQL sweep needed |
+| Knee still at R = 4.0 (within ±0.5) — unlikely given the harness finding | Use existing checkpoint as-is |
+| Knee shifts but exists at some R ≤ 4 — possible | Use existing checkpoint with updated R, skip retrain |
+| Knee disappears / curve is flat — likely | Retrain SVF on G1 data (tasks 2–4 above) |
+| Intervention rate is 100% everywhere — already observed by harness | Retrain SVF on G1 data (tasks 2–4 above) |
 
 #### Compute budget
 
-~3 GPU-hours best case (Pareto sweep only); ~7 GPU-hours worst case
-(retrain).
+**~6 GPU-hours expected** (sweep ~1 h + recollect ~3 h + retrain
+~1 h + re-sweep ~1 h), revised up from the original ~3-h
+optimistic estimate after the harness finding ruled out a
+threshold-only re-tune. Best case (existing checkpoint somehow
+works at some lower R): ~1 GPU-h.
 
 ---
 
@@ -280,6 +371,7 @@ coworker, resuming from each prior stage's snapshot:
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_idle \
+  bodyslam=oracle \
   frames=20000 \
   +snapshot_path=null
 
@@ -287,6 +379,7 @@ python train_cqn_as.py \
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_easy \
+  bodyslam=oracle \
   frames=15000 \
   +snapshot_path=runs/stage0/final.pt
 
@@ -294,6 +387,7 @@ python train_cqn_as.py \
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_train \
+  bodyslam=oracle \
   frames=60000 \
   +snapshot_path=runs/stage1/final.pt
 ```
@@ -403,6 +497,7 @@ The three cells are selected via a single Hydra override:
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_train \
+  bodyslam=oracle \
   frames=60000 \
   +snapshot_path=runs/stage1/final.pt \
   cost_signal={fixed,binary,continuous} \
@@ -455,6 +550,7 @@ Sweep cost budget `d ∈ {0.001, 0.01, 0.05, 0.1}`, 3 seeds each =
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_train \
+  bodyslam=oracle \
   frames=60000 \
   +snapshot_path=runs/stage1/final.pt \
   cost_signal=continuous \
@@ -496,23 +592,43 @@ P4-winning configuration. Closes RQ1.
 
 ##### Implementation notes
 
+The training side trains a single policy on `bodyslam=oracle`
+(matching the P3/P4 architecture-comparison policy), and the eval
+side sweeps all three modes via the (now-built) `benchmark_policy.py`
+harness. This isolates the perception-gap measurement from
+training-time confounds.
+
 ```bash
+# Train one policy under oracle (the same policy used in P5 row 3,
+# so we can reuse runs/p3_continuous_d_knee/ if it exists)
 python train_cqn_as.py \
   task=saucepan_to_hob \
   disruption=coworker_train \
+  bodyslam=oracle \
   frames=60000 \
   +snapshot_path=runs/stage1/final.pt \
   cost_signal=continuous \
   cost_budget=$D_HEADLINE \
-  bodyslam={off,oracle,noisy} \
   seed={0,1,2}
+
+# Then evaluate the same snapshots across three perception modes
+for MODE in off oracle noisy; do
+  python scripts/benchmark_policy.py \
+    --snapshot runs/p7_e3.6_seed{0,1,2}/final.pt \
+    --task saucepan_to_hob --disruption coworker_train \
+    --obs-mode $MODE --seeds 0,1,2 --episodes 20 \
+    --out results/e3.6_${MODE}.csv
+done
 ```
 
 ##### Compute budget
 
-9 cells × ~2 GPU-hours = **~18 GPU-hours**. **De-prioritise if
-budget runs out** — the question is independent of the headline
-hybrid result.
+3 trained policies (one per seed, all `bodyslam=oracle`) × ~2 GPU-h
+= **~6 GPU-h for training**; 9 eval cells (3 seeds × 3 modes) are
+pure eval via the harness, < 1 h total. **Total: ~7 GPU-hours**
+(revised down from the original ~18 h estimate after consolidating
+to one training run per seed). **De-prioritise if budget runs out**
+— the question is independent of the headline hybrid result.
 
 ### Phase 3 — Possible outcomes
 
@@ -529,8 +645,9 @@ hybrid result.
 
 (i) Three trained snapshots from E3.1 (one per cell); (ii) the
 Pareto curve from E3.2 with the headline d operating point;
-(iii) one snapshot at the headline (continuous + d_knee + bodyslam=noisy)
-that becomes the P5 row 3 input.
+(iii) one snapshot at the headline (continuous + d_knee + `bodyslam=oracle`)
+that becomes the P5 row 3 input. (E3.6 separately sweeps
+`bodyslam ∈ {off, oracle, noisy}` to measure the perception gap.)
 
 ---
 
@@ -580,7 +697,7 @@ python scripts/benchmark_policy.py \
   --filter-threshold 4.0 \             # optional — only used if --filter-snapshot given
   --task saucepan_to_hob \
   --disruption coworker_eval \         # or coworker_train; or any other ParameterSpace key
-  --obs-mode noisy \                   # off / oracle / noisy
+  --obs-mode oracle \                  # oracle for headline cells; noisy only for E3.6 sweep + sim-to-real diagnostic — see Perception Mode Policy above
   --seeds 0,1,2 \
   --episodes 20 \
   --out results/cell.csv \
@@ -716,12 +833,12 @@ each, evaluated on `saucepan_to_hob` under `coworker_train`.
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
   --task saucepan_to_hob --disruption coworker_train \
-  --obs-mode noisy --seeds 0,1,2 --episodes 20 \
+  --obs-mode oracle --seeds 0,1,2 --episodes 20 \
   --out results/e4.1_row1.csv
 
 # Row 2 — NEW training run with workspace_shaping toggled
 python train_cqn_as.py \
-  task=saucepan_to_hob disruption=coworker_train frames=60000 \
+  task=saucepan_to_hob disruption=coworker_train bodyslam=oracle frames=60000 \
   +snapshot_path=runs/stage1/final.pt \
   workspace_shaping.beta=0.05 \
   cost_signal=none \
@@ -729,11 +846,13 @@ python train_cqn_as.py \
 # Then eval
 python scripts/benchmark_policy.py \
   --snapshot runs/row2_seed{0,1,2}/final.pt ... \
+  --obs-mode oracle \
   --out results/e4.1_row2.csv
 
 # Row 3 — eval P3 continuous-cost snapshot
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
+  --obs-mode oracle \
   --out results/e4.1_row3.csv
 
 # Row 4 — eval P1 snapshot WITH filter
@@ -741,6 +860,7 @@ python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
   --filter-threshold 4.0 \
+  --obs-mode oracle \
   --out results/e4.1_row4.csv
 
 # Row 5 — eval P3 snapshot WITH filter
@@ -748,7 +868,16 @@ python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
   --filter-threshold 4.0 \
+  --obs-mode oracle \
   --out results/e4.1_row5.csv
+
+# Row 5-diagnostic — same as row 5 but with noisy eval, for the sim-to-real diagnostic
+python scripts/benchmark_policy.py \
+  --snapshot runs/p3_continuous_d_knee/final.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
+  --filter-threshold 4.0 \
+  --obs-mode noisy \
+  --out results/e4.1_row5_noisy_diagnostic.csv
 
 # Aggregate all 5 CSVs into the final table
 python scripts/aggregate_e4_1.py \
@@ -1041,17 +1170,17 @@ Current config (β=0.05, c_ws=1.0, v_min=-6) leaves 20% headroom.
 | Task | GPU-hours (approx) |
 |---|---|
 | **P1** — G1 base-policy curriculum (stages 0/1/2) | 19 |
-| **P2** — Phase 2 SVF re-eval under G1 (best case) | 3 |
+| **P2** — Phase 2 SVF re-eval + retrain under G1 (expected) | 6 |
 | **P3** — E3.1 cost-signal form ablation | 18 |
 | **P4** — E3.2 cost-budget Pareto sweep | 24 |
 | **P5** — E4.1 headline (row 2 train only; rows 1/3/4/5 are eval) | 6 |
 | **P6** — Benchmark harness (engineering, not GPU) | 0 |
-| **P7** — E3.6 obs-channel under constrained policy (de-prioritise) | 18 |
+| **P7** — E3.6 obs-channel under constrained policy (de-prioritise) | 7 |
 | **P8** — E4.3 internalisation curve | 0 (piggybacks on P3) |
 | **P9** — WCSAC external baseline (sanity gate + full run) | 10 |
 | **P10** — E5.1 + E5.2 (pure eval) | 2 |
-| **Total — mandatory (P1, P2, P3, P4, P5, P6, P8)** | **~70** |
-| **Total — with strengthening (P7, P9, P10)** | **~100** |
+| **Total — mandatory (P1, P2, P3, P4, P5, P6, P8)** | **~73** |
+| **Total — with strengthening (P7, P9, P10)** | **~92** |
 
 ---
 
