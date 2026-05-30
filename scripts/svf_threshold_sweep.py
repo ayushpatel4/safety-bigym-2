@@ -44,7 +44,15 @@ from safety_bigym.filters.threshold_sweep import (  # noqa: E402
 logger = logging.getLogger("svf_threshold_sweep")
 
 
-DEFAULT_THRESHOLDS = (10.0, 25.0, 50.0, 75.0, 90.0)
+# Critic Q = q_max·sigmoid(logit) ∈ [0, 100], but trained SVF Q-values sit low
+# (~3 for the G1 critic; the v1 operating-point cliff was between R=3 and R=4),
+# so the meaningful R range is [0, 6], not [10, 90]. R=0 never intervenes
+# (Q ≥ 0) — it's the filterless baseline. Dense around 3–4.5 to resolve the
+# knee. (Was (10, 25, 50, 75, 90), which sat above the Q range → 100%
+# intervention on every row.)
+DEFAULT_THRESHOLDS = (
+    0.0, 1.0, 2.0, 2.5, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 5.0, 6.0,
+)
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
