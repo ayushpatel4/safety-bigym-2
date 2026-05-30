@@ -169,3 +169,40 @@ def test_violation_count_matches_label(tmp_path):
     assert n_zeros == 7
     assert len(ds.violation_indices) == 7
     assert len(ds.safe_indices) == 50 - 7
+
+
+def test_relabel_on_load_at_threshold(tmp_path):
+    """proximity_threshold re-derives r_safe from the stored per-step
+    min_separation, overriding the collection-time label — a free
+    re-threshold with no re-collection (CLAUDE.md: raw signals stored)."""
+    spec = _make_spec()
+    n = 5
+    rng = np.random.default_rng(0)
+    obs = {"low_dim_state": rng.standard_normal((n, spec.obs_dims[0])).astype(np.float32)}
+    next_obs = {"low_dim_state": rng.standard_normal((n, spec.obs_dims[0])).astype(np.float32)}
+    action = rng.standard_normal((n, spec.action_dim)).astype(np.float32)
+    # min_sep straddles 0.3 and 0.5 so the two thresholds disagree.
+    min_separation = np.array([0.1, 0.4, 0.6, 0.6, 0.6], dtype=np.float32)
+    r_safe_05 = (min_separation >= 0.5).astype(np.float32)  # baked at 0.5: [0,0,1,1,1]
+
+    writer = TransitionShardWriter(spec, tmp_path)
+    writer.write_shard(
+        name="s", obs=obs, action=action, next_obs=next_obs,
+        r_safe=r_safe_05, done=np.zeros(n, np.bool_),
+        ssm_margin=np.zeros(n, np.float32), min_separation=min_separation,
+        pfl_force_ratio=np.zeros(n, np.float32),
+        source=np.ones(n, np.uint8), task_id=np.zeros(n, np.uint8),
+    )
+
+    # Stored label (collected at 0.5): two violations (min_sep 0.1, 0.4).
+    ds = SafetyTransitionDataset(tmp_path)
+    assert len(ds.violation_indices) == 2
+    assert float(ds[1]["r_safe"]) == 0.0  # min_sep 0.4 < 0.5 → violation
+
+    # Relabel at 0.3: only min_sep 0.1 is a violation now.
+    ds03 = SafetyTransitionDataset(tmp_path, proximity_threshold=0.3)
+    assert sorted(ds03.violation_indices.tolist()) == [0]
+    assert float(ds03[0]["r_safe"]) == 0.0   # 0.1 < 0.3 → violation
+    assert float(ds03[1]["r_safe"]) == 1.0   # 0.4 >= 0.3 → now safe
+    # Raw min_separation is untouched by relabelling.
+    assert float(ds03[1]["min_separation"]) == pytest.approx(0.4)

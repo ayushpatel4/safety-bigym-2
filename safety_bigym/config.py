@@ -21,11 +21,12 @@ class SSMConfig:
     v_h_max: float = 1.6    # Maximum assumed human velocity (m/s)
 
     # Geometric proximity bar for the thesis-primary `proximity_violation`
-    # axis (docs/safety_metrics.md). 0.5 m matches the Phase 2 SVF
-    # production label (`filters/labeling.py`). ISO `S_p` over-fires at
-    # kitchen-scale robot velocities; geometric distance is the defensible
-    # "actually too close" number.
-    proximity_threshold: float = 0.5
+    # axis (docs/safety_metrics.md). 0.3 m as of 2026-05-30 (was 0.5 m) —
+    # the SVF filter is trained and evaluated at this same bar (collect/relabel
+    # with `--proximity-threshold 0.3`). ISO `S_p` over-fires at kitchen-scale
+    # robot velocities; geometric distance is the defensible "actually too
+    # close" number.
+    proximity_threshold: float = 0.3
 
     def compute_separation_distance(
         self,

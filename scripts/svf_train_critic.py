@@ -61,6 +61,9 @@ class TrainPlan:
     log_every: int
     seed: int
     device: str
+    # When set, relabel r_safe on the fly as (min_separation >= τ) from the
+    # stored per-step min_separation — free re-threshold, no re-collection.
+    proximity_threshold: Optional[float] = None
 
     @classmethod
     def smoke(cls, dataset_dir: Path, output: Path) -> "TrainPlan":
@@ -119,7 +122,14 @@ def run_training(plan: TrainPlan) -> Path:
         force=True,
     )
     logger.info(f"Loading dataset from {plan.dataset_dir}")
-    dataset = SafetyTransitionDataset(plan.dataset_dir)
+    dataset = SafetyTransitionDataset(
+        plan.dataset_dir, proximity_threshold=plan.proximity_threshold
+    )
+    if plan.proximity_threshold is not None:
+        logger.info(
+            f"Relabelling r_safe on the fly at proximity_threshold="
+            f"{plan.proximity_threshold} m (from stored min_separation)."
+        )
     logger.info(
         f"Dataset: {len(dataset)} transitions; "
         f"{len(dataset.violation_indices)} violating, "
@@ -188,6 +198,7 @@ def run_training(plan: TrainPlan) -> Path:
         "bellman_last": float(np.mean(bellman_losses[-q1:])),
         "dataset_dir": str(plan.dataset_dir),
         "dataset_size": len(dataset),
+        "proximity_threshold": plan.proximity_threshold,
     }
     torch.save(payload, plan.output)
     logger.info(f"Wrote checkpoint to {plan.output}")
@@ -207,6 +218,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--target-violation-rate", type=float, default=0.3)
+    p.add_argument(
+        "--proximity-threshold",
+        type=float,
+        default=None,
+        help=(
+            "Relabel r_safe on the fly as (min_separation >= τ) metres, from "
+            "the stored per-step min_separation — free re-threshold, no "
+            "re-collection. Unset uses the label baked at collection time."
+        ),
+    )
     p.add_argument("--log-every", type=int, default=500)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument(
@@ -244,6 +265,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             log_every=args.log_every,
             seed=args.seed,
             device=args.device,
+            proximity_threshold=args.proximity_threshold,
         )
 
     out = run_training(plan)

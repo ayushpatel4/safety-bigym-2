@@ -74,8 +74,10 @@ class SafetyInfo:
     # speed used for both worst-case and actual.
     robot_vel: float = 0.0
     human_vel: float = 0.0
-    # Echoed for downstream analysis / threshold sweeps.
-    proximity_threshold: float = 0.5
+    # Echoed for downstream analysis / threshold sweeps. Overwritten each step
+    # from SSMConfig.proximity_threshold (0.3 as of 2026-05-30); this default
+    # is just a placeholder.
+    proximity_threshold: float = 0.3
 
     # Detailed contact info
     contacts: List[ContactInfo] = field(default_factory=list)

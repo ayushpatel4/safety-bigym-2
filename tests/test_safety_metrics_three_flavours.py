@@ -61,7 +61,7 @@ def test_failure_mode_robot_fast_human_distant():
     With ``v_r = 3.0 m/s`` and default ISO 15066 params,
     ``S_p_worst ≈ 1.54 m`` and ``S_p_actual(v_h=0) ≈ 1.30 m``. A
     ``min_separation = 0.7 m`` is below both bounds but above the default
-    ``proximity_threshold = 0.5 m``, so SSM fires but proximity doesn't.
+    ``proximity_threshold = 0.3 m``, so SSM fires but proximity doesn't.
     """
     cfg = SSMConfig()
     info = _build_safety_info(min_separation=0.7, robot_vel=3.0,
@@ -71,12 +71,17 @@ def test_failure_mode_robot_fast_human_distant():
     assert not info.proximity_violation, "geometric proximity should be safe"
 
 
-def test_failure_mode_robot_still_human_inside_0p4m():
-    """Robot still, human at 0.4 m → proximity fires; SSM_actual depends."""
+def test_failure_mode_robot_still_human_inside_0p2m():
+    """Robot still, human at 0.2 m → proximity fires; SSM_actual depends."""
     cfg = SSMConfig()
-    info = _build_safety_info(min_separation=0.4, robot_vel=0.0,
+    info = _build_safety_info(min_separation=0.2, robot_vel=0.0,
                               human_vel=0.0, ssm_config=cfg)
-    assert info.proximity_violation, "0.4 m < default 0.5 m threshold"
+    assert info.proximity_violation, "0.2 m < default 0.3 m threshold"
+    # A separation above the new 0.3 m bar must NOT count as a proximity
+    # violation (guards the 0.5 -> 0.3 default change, 2026-05-30).
+    info_safe = _build_safety_info(min_separation=0.4, robot_vel=0.0,
+                                   human_vel=0.0, ssm_config=cfg)
+    assert not info_safe.proximity_violation, "0.4 m >= 0.3 m threshold"
 
 
 def test_safe_regime_none_fire():

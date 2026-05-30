@@ -175,8 +175,16 @@ class SafetyTransitionDataset(Dataset):
     stays cheap for large collections. Indices are flat across shards.
     """
 
-    def __init__(self, root: PathLike):
+    def __init__(self, root: PathLike, *, proximity_threshold: Optional[float] = None):
+        """``proximity_threshold`` (metres), when set, relabels ``r_safe`` on
+        the fly as ``min_separation >= τ`` from the per-step stored
+        ``min_separation`` — overriding the binary ``r_safe`` baked at
+        collection time. This makes proximity-threshold changes free (no
+        re-collection); ``None`` uses the stored label. See CLAUDE.md
+        ("SVF shard schema records raw safety signals per-step").
+        """
         self.root = Path(root)
+        self._proximity_threshold = proximity_threshold
         if not self.root.exists():
             raise FileNotFoundError(f"Dataset root does not exist: {self.root}")
 
@@ -209,7 +217,7 @@ class SafetyTransitionDataset(Dataset):
         violation_indices: List[int] = []
         safe_indices: List[int] = []
         for shard_idx, shard in enumerate(self._shards):
-            r_safe = self._load_shard(shard_idx)["r_safe"]
+            r_safe = self._r_safe_array(self._load_shard(shard_idx))
             base = shard.offset
             v = np.where(r_safe == 0.0)[0]
             s = np.where(r_safe == 1.0)[0]
@@ -234,6 +242,16 @@ class SafetyTransitionDataset(Dataset):
         return CriticFeatureSpec(
             obs_keys=tuple(obs_keys), obs_dims=tuple(obs_dims), action_dim=action_dim
         )
+
+    def _r_safe_array(self, shard: dict) -> np.ndarray:
+        """Stored ``r_safe``, or relabelled from ``min_separation`` at the
+        configured ``proximity_threshold`` (``r_safe = min_separation >= τ``)."""
+        if self._proximity_threshold is None:
+            return np.asarray(shard["r_safe"], dtype=np.float32)
+        return (
+            np.asarray(shard["min_separation"], dtype=np.float32)
+            >= self._proximity_threshold
+        ).astype(np.float32)
 
     def _load_shard(self, shard_idx: int) -> dict:
         if shard_idx in self._caches:
@@ -270,7 +288,13 @@ class SafetyTransitionDataset(Dataset):
             "obs": obs,
             "action": data["action"][local_idx],
             "next_obs": next_obs,
-            "r_safe": float(data["r_safe"][local_idx]),
+            "r_safe": (
+                float(data["r_safe"][local_idx])
+                if self._proximity_threshold is None
+                else float(
+                    float(data["min_separation"][local_idx]) >= self._proximity_threshold
+                )
+            ),
             "done": bool(data["done"][local_idx]),
             "ssm_margin": float(data["ssm_margin"][local_idx]),
             "min_separation": float(data["min_separation"][local_idx]),
