@@ -72,7 +72,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--render", action="store_true", help="Write rollout mp4(s) next to --out (best-effort).")
     p.add_argument("--render-episodes", type=int, default=1,
                    help="How many of the first scored episodes to record when --render is set "
-                        "(one mp4 each: benchmark_videos/step_<i>_ep0.mp4).")
+                        "(one mp4 each: <out-stem>_videos/step_<i>_ep0.mp4).")
     p.add_argument("--smoke", action="store_true", help="1 seed x 2 episodes x 50 steps, single cell.")
     p.add_argument("--log-level", default="INFO")
     return p.parse_args(argv)
@@ -194,9 +194,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     jsonl_path = args.out.with_suffix(".episodes.jsonl")
     parquet_path = args.out.with_suffix(".raw_episodes.parquet")
 
-    # Render the first N scored episodes inline (no extra rollouts).
+    # Render the first N scored episodes inline (no extra rollouts). Key the video
+    # dir off the out-CSV stem so multiple cells sharing one out-dir (e.g. the E4.1
+    # driver's per-row CSVs) don't overwrite each other's step_<i>_ep0.mp4.
     render_eps = int(args.render_episodes) if args.render else 0
-    video_dir = args.out.parent / "benchmark_videos"
+    video_dir = args.out.parent / f"{args.out.stem}_videos"
 
     records = []
     idx = 0

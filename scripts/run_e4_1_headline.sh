@@ -32,11 +32,14 @@
 #   FILTER_R    veto threshold R. Default 4.0 (snapshots.py provisional knee).
 #   SEEDS (0,1,2), EPISODES (20), DISRUPTION (coworker_train),
 #   NUM_DEMOS_FOR_STATS (0 = faithful full count; cap on a laptop), OUTDIR.
+#   RENDER (0)         set 1 to write rollout mp4(s) per row (needs MUJOCO_GL).
+#   RENDER_EPISODES (1) how many of the first scored episodes to record per row.
 #
 # Usage:
 #   STAGE2=... bash scripts/run_e4_1_headline.sh              # rows 1 & 4 now
 #   STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh     # rows 1,3,4,5,5_noisy
 #   SMOKE=1 STAGE2=... bash scripts/run_e4_1_headline.sh      # 1 seed x 2 ep x 50 steps
+#   RENDER=1 RENDER_EPISODES=2 STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh  # + mp4s
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -51,6 +54,10 @@ STAGE2="${STAGE2:-exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_
 SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_0p3.pt}"
 FILTER_R="${FILTER_R:-4.0}"
 NUM_DEMOS_FOR_STATS="${NUM_DEMOS_FOR_STATS:-0}"
+# Optional rollout videos: RENDER=1 writes RENDER_EPISODES mp4(s) per row under
+# <OUTDIR>/<label>_videos/step_<i>_ep0.mp4 (best-effort; needs MUJOCO_GL working).
+RENDER_ARGS=()
+[[ "${RENDER:-0}" == "1" ]] && RENDER_ARGS=(--render --render-episodes "${RENDER_EPISODES:-1}")
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   COUNT_ARGS=(--smoke)            # --smoke overrides seeds/episodes/steps
@@ -90,6 +97,7 @@ run_row() {   # label  snapshot  obs-mode  filter|nofilter
     --obs-mode "${obs}" \
     --num-demos-for-stats "${NUM_DEMOS_FOR_STATS}" \
     "${COUNT_ARGS[@]}" \
+    "${RENDER_ARGS[@]}" \
     --out "${OUTDIR}/${label}.csv"
   RAN+=("${label}")
 }

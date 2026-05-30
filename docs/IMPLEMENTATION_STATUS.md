@@ -216,6 +216,8 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   SVF filter; rows 3/5/5_noisy skip until `ROW3` (the P3 d_knee snapshot) is set;
   row 2 skips until `ROW2` is set. Defaults `STAGE2`→recorded G1 stage-2,
   `SVF_FILTER`→`checkpoints/svf_coworker_train_g1_0p3.pt`, `FILTER_R`→4.0.
+  `RENDER=1` (`RENDER_EPISODES=N`) writes per-row rollout mp4(s) to
+  `<OUTDIR>/<label>_videos/` for qualitative figures.
 - **Acceptance**: row 5 dominates each of rows 1–4 on
   `ep_proximity_violation_rate` with non-overlapping CIs. If row 5
   ties row 3, the filter is redundant on a well-trained policy —
