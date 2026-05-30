@@ -59,17 +59,57 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--human-model", choices=("g1", "smplh"), default="g1")
     p.add_argument("--seeds", default="0", help="Comma-separated seeds, e.g. 0,1,2.")
     p.add_argument("--episodes", type=int, default=20, help="Episodes per seed.")
-    p.add_argument("--max-steps", type=int, default=300)
+    p.add_argument("--max-steps", type=int, default=None,
+                   help="Episode step cap. Default: the snapshot's natural horizon "
+                        "(CQN-AS: episode_length//demo_down_sample_rate; else 1000) so "
+                        "long-horizon tasks aren't silently truncated. --smoke forces 50.")
     p.add_argument("--out", type=Path, required=True, help="Per-cell CSV (appended).")
     p.add_argument("--stats-seed", type=int, default=12345, help="Bootstrap RNG seed (reproducible CIs).")
     p.add_argument("--num-resamples", type=int, default=10000)
     p.add_argument("--num-demos-for-stats", type=int, default=0,
                    help="CQN-AS: cap demo count for action-stat derivation (0=use snapshot's "
                         "num_demos; lower it on memory-constrained machines).")
-    p.add_argument("--render", action="store_true", help="Write an mp4 of one rollout next to --out (best-effort).")
+    p.add_argument("--render", action="store_true", help="Write rollout mp4(s) next to --out (best-effort).")
+    p.add_argument("--render-episodes", type=int, default=1,
+                   help="How many of the first scored episodes to record when --render is set "
+                        "(one mp4 each: benchmark_videos/step_<i>_ep0.mp4).")
     p.add_argument("--smoke", action="store_true", help="1 seed x 2 episodes x 50 steps, single cell.")
     p.add_argument("--log-level", default="INFO")
     return p.parse_args(argv)
+
+
+def _derive_max_steps(meta, payload) -> int:
+    """Default episode cap = the snapshot's natural horizon.
+
+    For CQN-AS this is the adapter's hard timelimit
+    (``episode_length // demo_down_sample_rate``); for ACT we read the same fields off the
+    RoboBase cfg when present. Otherwise a generous 1000 (the env's own truncation usually
+    fires first). Using a fixed small cap silently truncates long-horizon tasks like
+    saucepan_to_hob (~1000 control steps) and collapses success_rate.
+    """
+    def _horizon(env_cfg) -> int | None:
+        try:
+            el = int(env_cfg.get("episode_length"))
+            dr = int(env_cfg.get("demo_down_sample_rate", 1) or 1)
+            return max(1, el // max(dr, 1))
+        except Exception:
+            return None
+
+    if isinstance(payload, dict):
+        if meta.kind == "cqn_as":
+            cfg = payload.get("config") or {}
+            h = _horizon((cfg.get("env") or {}) if isinstance(cfg, dict) else {})
+            if h:
+                return h
+        elif meta.kind == "act":
+            cfg = payload.get("cfg")
+            try:
+                h = _horizon(cfg["env"])  # OmegaConf supports __getitem__
+                if h:
+                    return h
+            except Exception:
+                pass
+    return 1000
 
 
 def _git_sha() -> str:
@@ -82,28 +122,30 @@ def _git_sha() -> str:
         return ""
 
 
-def _render_rollout(runner, renderable, *, seed: int, max_steps: int, out_dir: Path, global_step: int = 0):
-    """Best-effort: roll one episode capturing frames -> mp4 (eval_video helpers)."""
-    from safety_bigym.agents.cqn_as.eval_video import render_frame, write_eval_video
+def _make_frame_sink(renderable, frames: List):
+    """Return an on_step callback that captures one render frame per call (best-effort)."""
+    from safety_bigym.agents.cqn_as.eval_video import render_frame
 
-    frames: List = []
-    try:
-        runner.reset(seed)
-        frame = render_frame(renderable, global_step=global_step)
-        if frame is not None:
-            frames.append(frame)
-        for _ in range(max_steps):
-            rec = runner.step()
-            frame = render_frame(renderable, global_step=global_step)
+    def _sink():
+        try:
+            frame = render_frame(renderable, global_step=0)
             if frame is not None:
                 frames.append(frame)
-            if rec.done:
-                break
-        if frames:
-            write_eval_video(out_dir, frames, global_step=global_step, wandb_run=None)
-            logger.info("Wrote rollout video to %s", out_dir)
-    except Exception as exc:  # pragma: no cover — rendering is best-effort
-        logger.warning("Render skipped (%s: %s)", type(exc).__name__, exc)
+        except Exception as exc:  # pragma: no cover — rendering is best-effort
+            logger.warning("Frame capture skipped (%s: %s)", type(exc).__name__, exc)
+
+    return _sink
+
+
+def _write_episode_video(frames: List, out_dir: Path, episode_index: int) -> None:
+    from safety_bigym.agents.cqn_as.eval_video import write_eval_video
+
+    if not frames:
+        return
+    try:
+        write_eval_video(out_dir, frames, global_step=episode_index, wandb_run=None)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Video write skipped (%s: %s)", type(exc).__name__, exc)
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -130,7 +172,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                          "(the SVF critic consumes human_pos_estimate).")
 
     meta, payload = load_policy(args.snapshot)
-    logger.info("Policy kind=%s (snapshot=%s)", meta.kind, args.snapshot)
+    if args.max_steps is None:
+        args.max_steps = _derive_max_steps(meta, payload)
+    logger.info("Policy kind=%s (snapshot=%s) max_steps=%d", meta.kind, args.snapshot, args.max_steps)
 
     filter_critic = None
     if filtered:
@@ -150,13 +194,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     jsonl_path = args.out.with_suffix(".episodes.jsonl")
     parquet_path = args.out.with_suffix(".raw_episodes.parquet")
 
+    # Render the first N scored episodes inline (no extra rollouts).
+    render_eps = int(args.render_episodes) if args.render else 0
+    video_dir = args.out.parent / "benchmark_videos"
+
     records = []
     idx = 0
     for seed in seeds:
         for ep in range(int(args.episodes)):
             env_seed = seed * 100_000 + ep
+            frames: List = []
+            sink = _make_frame_sink(renderable, frames) if idx < render_eps else None
             rec = run_episode(runner, seed=env_seed, episode_index=idx,
-                              max_steps=int(args.max_steps), filtered=filtered)
+                              max_steps=int(args.max_steps), filtered=filtered, on_step=sink)
+            if sink is not None:
+                _write_episode_video(frames, video_dir, idx)
             records.append(rec)
             write_jsonl_line(jsonl_path, rec)
             idx += 1
@@ -165,9 +217,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         rec.ep_safety.get("ep_proximity_violation_rate", float("nan")),
                         f" interv={rec.n_interventions}" if filtered else "")
 
-    if args.render:
-        _render_rollout(runner, renderable, seed=seeds[0] * 100_000,
-                        max_steps=int(args.max_steps), out_dir=args.out.parent / "benchmark_videos")
+    if render_eps:
+        logger.info("Wrote up to %d rollout video(s) to %s", render_eps, video_dir)
     runner.close()
 
     filter_meta = {"fallback": args.fallback} if filtered else None

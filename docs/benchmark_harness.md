@@ -53,11 +53,12 @@ bash scripts/benchmark_demo.sh
 | `--human-model` | `g1` | `g1` (headline, AMASS-free) or `smplh` (needs `AMASS_DATA_DIR`). |
 | `--seeds` | `0` | Comma-separated, e.g. `0,1,2`. All seeds × episodes aggregate into **one** row. |
 | `--episodes` | `20` | Episodes per seed. |
-| `--max-steps` | `300` | Max env steps per episode. |
+| `--max-steps` | *(auto)* | Max env steps per episode. Default = the snapshot's natural horizon (CQN-AS: `episode_length ÷ demo_down_sample_rate`, e.g. 1000; else 1000) so long-horizon tasks aren't silently truncated. `--smoke` forces 50. |
 | `--out` | *(required)* | Per-cell CSV (appended; header written once). |
 | `--stats-seed` | `12345` | Bootstrap RNG seed — CIs reproduce across re-runs. |
 | `--num-resamples` | `10000` | Bootstrap resamples. |
-| `--render` | off | Best-effort: write a rollout mp4 next to `--out` (needs a GL backend). |
+| `--render` | off | Best-effort: write rollout mp4(s) next to `--out` (needs a GL backend). |
+| `--render-episodes` | `1` | How many of the first scored episodes to record when `--render` is set (one mp4 each). |
 | `--smoke` | off | 1 seed × 2 episodes × 50 steps, single cell. |
 
 ### Outputs
@@ -66,6 +67,30 @@ bash scripts/benchmark_demo.sh
 - `<out>.raw_episodes.parquet`: every per-episode record — re-aggregate to the CSV row
   with `records.read_parquet` + `aggregate.aggregate_cell` (no re-rollout needed).
 - `<out>.episodes.jsonl`: a live, crash-resilient sidecar (one JSON line per episode).
+- `<out_dir>/benchmark_videos/step_0_ep0.mp4` (only with `--render`): see below.
+
+### `--render` (rollout video)
+
+With `--render`, the harness captures a frame per env step **inline during the first
+`--render-episodes` scored episodes** (no extra rollouts — the videos correspond to real
+scored episodes), via `eval_video.render_frame`, and writes one mp4 per episode with
+`eval_video.write_eval_video` to `<out_dir>/benchmark_videos/step_<i>_ep0.mp4` (next to
+`--out`). It works on any policy path — on a trained snapshot the clip shows the actual
+behavior, and with `--filter-snapshot` it shows the filter's zero-velocity braking.
+
+```bash
+# record the first 3 episodes of a real cell
+... --render --render-episodes 3 --out results/cell.csv
+# -> results/benchmark_videos/step_0_ep0.mp4, step_1_ep0.mp4, step_2_ep0.mp4
+```
+
+Notes:
+- **Best-effort.** Frame capture and video writes are wrapped in try/except, so a GL
+  failure logs `Frame capture skipped` / `Video write skipped` and never aborts the eval.
+  Needs a working GL backend: `glfw` is picked automatically on macOS; on a headless Linux
+  box export `MUJOCO_GL=egl` first.
+- Rendering adds per-step overhead to the recorded episodes (read-only — it doesn't change
+  the metrics). Keep `--render-episodes` modest for long-horizon tasks.
 
 ## Conventions & requirements
 

@@ -316,15 +316,21 @@ def run_episode(
     episode_index: int,
     max_steps: int,
     filtered: bool,
+    on_step: Callable[[], None] | None = None,
 ) -> EpisodeRecord:
     """Drive one runner for one episode into an :class:`EpisodeRecord`.
 
     Success uses ``info["task_success"]`` when present (matches train_cqn_as), falling
     back to cumulative-reward > 0 (BiGym sparse reward) otherwise. ``steps_to_completion``
     is the 1-based env-step index of the first success.
+
+    ``on_step`` (if given) is called once after reset and after every step — used to
+    capture a render frame per step without a second rollout.
     """
     info0 = runner.reset(seed)
     ep_safety: Dict[str, Any] = dict(info0.get("episode_safety", {})) if isinstance(info0, dict) else {}
+    if on_step is not None:
+        on_step()
 
     cum_reward = 0.0
     cost_integral = 0.0
@@ -335,6 +341,8 @@ def run_episode(
 
     for _ in range(max_steps):
         rec = runner.step()
+        if on_step is not None:
+            on_step()
         n += 1
         cum_reward += rec.reward
         cost_integral += rec.c_t
