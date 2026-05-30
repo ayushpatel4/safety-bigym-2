@@ -44,7 +44,7 @@ if str(REPO_ROOT) not in sys.path:
 
 logger = logging.getLogger("visualize_separation_distances")
 
-PROXIMITY_THRESHOLD = 0.5  # SSMConfig.proximity_threshold default
+PROXIMITY_THRESHOLD = 0.3  # SSMConfig.proximity_threshold default (0.3 as of 2026-05-30; was 0.5)
 
 
 def _unwrap(env):

@@ -1,7 +1,7 @@
 % ---------------------------------------------------------------------------
 % Report subsection: justifying the geometric proximity-violation threshold.
-% Numbers marked (UPDATE) come from scripts/calibrate_proximity_threshold.py on the
-% headline snapshot; the local-validation values are given as placeholders.
+% Numbers are from scripts/calibrate_proximity_threshold.py on the headline G1
+% stage-2 snapshot (3 seeds x 20 episodes, 30,000 steps; results/prox_calib_row5).
 % Figures: scripts/visualize_separation_distances.py (contact geometry) and
 % scripts/calibrate_proximity_threshold.py (empirical distribution).
 % ---------------------------------------------------------------------------
@@ -33,48 +33,54 @@ must therefore sit comfortably above the $\sim\!0.1$\,m contact band so that a f
 \paragraph{Empirical separation distribution.}
 We then measure how close the human actually gets during operation. Using
 \texttt{scripts/calibrate\_proximity\_threshold.py}, we roll out the unconstrained baseline
-policy under the \texttt{coworker\_train} distribution
-($\text{(UPDATE: }3\text{ seeds}\times20\text{ episodes)}$) and record the per-step
-$d_{\min}$. The distribution is strongly \emph{bimodal} (\cref{fig:prox-calib}, left): a
-near-contact mode at $0$--$0.2$\,m --- the coworker's hand and the robot's end-effector
-sharing the workspace during reaches --- and far modes at $\sim\!2$\,m and $\sim\!4.5$\,m
-when the coworker is patrolling away. Quantitatively, the closest approaches reach
-$d_{\min}=\result{0.01}$\,m, with $p_5=\result{0.06}$\,m and $p_{10}=\result{0.08}$\,m
-(UPDATE from the headline run).
+policy under the \texttt{coworker\_train} distribution ($3$ seeds $\times\,20$ episodes;
+$30{,}000$ steps) and record the per-step $d_{\min}$. The distribution is strongly
+\emph{bimodal} (\cref{fig:prox-calib}, left): a near-contact mode at $0$--$0.2$\,m --- the
+coworker's hand and the robot's end-effector sharing the workspace during reaches --- and a
+broad mid-/far-range tail ($1$--$3$\,m) when the coworker is in the vicinity or patrolling
+away. The closest approaches reach the geometric-contact limit ($d_{\min}\!\approx\!0.01$\,m).
 
 Because the proximity-violation rate at a candidate threshold $\tau$ is exactly the
 empirical CDF, $P(d_{\min}<\tau)$, the threshold can be read directly off
 \cref{fig:prox-calib} (right). The curve rises steeply across the near-contact mode and
-exhibits a \emph{knee} at $\tau\approx0.2$--$0.3$\,m, beyond which it flattens into the
-gradual ``human-in-the-vicinity'' regime:
+exhibits a \emph{knee} at $\tau\approx0.2$--$0.3$\,m, beyond which it climbs more gradually
+into the ``human-in-the-vicinity'' regime:
 
 \begin{center}
 \begin{tabular}{lcccccc}
 \toprule
 $\tau$ (m) & 0.20 & 0.30 & 0.40 & 0.50 & 0.75 & 1.00 \\
 \midrule
-violation rate & \result{14\%} & \result{18\%} & \result{22\%} & \result{24\%}
-               & \result{31\%} & \result{36\%} \\
+violation rate & $14.0\%$ & $\mathbf{18.9\%}$ & $24.4\%$ & $30.3\%$ & $48.4\%$ & $64.4\%$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\paragraph{Chosen threshold.}
-We adopt $\tau = \mathbf{0.5}\,$m\footnote{Set the final value here. The analysis supports
-any $\tau\in[0.3,0.5]\,$m; we take the conservative end, which is also the threshold used to
-label the offline SVF dataset (\cref{sec:method:svf}), keeping the filter's learnt notion of
-``unsafe'' consistent with the reported metric. A tighter, contact-risk-focused definition
-would take $\tau=0.3\,$m at the CDF knee.}. This choice is justified on three grounds:
-(i)~it lies well above the $\sim\!0.1$\,m geometric contact band, so a violation is a genuine
-safety-margin breach rather than an after-the-fact contact report; (ii)~it captures the
-entire near-contact mode of the empirical distribution (the population the metric exists to
-detect) while remaining in the buffer region above the CDF knee, so it does not over-count
-benign vicinity steps; and (iii)~it is a fixed geometric quantity, independent of robot
-speed, and therefore comparable across policies, tasks, and the train/eval disruption bands.
+We confirmed that the knee location is not an artefact of a single policy: an independent
+trained policy places it at the same $0.2$--$0.3$\,m, consistent with the threshold being a
+property of the scene's contact geometry rather than of any one controller.
 
-The selection is not sensitive to fine variation: shifting $\tau$ by $\pm0.1$\,m changes the
-flagged rate by only a few percentage points (table above), and the qualitative ordering of
-all reported configurations is preserved. We hold $\tau$ \emph{fixed across every policy and
-experiment} so that the proximity-violation rate is a like-for-like comparison; the baseline's
-high near-contact rate ($\result{24}\%$ of steps below $\tau$) is precisely the unsafe
-behaviour the constrained-RL policy and runtime SVF filter are designed to reduce.
+\paragraph{Chosen threshold.}
+We adopt $\tau = \mathbf{0.3}\,$m. This choice is justified on three grounds:
+(i)~it lies $\sim\!0.2$\,m above the geometric contact band ($\sim\!0.1$\,m), so a violation
+is a genuine safety-margin breach rather than an after-the-fact contact report;
+(ii)~it sits at the knee of the empirical CDF, capturing the near-contact mode (the
+population the metric exists to detect: $14\%$ of steps fall within $0.2$\,m and $18.9\%$
+within $0.3$\,m) while \emph{not} absorbing the large benign mid-range population that a
+wider threshold would --- doubling the threshold to $0.5$\,m would flag $30.3\%$ of steps and
+$1.0$\,m would flag $64.4\%$, the bulk of which are ordinary ``coworker nearby'' frames rather
+than contact risk; and (iii)~it is a fixed geometric quantity, independent of robot speed,
+and therefore comparable across policies, tasks, and the train/eval disruption bands. The
+same $\tau=0.3$\,m is used to label the offline SVF dataset (\cref{sec:method:svf}; the binary
+$r_{\rm safe}=\mathbb{1}[d_{\min}\!\ge\!\tau]$ label is recomputed on the fly from the stored
+per-step $d_{\min}$, requiring no re-collection), keeping the filter's learnt notion of
+``unsafe'' consistent with the reported metric.\footnote{A more conservative buffer-style
+criterion would take $\tau=0.5$\,m; we prefer the knee value as the tighter, contact-risk
+definition. The choice is not sensitive to fine variation --- shifting $\tau$ by $\pm0.1$\,m
+moves the flagged rate by a few percentage points and preserves the qualitative ordering of
+all reported configurations.}
+
+We hold $\tau$ \emph{fixed across every policy and experiment} so that the proximity-violation
+rate is a like-for-like comparison; the baseline's high near-contact rate ($18.9\%$ of steps
+below $\tau$) is precisely the unsafe behaviour the constrained-RL policy and runtime SVF
+filter are designed to reduce.

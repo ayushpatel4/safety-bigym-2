@@ -166,3 +166,43 @@ on the fly from the stored per-step `min_separation` (no re-collection).
 Override via Hydra: `env.safety.proximity_threshold=0.4` etc. The shard
 schema (Phase 2) records raw `min_separation` per-step, so threshold
 sweeps over historical data are free.
+
+### How 0.3 m was calibrated (2026-05-30)
+
+τ is set by triangulating two speed-independent analyses (full write-up for
+the report: [proximity_threshold_calibration.tex](proximity_threshold_calibration.tex)):
+
+1. **Contact geometry** — [`scripts/visualize_separation_distances.py`](../scripts/visualize_separation_distances.py)
+   renders the coworker at controlled separations (no physics stepping; robot
+   frozen in its reset pose, coworker pelvis mocap slid along the approach
+   axis, `min_separation` recomputed via `_aggregate_safety_info`). Collision
+   geoms **touch at `min_separation ≈ 0.01–0.10 m`**; a clearly visible gap has
+   opened by **≈ 0.30 m**. So any usable τ must sit above the ~0.1 m contact
+   band — a violation should *precede* contact, not coincide with it.
+
+2. **Empirical distribution** — [`scripts/calibrate_proximity_threshold.py`](../scripts/calibrate_proximity_threshold.py)
+   rolls out a policy under `coworker_train` and collects per-step
+   `min_separation`. Since the proximity-violation rate at threshold τ is
+   exactly the empirical CDF `P(min_separation < τ)`, τ reads straight off the
+   curve. The distribution is **bimodal** (a near-contact mode at 0–0.2 m plus
+   a far mid-/patrol tail), and the CDF has a **knee at τ ≈ 0.2–0.3 m**. On the
+   headline G1 stage-2 baseline (3 seeds × 20 ep, 30 000 steps,
+   `results/prox_calib_row5.*`):
+
+   | τ (m)          | 0.20 | **0.30** | 0.40 | 0.50 | 0.75 | 1.00 |
+   | -------------- | ---- | -------- | ---- | ---- | ---- | ---- |
+   | violation rate | 14.0 % | **18.9 %** | 24.4 % | 30.3 % | 48.4 % | 64.4 % |
+
+   The knee location is consistent across two independent trained policies, so
+   it reflects scene contact geometry rather than one controller.
+
+**Decision:** τ = 0.3 m sits at the knee, ~0.2 m above the contact band, and
+captures the genuine near-contact population without absorbing the benign
+mid-range proximity that 0.5 m (30 %) or 1.0 m (64 %) would. It is
+speed-independent, so the proximity-violation rate is comparable across
+policies, tasks, and disruption bands; it is held **fixed across all
+experiments**. The high baseline rate (18.9 % of steps below τ) is precisely
+the unsafe behaviour the constrained-RL policy and SVF filter are meant to
+reduce. `scripts/calibrate_proximity_threshold.py` reads the live
+`SSMConfig.proximity_threshold` so its "current threshold" marker tracks any
+future change.

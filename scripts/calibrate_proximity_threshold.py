@@ -40,8 +40,17 @@ if str(REPO_ROOT) not in sys.path:
 
 logger = logging.getLogger("calibrate_proximity_threshold")
 
-CURRENT_THRESHOLD = 0.5  # SSMConfig.proximity_threshold default
+CURRENT_THRESHOLD = 0.3  # fallback; main() overwrites this from SSMConfig.proximity_threshold
 DEFAULT_CANDIDATES = (0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0)
+
+
+def _resolve_current_threshold(default: float = 0.3) -> float:
+    """The live proximity threshold, read from config so the plot never goes stale."""
+    try:
+        from safety_bigym.config import SSMConfig
+        return float(SSMConfig().proximity_threshold)
+    except Exception:
+        return default
 
 
 def collect_separations(
@@ -142,6 +151,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=args.log_level.upper(), format="%(levelname)s %(message)s")
+    global CURRENT_THRESHOLD
+    CURRENT_THRESHOLD = _resolve_current_threshold()
+    logger.info("Live proximity threshold (SSMConfig.proximity_threshold): %.2f m", CURRENT_THRESHOLD)
     seeds = [int(s) for s in str(args.seeds).split(",") if s.strip() != ""]
 
     seps = collect_separations(
