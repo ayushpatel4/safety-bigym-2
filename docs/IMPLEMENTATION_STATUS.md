@@ -204,14 +204,22 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
     the P1 snapshot wrapped with the P2 SVF.
   - **Row 5** — Full hybrid (row 3 + filter). Pure deploy eval on
     the P3 snapshot wrapped with the P2 SVF.
+- **Perception mode**: **whole table on `noisy`** (`OBS_MODE=noisy`, the driver
+  default) — see the finding below; `OBS_MODE=oracle` is a policy-only reference.
 - **Driver**: `scripts/run_e4_1_headline.sh` (built 2026-05-30) — runs
-  `benchmark_policy.py` for every row (oracle, + 1 noisy diagnostic), one CSV
-  per row. **Incremental**: rows 1 & 4 run now from `STAGE2` (P1 stage-2) + the
-  SVF filter; rows 3/5/5_noisy skip until `ROW3` (the P3 d_knee snapshot) is set;
-  row 2 skips until `ROW2` is set. Defaults `STAGE2`→recorded G1 stage-2,
-  `SVF_FILTER`→`checkpoints/svf_coworker_train_g1_0p3.pt`, `FILTER_R`→4.0.
-  `RENDER=1` (`RENDER_EPISODES=N`) writes per-row rollout mp4(s) to
-  `<OUTDIR>/<label>_videos/` for qualitative figures.
+  `benchmark_policy.py` for every row on one obs mode, one CSV per row.
+  **Incremental**: rows 1 & 4 run now from `STAGE2` (P1 stage-2) + the SVF
+  filter; rows 3/5 skip until `ROW3` (the P3 d_knee snapshot) is set; row 2 skips
+  until `ROW2` is set. Defaults: `STAGE2`→recorded G1 stage-2,
+  `SVF_FILTER`→`svf_coworker_train_g1_0p3.pt`, `FILTER_R`→read from
+  `snapshots.py` (R=2.25). `RENDER=1` (`RENDER_EPISODES=N`) writes per-row
+  rollout mp4(s) to `<OUTDIR>/<label>_videos/`.
+- **⚠ Finding (2026-05-30, drove the noisy switch)**: the SVF filter on `oracle`
+  collapses — `mean_q ≈ 0.016 ≪ R=2.25` → **100% intervention, robot frozen,
+  success 0.78 → 0.0** (results/e4_1/..._190001). The filter trains on `noisy`;
+  oracle obs is OOD for the critic. So E4.1 runs on **noisy** (filter
+  in-distribution, apples-to-apples). The oracle filter result is itself a
+  reportable result (train/deploy distribution match is load-bearing).
 - **Acceptance**: row 5 dominates each of rows 1–4 on
   `ep_proximity_violation_rate` with non-overlapping CIs. If row 5
   ties row 3, the filter is redundant on a well-trained policy —

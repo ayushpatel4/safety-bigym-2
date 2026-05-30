@@ -5,16 +5,20 @@
 # run rows 1 & 4 now (need only STAGE2 + the SVF filter), then rows 2/3/5 once
 # those snapshots exist (P5 row-2 training, P3 continuous + d_knee).
 #
-# Perception (PROJECT_PLAN "Perception Mode Policy"): rows 1-5 eval `oracle`;
-# row5_hybrid_noisy is the single `noisy` sim-to-real diagnostic.
+# Perception: the WHOLE table runs on one obs mode, OBS_MODE (default `noisy`).
+# Why noisy: the SVF filter is trained on `noisy` and its Q-values collapse on
+# `oracle` (mean_q ~0.016 << R -> 100% intervention, task destroyed; observed
+# 2026-05-30). Running every row on noisy keeps the filter in-distribution and
+# the comparison apples-to-apples (the policy's oracle->noisy degradation is
+# identical across rows, so it cancels). Use OBS_MODE=oracle for a policy-only
+# clean-perception reference — but the filter rows (4/5) are meaningless there.
 #
-# Rows:
-#   row1_baseline        STAGE2,  oracle, no filter   (unconstrained baseline)
-#   row2_workspace       ROW2,    oracle, no filter   (+ workspace shaping ablation)
-#   row3_lagrangian      ROW3,    oracle, no filter   (+ continuous-cost Lagrangian)
-#   row4_baseline_filter STAGE2,  oracle, + filter    (baseline + runtime SVF)
-#   row5_hybrid          ROW3,    oracle, + filter    (full hybrid)
-#   row5_hybrid_noisy    ROW3,    noisy,  + filter    (sim-to-real diagnostic)
+# Rows (all on $OBS_MODE):
+#   row1_baseline        STAGE2,  no filter   (unconstrained baseline)
+#   row2_workspace       ROW2,    no filter   (+ workspace shaping ablation)
+#   row3_lagrangian      ROW3,    no filter   (+ continuous-cost Lagrangian)
+#   row4_baseline_filter STAGE2,  + filter    (baseline + runtime SVF)
+#   row5_hybrid          ROW3,    + filter    (full hybrid)
 #
 # NOT a training job — pure eval, minimal GPU. Run on the GPU box.
 #
@@ -25,8 +29,10 @@
 #                               # injection) to derive CQN-AS action stats
 #
 # Inputs (env vars; absolute or repo-relative paths):
+#   OBS_MODE    perception mode for ALL rows. Default `noisy` (filter's native
+#               distribution). `oracle` = policy-only clean reference (filter rows break).
 #   STAGE2      row-1 + row-4 policy (P1 unconstrained baseline). Default = recorded G1 stage-2.
-#   ROW3        row-3 + row-5 policy (P3 continuous + d_knee). Unset -> rows 3,5,5_noisy skipped.
+#   ROW3        row-3 + row-5 policy (P3 continuous + d_knee). Unset -> rows 3,5 skipped.
 #   ROW2        row-2 policy (+ workspace-shaping training run). Unset -> row 2 skipped.
 #   SVF_FILTER  SVF critic for rows 4/5. Default checkpoints/svf_coworker_train_g1_0p3.pt.
 #   FILTER_R    veto threshold R. Default = snapshots.py::SVF_FILTER_THRESHOLD_R
@@ -37,8 +43,9 @@
 #   RENDER_EPISODES (1) how many of the first scored episodes to record per row.
 #
 # Usage:
-#   STAGE2=... bash scripts/run_e4_1_headline.sh              # rows 1 & 4 now
-#   STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh     # rows 1,3,4,5,5_noisy
+#   STAGE2=... bash scripts/run_e4_1_headline.sh              # rows 1 & 4 now (noisy)
+#   STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh     # rows 1,3,4,5 (noisy headline)
+#   OBS_MODE=oracle STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh  # policy-only reference
 #   SMOKE=1 STAGE2=... bash scripts/run_e4_1_headline.sh      # 1 seed x 2 ep x 50 steps
 #   RENDER=1 RENDER_EPISODES=2 STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh  # + mp4s
 set -euo pipefail
@@ -49,6 +56,9 @@ cd "${REPO_ROOT}"
 TASK="${TASK:-saucepan_to_hob}"
 HUMAN_MODEL="${HUMAN_MODEL:-g1}"
 DISRUPTION="${DISRUPTION:-coworker_train}"
+# Whole table on one perception mode. Default noisy = the SVF filter's native
+# (training) distribution; on oracle the filter Q collapses -> 100% intervention.
+OBS_MODE="${OBS_MODE:-noisy}"
 # Recorded P1 stage-2 (filters/snapshots.py::G1_CURRICULUM). Repo-relative so it
 # resolves from REPO_ROOT; override STAGE2=<abs path> to use another baseline.
 STAGE2="${STAGE2:-exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt}"
@@ -73,13 +83,13 @@ else
 fi
 
 _RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
-RUN_TAG="${RUN_TAG:-e4_1_${TASK}_${_RUN_STAMP}}"
+RUN_TAG="${RUN_TAG:-e4_1_${TASK}_${OBS_MODE}_${_RUN_STAMP}}"
 OUTDIR="${OUTDIR:-${REPO_ROOT}/results/e4_1/${RUN_TAG}}"
 mkdir -p "${OUTDIR}"
-echo "== E4.1 headline eval | TASK=${TASK} disruption=${DISRUPTION} R=${FILTER_R} =="
+echo "== E4.1 headline eval | TASK=${TASK} disruption=${DISRUPTION} obs=${OBS_MODE} R=${FILTER_R} =="
 echo "   OUTDIR=${OUTDIR}"
 echo "   STAGE2=${STAGE2}"
-echo "   ROW3=${ROW3:-<unset -> rows 3/5/5_noisy skipped>}  ROW2=${ROW2:-<unset -> row 2 skipped>}"
+echo "   ROW3=${ROW3:-<unset -> rows 3/5 skipped>}  ROW2=${ROW2:-<unset -> row 2 skipped>}"
 
 RAN=(); SKIPPED=()
 run_row() {   # label  snapshot  obs-mode  filter|nofilter
@@ -107,15 +117,14 @@ run_row() {   # label  snapshot  obs-mode  filter|nofilter
   RAN+=("${label}")
 }
 
-run_row row1_baseline        "${STAGE2}"   oracle nofilter
-run_row row2_workspace       "${ROW2:-}"   oracle nofilter
-run_row row3_lagrangian      "${ROW3:-}"   oracle nofilter
-run_row row4_baseline_filter "${STAGE2}"   oracle filter
-run_row row5_hybrid          "${ROW3:-}"   oracle filter
-run_row row5_hybrid_noisy    "${ROW3:-}"   noisy  filter
+run_row row1_baseline        "${STAGE2}"   "${OBS_MODE}" nofilter
+run_row row2_workspace       "${ROW2:-}"   "${OBS_MODE}" nofilter
+run_row row3_lagrangian      "${ROW3:-}"   "${OBS_MODE}" nofilter
+run_row row4_baseline_filter "${STAGE2}"   "${OBS_MODE}" filter
+run_row row5_hybrid          "${ROW3:-}"   "${OBS_MODE}" filter
 
 echo ""
-echo "== E4.1 eval done. ran: ${RAN[*]:-none} =="
+echo "== E4.1 eval done (obs=${OBS_MODE}). ran: ${RAN[*]:-none} =="
 [[ ${#SKIPPED[@]} -gt 0 ]] && echo "== skipped (inputs unset): ${SKIPPED[*]} =="
 echo "   Per-row CSVs in ${OUTDIR}/  (each benchmark_policy invocation appends one row)."
 echo "   Headline check: row5_hybrid should dominate rows 1-4 on ep_proximity_violation_rate (non-overlapping CIs)."

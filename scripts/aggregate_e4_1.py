@@ -24,15 +24,14 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# (csv basename stem, human label) in table order. row5_hybrid_noisy is the
-# sim-to-real diagnostic; the others are the headline feature-incremental rows.
+# (csv basename stem, human label) in table order — the feature-incremental rows.
+# run_e4_1_headline.sh evaluates the whole table on one obs mode (default noisy).
 ROWS: List[Tuple[str, str]] = [
     ("row1_baseline", "Unconstrained baseline"),
     ("row2_workspace", r"\quad + Workspace shaping"),
     ("row3_lagrangian", r"\quad + Lagrangian (cont.\ cost)"),
     ("row4_baseline_filter", "Baseline + runtime filter"),
     ("row5_hybrid", "Full hybrid"),
-    ("row5_hybrid_noisy", r"Full hybrid (\texttt{noisy} eval)"),
 ]
 
 
@@ -77,10 +76,8 @@ def build_table(rows: Dict[str, Dict[str, str]], caption: str, label: str) -> st
     if not present:
         raise SystemExit("No E4.1 row CSVs found — nothing to aggregate.")
 
-    # Bold the lowest proximity-violation rate among the headline rows
-    # (exclude the noisy diagnostic from the bold comparison).
-    headline = [s for s, _ in present if s != "row5_hybrid_noisy"]
-    prox = {s: _f(rows[s], "ep_proximity_violation_rate") for s in headline}
+    # Bold the lowest proximity-violation rate among the present rows.
+    prox = {s: _f(rows[s], "ep_proximity_violation_rate") for s, _ in present}
     prox = {s: v for s, v in prox.items() if v is not None}
     best = min(prox, key=prox.get) if prox else None
 

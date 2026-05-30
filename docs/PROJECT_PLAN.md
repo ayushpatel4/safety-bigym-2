@@ -73,7 +73,7 @@ experiment is testing, so we adopt this per-experiment policy
 | P2 — Phase 2 SVF re-eval | filter operating point | (already `noisy`)¹ | `noisy` |
 | P3 — E3.1 cost-signal | methodological architecture comparison | `oracle` | `oracle` |
 | P4 — E3.2 budget Pareto | operating-point selection | `oracle` | `oracle` |
-| **P5 — E4.1 headline** | does the hybrid work? | **`oracle`** | **`oracle`** + 1 `noisy` diagnostic row |
+| **P5 — E4.1 headline** | does the hybrid work? | **`oracle`** (policy) | **`noisy`** — whole table (filter is noisy-native; see ² + Rationale) |
 | P7 — E3.6 obs-channel ablation | **measure the perception gap** | `oracle` | `off / oracle / noisy` (the sweep) |
 | P10 — E5.1 tail risk | post-hoc on P5 rolls | — | — |
 | P10 — E5.2 OOD | wider disruption band | `oracle` | `oracle` on `coworker_eval` |
@@ -81,19 +81,28 @@ experiment is testing, so we adopt this per-experiment policy
 ¹ The Phase 2 SVF dataset was collected with `bodyslam=noisy`
 **by design** — the filter is a runtime safety guarantee, so its
 training distribution must match its deployment distribution.
-This is distinct from the policy, which trains on `oracle` to
-isolate the architecture comparison and is then measured against
-`noisy` evaluation as a sim-to-real diagnostic (see Rationale
-paragraph below).
 
-**Rationale.** Architecture comparisons (P3, P4, P5) use `oracle`
-on both sides to isolate the treatment variable; the headline
-attribution is then "the hybrid architecture works", not "noisy
-training happens to regularise". The dedicated perception-gap
-experiment is E3.6 (P7), which sweeps all three modes. The
-headline table additionally carries one `noisy`-eval diagnostic
-row so the reader sees both the clean methodological result and
-how it degrades under realistic perception.
+² **P5 eval moved to `noisy` (2026-05-30, empirically forced).** The
+original plan evaluated the headline on `oracle` + a single `noisy`
+diagnostic. But running the SVF filter on `oracle` makes its
+Q-values collapse (`mean_q ≈ 0.016 ≪ R=2.25`) → **100% intervention,
+robot frozen, success 0.78 → 0.0** (results/e4_1/..._190001). The
+filter is trained on `noisy`; oracle obs is out-of-distribution for
+the critic, exactly the CQL-pessimism-on-OOD-observations failure
+this policy warns about. So the **entire E4.1 table is now evaluated
+on `noisy`** (`OBS_MODE=noisy`, the driver default): the filter
+operates in-distribution and the comparison stays apples-to-apples
+(the policy's `oracle`→`noisy` degradation is identical across rows,
+so it cancels). `OBS_MODE=oracle` is retained as a policy-only
+clean-perception reference (rows 1–3); the filter rows are
+meaningless there and that fact is itself a reportable result.
+
+**Rationale.** The policy still *trains* on `oracle` to isolate the
+architecture comparison (no "noisy training regularises" confound).
+The headline *eval* is `noisy` because that is the only condition in
+which the runtime filter is in-distribution — and because it is also
+the realistic sim-to-real condition. The dedicated perception-gap
+experiment is E3.6 (P7), which sweeps all three modes.
 
 **The Phase 2 SVF is the one exception: it trains and evaluates
 on `noisy`.** The asymmetry is deliberate. The policy is a soft
@@ -119,7 +128,9 @@ P7 E3.6 launches are the only ones that train with
 `bodyslam=oracle` and then sweep three eval modes via the
 `benchmark_policy.py` harness. The P2 SVF re-eval inherits its
 `noisy` setting from the existing dataset and must not be changed
-without retraining.
+without retraining. **P5's policies also train on `oracle`, but the
+E4.1 *eval* is `noisy`** (`run_e4_1_headline.sh` defaults
+`OBS_MODE=noisy`) because the filter is noisy-native — see footnote ².
 
 ---
 
@@ -932,29 +943,34 @@ each, evaluated on `saucepan_to_hob` under `coworker_train`.
 #### Tasks
 
 **Driver: `scripts/run_e4_1_headline.sh`** (built 2026-05-30) runs all rows via
-`benchmark_policy.py` (oracle + 1 noisy diagnostic), one CSV per row, skipping
-rows whose snapshot env var is unset so it is usable incrementally:
+`benchmark_policy.py` on **one obs mode** (`OBS_MODE`, default `noisy` — the
+filter's native distribution; see Perception Mode Policy footnote ²), one CSV
+per row, skipping rows whose snapshot env var is unset so it's usable
+incrementally:
 
 ```bash
-# Rows 1 & 4 now (need only STAGE2 + the SVF filter):
+# Rows 1 & 4 now, noisy (need only STAGE2 + the SVF filter):
 STAGE2=.../stage2_full/snapshot_28203.pt bash scripts/run_e4_1_headline.sh
-# Rows 1,3,4,5,5_noisy once the P3 d_knee snapshot exists:
-STAGE2=.../stage2_full/snapshot_28203.pt ROW3=runs/p3_continuous_d_knee/.../snapshot_*.pt \
+# Full noisy headline once the P3 d_knee snapshot exists:
+STAGE2=.../stage2_full/snapshot_28203.pt ROW3=runs/.../snapshot_*.pt \
   bash scripts/run_e4_1_headline.sh
+# Policy-only oracle reference (rows 1-3; the filter rows are meaningless on oracle):
+OBS_MODE=oracle STAGE2=... ROW3=... bash scripts/run_e4_1_headline.sh
 ```
 
-The explicit per-row commands the driver wraps (retained for reference):
+The explicit per-row commands the driver wraps (retained for reference; the
+whole table runs on `--obs-mode noisy`):
 
 ```bash
 # Row 1 — eval P1 snapshot
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
   --task saucepan_to_hob --disruption coworker_train \
-  --obs-mode oracle --seeds 0,1,2 --episodes 20 \
+  --obs-mode noisy --seeds 0,1,2 --episodes 20 \
   --out results/e4.1_row1.csv
 
 # Row 2 — NEW training run with workspace shaping (plain agent=cqn_as, no λ).
-# Real keys: env=, num_train_frames=, env.safety.workspace_beta=. No cost_signal key.
+# TRAINS on bodyslam=oracle (architecture comparison); EVALUATED on noisy below.
 python train_cqn_as.py \
   env=safety_bigym/saucepan_to_hob disruption=coworker_train bodyslam=oracle \
   num_train_frames=60000 +snapshot_path=$WARMSTART \
@@ -965,13 +981,13 @@ python train_cqn_as.py \
 # Then eval
 python scripts/benchmark_policy.py \
   --snapshot runs/row2_seed{0,1,2}/final.pt ... \
-  --obs-mode oracle \
+  --obs-mode noisy \
   --out results/e4.1_row2.csv
 
 # Row 3 — eval P3 continuous-cost snapshot
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --obs-mode oracle \
+  --obs-mode noisy \
   --out results/e4.1_row3.csv
 
 # Row 4 — eval P1 snapshot WITH filter
@@ -979,7 +995,7 @@ python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --filter-threshold 2.25 \
-  --obs-mode oracle \
+  --obs-mode noisy \
   --out results/e4.1_row4.csv
 
 # Row 5 — eval P3 snapshot WITH filter
@@ -987,16 +1003,8 @@ python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --filter-threshold 2.25 \
-  --obs-mode oracle \
-  --out results/e4.1_row5.csv
-
-# Row 5-diagnostic — same as row 5 but with noisy eval, for the sim-to-real diagnostic
-python scripts/benchmark_policy.py \
-  --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
-  --filter-threshold 2.25 \
   --obs-mode noisy \
-  --out results/e4.1_row5_noisy_diagnostic.csv
+  --out results/e4.1_row5.csv
 
 # Aggregate the per-row CSVs into the headline LaTeX table (scripts/aggregate_e4_1.py
 # built 2026-05-30; reads run_e4_1_headline.sh's row CSVs, bolds the lowest
