@@ -1,0 +1,4 @@
+threshold_R,n_episodes,n_steps,intervention_rate,residual_violation_rate,mean_q_value
+4.0,20,5000,0.9938,0.0004,0.9852920118444135
+4.0,20,5000,0.9972,0.0262,0.8505958755165788
+4.0,20,5000,0.993,0.0018,0.820357464682691
