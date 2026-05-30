@@ -14,6 +14,10 @@ cd "$(dirname "$0")/.."
 PY=venv/bin/python
 OUT="${1:-results/benchmark_demo}"
 mkdir -p "$OUT"
+# Production G1 filter + operating point (override if a different checkpoint is
+# the one present locally, e.g. SVF=svf_coworker_train_v1.pt FILTER_R=4.0).
+SVF="${SVF:-checkpoints/svf_coworker_train_g1_0p3.pt}"
+FILTER_R="${FILTER_R:-2.25}"
 
 echo "[1/3] random policy, G1, coworker_train, noisy — NO filter"
 "$PY" scripts/benchmark_policy.py \
@@ -21,11 +25,11 @@ echo "[1/3] random policy, G1, coworker_train, noisy — NO filter"
   --seeds 0 --episodes 3 --max-steps 80 \
   --out "$OUT/random_nofilter.csv"
 
-echo "[2/3] random policy, G1, coworker_train, noisy — WITH local SVF filter (R=4.0)"
+echo "[2/3] random policy, G1, coworker_train, noisy — WITH SVF filter (R=${FILTER_R})"
 "$PY" scripts/benchmark_policy.py \
   --task saucepan_to_hob --disruption coworker_train --obs-mode noisy --human-model g1 \
   --seeds 0 --episodes 3 --max-steps 80 \
-  --filter-snapshot svf_coworker_train_v1.pt --filter-threshold 4.0 \
+  --filter-snapshot "$SVF" --filter-threshold "$FILTER_R" \
   --out "$OUT/random_filter.csv"
 
 echo "[3/3] visualize"

@@ -97,10 +97,19 @@ def _run_warm_start_guard_check() -> bool:
     from safety_bigym.filters.critic import SafetyCritic
     from safety_bigym.filters.feature_extractor import CriticFeatureSpec
 
-    svf_v1 = Path("checkpoints/svf_coworker_train_v1.pt")
-    if svf_v1.exists():
-        logger.info("Loading SVF v1 checkpoint payload: %s", svf_v1)
-        payload = torch.load(svf_v1, map_location="cpu", weights_only=False)
+    # Prefer the current G1 production critic; fall back to the legacy SMPL-H v1
+    # if that's what's present locally; else a synthetic positive control (the
+    # warm-start guard behaviour is architecturally identical either way).
+    svf_ckpt = next(
+        (p for p in (
+            Path("checkpoints/svf_coworker_train_g1_0p3.pt"),
+            Path("checkpoints/svf_coworker_train_v1.pt"),
+        ) if p.exists()),
+        None,
+    )
+    if svf_ckpt is not None:
+        logger.info("Loading SVF checkpoint payload: %s", svf_ckpt)
+        payload = torch.load(svf_ckpt, map_location="cpu", weights_only=False)
         # Normalise: training scripts sometimes wrap the payload under "svf"
         # or a similar top-level key. Handle both shapes.
         if "state_dict" not in payload and "svf" in payload:
@@ -108,9 +117,9 @@ def _run_warm_start_guard_check() -> bool:
         spec = CriticFeatureSpec.from_dict(payload["spec"])
     else:
         logger.warning(
-            "SVF v1 checkpoint not at %s; using a synthetic payload as positive "
-            "control (architecturally identical, guard behaviour the same).",
-            svf_v1,
+            "No SVF checkpoint at checkpoints/svf_coworker_train_g1_0p3.pt or "
+            "...v1.pt; using a synthetic payload as positive control "
+            "(architecturally identical, guard behaviour the same)."
         )
         spec = CriticFeatureSpec(
             obs_keys=("low_dim_state",), obs_dims=(64,), action_dim=16

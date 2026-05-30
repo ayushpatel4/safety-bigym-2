@@ -16,7 +16,7 @@ metrics to stdout / CSV.
 Usage:
     python scripts/svf_eval_filter.py --smoke --critic-path /tmp/svf_smoke/_smoke_critic.pt
     python scripts/svf_eval_filter.py \\
-        --critic-path checkpoints/svf_v1.pt --threshold-R 50.0 \\
+        --critic-path checkpoints/svf_coworker_train_g1_0p3.pt --threshold-R 2.25 \\
         --policy random --tasks reach_target_single --episodes-per-cell 10
 """
 
@@ -63,7 +63,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--smoke", action="store_true")
     p.add_argument("--critic-path", type=Path, required=False)
-    p.add_argument("--threshold-R", type=float, default=50.0)
+    p.add_argument("--threshold-R", type=float, default=2.25,
+                   help="SVF Q threshold R (filter vetoes q<R). 2.25 = G1 "
+                        "dense-0.3m operating point; old 50.0 sat above the Q range.")
     p.add_argument("--fallback", default="zero_velocity")
     p.add_argument(
         "--policy", choices=("random", "snapshot"), default="random"
