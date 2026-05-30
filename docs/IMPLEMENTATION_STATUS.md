@@ -186,6 +186,10 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 ### P4. E3.2: cost-budget Pareto sweep
 - **Goal**: identify the headline $d$ operating point as the knee.
 - **Cells**: $d \in \{0.001, 0.01, 0.05, 0.1\}$, 3 seeds.
+- **Launcher**: `scripts/run_e3_2_cost_budget.sh` (built 2026-05-30) — sweeps
+  `agent.cost_budget` over continuous-cost Lagrangian runs, warm-started from the
+  P1 stage-1 snapshot (`WARMSTART`). `SMOKE=1` for a 2000-frame composition check.
+- **Independent of the P2 sweep** — warm-starts from stage-1, not the SVF filter.
 - **Populates**: Figure~\ref{fig:e3.2-pareto}.
 - **GPU**: 12 cells × ~2 h = ~24 h
 

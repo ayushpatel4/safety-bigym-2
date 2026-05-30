@@ -635,9 +635,19 @@ Sweep cost budget `d ∈ {0.001, 0.01, 0.05, 0.1}`, 3 seeds each =
 
 ##### Implementation notes
 
+Use the launcher `scripts/run_e3_2_cost_budget.sh` (warm-starts from the P1
+stage-1 snapshot; `SMOKE=1` for a composition check):
+
 ```bash
-# Real keys (env=, num_train_frames=, agent=cqn_as_lagrangian, agent.cost_budget=).
-# cost_signal=continuous is implicit (the only wired form); sweep d = agent.cost_budget.
+WARMSTART=exp_local/cqn_as_base_curriculum/<run>/stage1_easy/snapshot_XXXXX.pt \
+  scripts/run_e3_2_cost_budget.sh           # d in {0.001,0.01,0.05,0.1} x seeds {0,1,2}
+```
+
+The real per-cell command it runs (env=, num_train_frames=, agent=cqn_as_lagrangian,
+agent.cost_budget=). cost_signal=continuous is implicit (E3.1 compares forms;
+here d = agent.cost_budget is the only treatment variable):
+
+```bash
 python train_cqn_as.py \
   env=safety_bigym/saucepan_to_hob \
   disruption=coworker_train \
