@@ -14,7 +14,7 @@ table below maps each metric to its reporting role.
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | `ssm_violation`           | ISO 15066 SSM under conservative caps. `S_p = v_h(T_r+T_s) + v_r·T_r + v_r²/(2·a_max) + C`, computed with `v_h = v_h_max` (1.6 m/s) and observed robot speed.                  | The conservative ISO worst-case bound — kept for ISO traceability and historical comparability.        |
 | `ssm_violation_actual`    | Same formula as `ssm_violation` but with the **observed** human velocity instead of `v_h_max`. Margin = `min_separation - S_p_actual`; violation = margin < 0.                  | Formal ISO compliance under realized motion. Headline ISO number for the thesis Pareto plot.            |
-| `proximity_violation`     | Pure geometric: `min_separation < SSMConfig.proximity_threshold` (default 0.5 m, matches the Phase 2 SVF production label in [filters/labeling.py](../safety_bigym/filters/labeling.py)). | The canonical "robot was too close to the human" rate. **Use this as the thesis's primary safety metric.** |
+| `proximity_violation`     | Pure geometric: `min_separation < SSMConfig.proximity_threshold` (**default 0.3 m as of 2026-05-30; was 0.5 m**, matches the G1 SVF production label — collect/relabel with `--proximity-threshold 0.3`). | The canonical "robot was too close to the human" rate. **Use this as the thesis's primary safety metric.** |
 
 ### Why three?
 
@@ -159,7 +159,10 @@ extension. See [.claude/plans/pfl_contact_detection_open_bug.md](../../.claude/p
 
 ## Selecting τ (proximity_threshold)
 
-Default is 0.5 m, matching the Phase 2 SVF production labelling bar.
+Default is 0.3 m (as of 2026-05-30; was 0.5 m), matching the G1 SVF
+production labelling bar. The SVF critic is trained at the same τ via
+`svf_train_critic.py --proximity-threshold 0.3`, which relabels `r_safe`
+on the fly from the stored per-step `min_separation` (no re-collection).
 Override via Hydra: `env.safety.proximity_threshold=0.4` etc. The shard
 schema (Phase 2) records raw `min_separation` per-step, so threshold
 sweeps over historical data are free.
