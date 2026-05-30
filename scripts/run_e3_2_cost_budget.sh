@@ -44,7 +44,9 @@ esac
 # Optional P8 / E4.3 internalisation curve — set FILTER_PASSIVE to an SVF critic
 # checkpoint to log eval/filter_intervention_rate per eval cycle (observe-only).
 FILTER_PASSIVE="${FILTER_PASSIVE:-}"
-FILTER_PASSIVE_R="${FILTER_PASSIVE_R:-4.0}"
+# Default R from snapshots.py::SVF_FILTER_THRESHOLD_R (standalone load, no torch);
+# R=2.25 for saucepan (dense-0.3m-sweep operating point). Override FILTER_PASSIVE_R=.
+FILTER_PASSIVE_R="${FILTER_PASSIVE_R:-$(python -c "import importlib.util as u;sp=u.spec_from_file_location('s','safety_bigym/filters/snapshots.py');m=u.module_from_spec(sp);sp.loader.exec_module(m);print(m.SVF_FILTER_THRESHOLD_R.get('${TASK}',2.25))" 2>/dev/null || echo 2.25)}"
 PASSIVE_OVERRIDES=()
 [[ -n "${FILTER_PASSIVE}" ]] && PASSIVE_OVERRIDES=(\
   "filter_passive.snapshot=${FILTER_PASSIVE}" "filter_passive.threshold=${FILTER_PASSIVE_R}")

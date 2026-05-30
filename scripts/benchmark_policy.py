@@ -16,7 +16,7 @@ Examples
     # headline-style cell on a trained policy + the SVF filter
     python scripts/benchmark_policy.py \\
         --snapshot runs/saucepan_g1/final.pt \\
-        --filter-snapshot svf_coworker_train_v1.pt --filter-threshold 4.0 \\
+        --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt --filter-threshold 2.25 \\
         --task saucepan_to_hob --disruption coworker_train --obs-mode noisy \\
         --human-model g1 --seeds 0,1,2 --episodes 20 --out results/row5.csv
 
@@ -51,7 +51,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--snapshot", type=Path, default=None, help="Policy checkpoint (ACT/CQN-AS). Omit for random.")
     p.add_argument("--filter-snapshot", type=Path, default=None, help="SVF critic checkpoint to wrap the policy.")
-    p.add_argument("--filter-threshold", type=float, default=4.0, help="SVF Q-value threshold R (filter triggers q<R).")
+    p.add_argument("--filter-threshold", type=float, default=2.25, help="SVF Q-value threshold R (filter triggers q<R). 2.25 = G1 dense-0.3m-sweep operating point (snapshots.py).")
     p.add_argument("--fallback", default="zero_velocity")
     p.add_argument("--task", default="saucepan_to_hob")
     p.add_argument("--disruption", default="coworker_train")

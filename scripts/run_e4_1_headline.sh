@@ -29,7 +29,8 @@
 #   ROW3        row-3 + row-5 policy (P3 continuous + d_knee). Unset -> rows 3,5,5_noisy skipped.
 #   ROW2        row-2 policy (+ workspace-shaping training run). Unset -> row 2 skipped.
 #   SVF_FILTER  SVF critic for rows 4/5. Default checkpoints/svf_coworker_train_g1_0p3.pt.
-#   FILTER_R    veto threshold R. Default 4.0 (snapshots.py provisional knee).
+#   FILTER_R    veto threshold R. Default = snapshots.py::SVF_FILTER_THRESHOLD_R
+#               (R=2.25 for saucepan, the dense-0.3m-sweep operating point).
 #   SEEDS (0,1,2), EPISODES (20), DISRUPTION (coworker_train),
 #   NUM_DEMOS_FOR_STATS (0 = faithful full count; cap on a laptop), OUTDIR.
 #   RENDER (0)         set 1 to write rollout mp4(s) per row (needs MUJOCO_GL).
@@ -52,7 +53,11 @@ DISRUPTION="${DISRUPTION:-coworker_train}"
 # resolves from REPO_ROOT; override STAGE2=<abs path> to use another baseline.
 STAGE2="${STAGE2:-exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt}"
 SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_0p3.pt}"
-FILTER_R="${FILTER_R:-4.0}"
+# Default the veto threshold R from the single source of truth — snapshots.py::
+# SVF_FILTER_THRESHOLD_R (loaded standalone: stdlib-only, no torch). This is the
+# operating point pinned from the dense 0.3 m sweep (R=2.25 for saucepan, NOT the
+# old 4.0). Override with FILTER_R=<value>; falls back to 2.25 if the lookup fails.
+FILTER_R="${FILTER_R:-$(python -c "import importlib.util as u;sp=u.spec_from_file_location('s','safety_bigym/filters/snapshots.py');m=u.module_from_spec(sp);sp.loader.exec_module(m);print(m.SVF_FILTER_THRESHOLD_R.get('${TASK}',2.25))" 2>/dev/null || echo 2.25)}"
 NUM_DEMOS_FOR_STATS="${NUM_DEMOS_FOR_STATS:-0}"
 # Optional rollout videos: RENDER=1 writes RENDER_EPISODES mp4(s) per row under
 # <OUTDIR>/<label>_videos/step_<i>_ep0.mp4 (best-effort; needs MUJOCO_GL working).

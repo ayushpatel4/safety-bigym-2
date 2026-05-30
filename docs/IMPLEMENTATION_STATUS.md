@@ -10,25 +10,23 @@ multi-hour launch.
 > **2026-05-30 status delta.**
 > - **P1 DONE** — G1 base-policy curriculum ran; stage-2 snapshot in hand
 >   (the unconstrained baseline / row-1 reference).
-> - **P2 mostly done** — SVF recollected on G1+`noisy`, retrained as
->   `svf_coworker_train_g1_0p3.pt`, R swept. The retrain fixed the
->   100%-intervention pathology (`mean_q` now 1.2–3.2). **R = 4.0** set as the
->   *provisional* operating point in `safety_bigym/filters/snapshots.py`
->   (`SVF_FILTERS` / `SVF_FILTER_THRESHOLD_R` / `resolve_svf_filter`). Two cheap
->   closeouts remain: the filterless **R=0 baseline** + the 26%→82%
->   intervention gap (run `scripts/svf_sweep_g1_v1_baseline.sh`).
+> - **P2 CLOSED** — SVF recollected on G1+`noisy`, retrained at τ=0.3 m as
+>   `svf_coworker_train_g1_0p3.pt`, and the **dense 0.3 m sweep** (R=0 baseline +
+>   fine grid) is done. Operating point **R = 2.25** pinned in
+>   `safety_bigym/filters/snapshots.py::SVF_FILTER_THRESHOLD_R`. Full write-up:
+>   **`phase2_results.md` §0** (authoritative; supersedes the coarse sweep).
 > - **Proximity label is now τ = 0.3 m** (`SSMConfig.proximity_threshold=0.3`,
->   was 0.5 m); the G1 SVF trained at this τ. The sweep's
->   `proximity_violation_rate` is the 0.3 m rate.
-> - **Key P2 finding (bank for §results:filter-pareto):** the filter is
->   *axis-asymmetric*. It is excellent on the robot-velocity-driven **ISO-SSM**
->   axis (`residual` 0.93→0.05 by R=4) but weak on the thesis-primary
->   **geometric proximity** axis at usable intervention — proximity only halves
->   at R=4 (~95% intervention), because a veto→freeze filter cannot stop the G1
->   coworker from approaching a stationary robot (seed-2 proximity floors at 0.05
->   even at 99.9% intervention). This is the core motivation for the hybrid; the
->   ≤25%-intervention / ≥30%-proximity-reduction P2 bar is likely **not met on
->   proximity** (confirm against the R=0 baseline).
+>   was 0.5 m); the G1 SVF trained at this τ.
+> - **Key P2 finding (bank for §results:filter-pareto):** filterless baseline
+>   proximity-violation rate is **0.0435**. The P2 acceptance bar **IS met** at
+>   **R=2.25: 31.7% reduction at 21.6% intervention** (≤25%) — but it's
+>   **marginal and seed-fragile** (per-seed 38.4 / 41.2 / **20.6**%). The big
+>   proximity win (82%) only arrives at the R=3.0 hard gate (~79% intervention,
+>   robot ~frozen); the filter's robust low-cost win is the robot-velocity
+>   ISO-SSM axis, because a veto→freeze filter can't stop the G1 coworker
+>   approaching a stationary robot. **Core hybrid argument**: filter = edge-case
+>   backstop, Lagrangian policy = proactive avoidance. R=2.25 is provisional —
+>   re-confirm against the Phase-3 row-3 snapshot in P5.
 > - **P3 cost-form selector DONE (2026-05-30)** — all three E3.1 cells are now
 >   wired and Hydra-composable: **continuous** (`agent=cqn_as_lagrangian`),
 >   **binary** (`env.safety.cost_form=binary` → `c_t=1[ssm_violation]`, via the
@@ -69,7 +67,7 @@ multi-hour launch.
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
-| Phase 2 (G1) | ✅ recollect (`noisy`) + retrain + R-sweep | `svf_coworker_train_g1_0p3.pt`; **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap pending (`svf_sweep_g1_v1_baseline.sh`). §results:filter-pareto |
+| Phase 2 (G1) | ✅ **CLOSED** — recollect (`noisy`) + retrain (τ=0.3 m) + dense sweep | `svf_coworker_train_g1_0p3.pt`; **R=2.25** (`snapshots.py`): meets bar 31.7%@21.6%, marginal/seed-fragile. Write-up `phase2_results.md` §0 |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
@@ -112,34 +110,30 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~20 h
 - **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ MOSTLY DONE (2026-05-30)
+### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ CLOSED (2026-05-30)
 - **Done**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
-  (2) recollected the dataset on `disruption=coworker_train`, `bodyslam=noisy`
-  (random + BiGym demos + Phase 0 ACT); (3) retrained
-  → `svf_coworker_train_g1_0p3.pt` (3-MLP [256,256,256], α_CQL=5.0, τ=0.005,
-  200k steps, proximity label **τ=0.3 m**); (4) swept R∈{1,2,3,4,5,6,8}, 3 seeds,
-  20 ep. **Retrain succeeded** — healthy Pareto, `mean_q` 1.2–3.2 (the 0.31 →
-  100%-everywhere pathology is gone). **R=4.0** documented as *provisional* in
-  `snapshots.py` (re-confirm against the row-3 snapshot in P5 per decision rule).
-- **Seed-averaged sweep** (results/svf_sweep_g1_v1/):
+  (2) recollected on `coworker_train`, `bodyslam=noisy` (random + snapshot,
+  105k transitions); (3) retrained at **τ=0.3 m** → `svf_coworker_train_g1_0p3.pt`
+  (3-MLP [256,256,256], α_CQL=5.0, τ_polyak=5e-3, 200k steps); (4) ran the
+  **dense 0.3 m sweep** (R=0 baseline + fine grid, 3 seeds × 20 ep,
+  `sweep_dense_seed{0,1,2}.csv`). **Authoritative write-up: `phase2_results.md` §0.**
+- **Seed-averaged dense sweep** (filterless baseline at R=0):
 
-  | R | interv | residual (ISO-SSM) | proximity (τ=0.3 m) | mean_q |
-  |---|---|---|---|---|
-  | 2.0 | 26% | 0.80 | 0.066 | 2.55 |
-  | 3.0 | 82% | 0.32 | 0.060 | 1.16 |
-  | 4.0 | 95% | 0.046 | 0.030 | 1.45 |
+  | R | intervention | proximity (τ=0.3) | reduction vs R=0 |
+  |---|---|---|---|
+  | 0.0 | 0% | 0.0435 | baseline |
+  | **2.25** | **21.6%** | **0.0297** | **31.7%** ✅ |
+  | 2.5 | 34.3% | 0.0265 | 39.1% (interv >25%) |
+  | 3.0 | 78.5% | 0.0076 | 82.5% (hard gate, ~frozen) |
 
-- **Finding**: filter is **axis-asymmetric** — strong on ISO-SSM (robot speed),
-  weak on geometric proximity at usable intervention (proximity only halves at
-  R=4 / 95% interv, because veto→freeze can't stop the human approaching). Core
-  argument for the hybrid. See the status-delta block at the top.
-- **Remaining (cheap, eval-only, ~2 GPU-h)**: run
-  `scripts/svf_sweep_g1_v1_baseline.sh` to add the **R=0 filterless baseline**
-  (the missing denominator for the ≥30% acceptance test) + the 26%→82%
-  intervention gap. Then settle the P2 acceptance verdict (expected: not met on
-  proximity at ≤25% interv, met on ISO-SSM — reported honestly, motivates hybrid).
-  **Confirm whether the existing CSVs used `--policy snapshot` or `random`**;
-  the new sweep defaults to `snapshot` (deployment-accurate, CQN-AS-capable).
+- **Operating point R = 2.25** (pinned in `snapshots.py`): the only threshold
+  meeting the bar (**≥30% reduction at ≤25% intervention**). **Marginal &
+  seed-fragile** (per-seed 38.4 / 41.2 / 20.6%); low-R interventions (≤2.0) are
+  wasted (~0% gain); the 82% win costs ~79% intervention. The filter's robust
+  win is the ISO-SSM (robot-velocity) axis → core hybrid argument. Provisional —
+  re-confirm against the Phase-3 row-3 snapshot in P5.
+- **NB**: the coarse `sweep_seed{0,1,2}.csv` (R={1,2,3,4,5,6,8}) was the OLD
+  0.5-label critic and is **not comparable** — use the dense CSVs.
 - **Populates**: §results:filter-pareto, row 4 of E4.1 table.
 - **Perception mode**: train + eval **`noisy`** (the filter's deployment
   distribution; see Perception Mode Policy in PROJECT_PLAN.md, Rationale).

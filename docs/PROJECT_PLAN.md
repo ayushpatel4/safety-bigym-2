@@ -244,51 +244,41 @@ smoke pipeline runs ~75s.
   on the previous SMPL-H coworker distribution.
 - **Snapshot:** `checkpoints/svf_coworker_train_v1.pt`.
 
-### P2 — re-eval + retrain under G1 — ✅ MOSTLY DONE (2026-05-30)
+### P2 — re-eval + retrain under G1 — ✅ CLOSED (2026-05-30)
 
-**Outcome.** Tasks 1–4 below ran. The diagnosis held (old checkpoint
-over-fires on G1), so we recollected on `coworker_train`+`noisy` and
-retrained → `svf_coworker_train_g1_0p3.pt` (proximity label **τ=0.3 m**,
-the new `SSMConfig.proximity_threshold`). **The retrain succeeded**:
-healthy Pareto, `mean_q` 1.2–3.2 (the 0.31→100%-everywhere pathology
-is gone). **R = 4.0** is documented as the *provisional* operating
-point in `safety_bigym/filters/snapshots.py` (`SVF_FILTERS`,
-`SVF_FILTER_THRESHOLD_R`, `resolve_svf_filter`).
+**Authoritative write-up: `phase2_results.md` §0.** The diagnosis held (old
+checkpoint over-fires on G1), so we recollected on `coworker_train`+`noisy`
+(random + snapshot, 105k transitions) and retrained at **τ=0.3 m** →
+`svf_coworker_train_g1_0p3.pt`, then ran the **dense 0.3 m sweep** (R=0 baseline
++ fine grid around the knee, 3 seeds × 20 ep, `sweep_dense_seed{0,1,2}.csv`).
 
-**Seed-averaged R-sweep** (`results/svf_sweep_g1_v1/`, 3 seeds × 20 ep):
+**Seed-averaged dense sweep** (filterless baseline at R=0):
 
-| R | interv | residual (ISO-SSM) | proximity (τ=0.3 m) | mean_q |
-|---|---|---|---|---|
-| 2.0 | 26% | 0.80 | 0.066 | 2.55 |
-| 3.0 | 82% | 0.32 | 0.060 | 1.16 |
-| 4.0 | 95% | 0.046 | 0.030 | 1.45 |
+| R | intervention | proximity (τ=0.3) | reduction vs R=0 |
+|---|---|---|---|
+| 0.0 | 0% | 0.0435 | baseline |
+| **2.25** | **21.6%** | **0.0297** | **31.7%** ✅ |
+| 2.5 | 34.3% | 0.0265 | 39.1% (interv >25%) |
+| 3.0 | 78.5% | 0.0076 | 82.5% (hard gate, ~frozen) |
 
-**Headline finding — the filter is axis-asymmetric.** It is excellent
-on the robot-velocity-driven **ISO-SSM** axis (`residual` collapses to
-~0 by R=4) but weak on the thesis-primary **geometric proximity** axis
-at usable intervention: proximity only halves at R=4 (~95% intervention),
-because a veto→zero-velocity filter cannot stop the G1 coworker — which
-actively reaches into the workspace under `coworker_train` — from
-approaching a *stationary* robot. (Seed-2 proximity floors at 0.05 even
-at 99.9% intervention: human-initiated approaches the filter is
-physically incapable of preventing.) This is the core empirical argument
-for the **hybrid** — filter as edge-case backstop, Lagrangian policy for
-proactive avoidance. Report in §results:filter-pareto + §disc.
+**Operating point R = 2.25** — pinned in `snapshots.py::SVF_FILTER_THRESHOLD_R`
+(the launchers/driver read it as the single source of truth). It is the **only**
+threshold meeting the P2 bar (**≥30% reduction at ≤25% intervention**: 31.7% @
+21.6%), and the acceptance bar **IS met** — but **marginally and seed-fragile**
+(per-seed 38.4 / 41.2 / **20.6**%). Low-R interventions (≤2.0) are wasted (~0%
+gain); the big 82% proximity win only arrives at the R=3.0 hard gate (~79%
+intervention, robot ~frozen).
 
-**Two cheap closeouts remain** (eval-only, ~2 GPU-h):
-1. **R=0 filterless baseline + the 26%→82% intervention gap.** Run
-   `scripts/svf_sweep_g1_v1_baseline.sh` (R=0 gives 0 interventions →
-   the exact filterless `proximity_violation_rate` denominator, since
-   the critic output is strictly >0 and the veto is `q < R`). This
-   settles the acceptance verdict below.
-   **Confirm whether the existing CSVs used `--policy snapshot` or
-   `random`** — the new sweep defaults to `snapshot` (deployment-accurate;
-   `load_snapshot_policy` handles CQN-AS via `_CQNASSnapshotPolicy`).
-2. **Acceptance verdict.** Against the ≤25%-intervention / ≥30%-proximity
-   bar: at R≤2 (≤26% interv) proximity barely moves, so the bar is
-   **likely not met on the proximity axis** — report honestly (met on
-   ISO-SSM; the proximity limitation motivates the hybrid), rather than
-   chasing R upward into the task-destroying ≥95%-intervention regime.
+**Headline finding — the filter is axis-asymmetric.** Its robust, low-cost win
+is the robot-velocity-driven **ISO-SSM** axis; on the thesis-primary **geometric
+proximity** axis it gives only a marginal win at usable intervention, because a
+veto→zero-velocity filter cannot stop the G1 coworker — which actively reaches
+into the workspace — from approaching a *stationary* robot. This is the core
+empirical argument for the **hybrid**: filter = edge-case backstop, Lagrangian
+policy = proactive avoidance. R=2.25 is provisional — re-confirm against the
+Phase-3 row-3 snapshot in P5 (E4.1 decision rule). The coarse
+`sweep_seed{0,1,2}.csv` (R={1,2,3,4,5,6,8}) was the OLD 0.5-label critic and is
+**not comparable** to the dense run.
 
 ---
 
@@ -807,7 +797,7 @@ entry** in Tables 8.1, 8.3, 8.5, 8.7, the headline 8.9, and 8.11.
 python scripts/benchmark_policy.py \
   --snapshot path/to/policy.pt \
   --filter-snapshot path/to/svf.pt \   # optional — wraps the policy with SafetyFilterWrapper(R=...)
-  --filter-threshold 4.0 \             # optional — only used if --filter-snapshot given
+  --filter-threshold 2.25 \             # optional — only used if --filter-snapshot given
   --task saucepan_to_hob \
   --disruption coworker_eval \         # or coworker_train; or any other ParameterSpace key
   --obs-mode oracle \                  # oracle for headline cells; noisy only for E3.6 sweep + sim-to-real diagnostic — see Perception Mode Policy above
@@ -988,7 +978,7 @@ python scripts/benchmark_policy.py \
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
-  --filter-threshold 4.0 \
+  --filter-threshold 2.25 \
   --obs-mode oracle \
   --out results/e4.1_row4.csv
 
@@ -996,7 +986,7 @@ python scripts/benchmark_policy.py \
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
-  --filter-threshold 4.0 \
+  --filter-threshold 2.25 \
   --obs-mode oracle \
   --out results/e4.1_row5.csv
 
@@ -1004,7 +994,7 @@ python scripts/benchmark_policy.py \
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
   --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
-  --filter-threshold 4.0 \
+  --filter-threshold 2.25 \
   --obs-mode noisy \
   --out results/e4.1_row5_noisy_diagnostic.csv
 
