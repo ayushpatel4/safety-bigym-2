@@ -151,22 +151,35 @@ class Workspace:
         fp_snapshot = fp_cfg.get("snapshot") if fp_cfg is not None else None
         if not fp_snapshot:
             return
-        from safety_bigym.benchmark.filter_attach import (
-            ObsCacheWrapper,
-            assert_critic_covers_obs,
-            load_critic,
-        )
+        # Whole setup is guarded: this is an OPTIONAL free metric, so a misconfig
+        # (missing critic, obs-mode off) must disable the curve, never crash a
+        # multi-hour training run.
+        try:
+            from safety_bigym.benchmark.filter_attach import (
+                ObsCacheWrapper,
+                assert_critic_covers_obs,
+                load_critic,
+            )
 
-        self._filter_critic = load_critic(Path(fp_snapshot))
-        self._filter_threshold = float(fp_cfg.get("threshold", 4.0))
-        inner = self.train_env._env
-        keys = (
-            inner.observation_space.spaces.keys()
-            if hasattr(inner.observation_space, "spaces")
-            else ()
-        )
-        assert_critic_covers_obs(self._filter_critic, keys)  # fail loud if obs-mode off
-        self.train_env._env = ObsCacheWrapper(inner)
+            critic = load_critic(Path(fp_snapshot))
+            threshold = float(fp_cfg.get("threshold", 4.0))
+            inner = self.train_env._env
+            keys = (
+                inner.observation_space.spaces.keys()
+                if hasattr(inner.observation_space, "spaces")
+                else ()
+            )
+            assert_critic_covers_obs(critic, keys)  # needs human_pos_estimate (bodyslam!=off)
+            self.train_env._env = ObsCacheWrapper(inner)
+        except Exception as exc:
+            logging.warning(
+                "P8 passive filter setup failed (%s); internalisation curve disabled.",
+                exc,
+            )
+            self._filter_critic = None
+            return
+        self._filter_critic = critic
+        self._filter_threshold = threshold
         logging.info(
             "P8 passive filter enabled: %s (R=%.2f)", fp_snapshot, self._filter_threshold
         )
