@@ -308,14 +308,21 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~7 h — 3 trained policies on `bodyslam=oracle` (~6 h) + 9 eval cells across 3 modes via the harness (<1 h)
 - **Perception mode**: train on `oracle`; eval sweeps `off / oracle / noisy` (this experiment's whole purpose is to *measure* the perception gap; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P8. E4.3: filter intervention rate during training
+### P8. E4.3: filter intervention rate during training — ✅ HOOK BUILT (2026-05-30)
 - **Goal**: produce the internalisation curve
   (Figure~\ref{fig:e4.3-internalisation}) — direct evidence that
   policy and filter are complementary.
-- **Implementation**: log `filter_intervention_rate` from the P3
-  training runs at each eval cycle. **Costs nothing extra** if
-  added to the P3 logging setup. Mark as "free" alongside P3.
-- **GPU**: 0 (piggybacks on P3)
+- **Built**: `train_cqn_as.py` now logs `eval/filter_intervention_rate` per eval
+  cycle when `filter_passive.snapshot=<SVF critic>` is set (`cqn_as_config.yaml`
+  `filter_passive` block). It wraps the adapter's inner env with
+  `ObsCacheWrapper` and queries the frozen SVF critic on every executed action
+  **observe-only** (the trajectory is unchanged; mirrors
+  `benchmark.runners.apply_veto`). Guarded so a logging error can never kill
+  training. Wired into the P3/P4 launchers via the `FILTER_PASSIVE` env var.
+- **Run**: add `FILTER_PASSIVE=checkpoints/svf_coworker_train_g1_v1.pt` to the
+  P3 (and/or P4) launch — the curve falls out for free. Requires `bodyslam!=off`.
+- **GPU**: 0 (piggybacks on P3). **Validate** with `SMOKE=1 FILTER_PASSIVE=<svf>`
+  on the GPU box before the headline run (needs a real critic + MuJoCo).
 
 ### P9. E3.7: WCSAC external baseline
 - **Goal**: place our hybrid against the standard distributional

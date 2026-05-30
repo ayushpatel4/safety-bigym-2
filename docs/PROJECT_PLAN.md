@@ -35,7 +35,7 @@ guarantees needed for ISO 15066 compliance.
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
 | Phase 3 experiments | **PENDING (launch-ready)** | E3.1 (cost-signal form — launcher built), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
 | Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
-| Phase 4 headline | **DRIVER READY** | E4.1 eval driver `scripts/run_e4_1_headline.sh` built (rows 1/4 runnable from stage-2 now; rows 3/5 await the P3 d_knee snapshot). E4.3 curve — **P5, P8 below** |
+| Phase 4 headline | **TOOLING READY** | E4.1 eval driver `run_e4_1_headline.sh` + LaTeX aggregator `aggregate_e4_1.py` built; E4.3 internalisation hook in `train_cqn_as` (`filter_passive`). Rows 1/4 runnable now; rest await P3 d_knee — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
 
 ---
@@ -1000,9 +1000,11 @@ python scripts/benchmark_policy.py \
   --obs-mode noisy \
   --out results/e4.1_row5_noisy_diagnostic.csv
 
-# Aggregate all 5 CSVs into the final table
+# Aggregate the per-row CSVs into the headline LaTeX table (scripts/aggregate_e4_1.py
+# built 2026-05-30; reads run_e4_1_headline.sh's row CSVs, bolds the lowest
+# proximity-violation row, emits a booktabs table):
 python scripts/aggregate_e4_1.py \
-  --rows results/e4.1_row{1,2,3,4,5}.csv \
+  --in-dir results/e4_1/<run_tag> \
   --out report_tables/e4.1_feature_incremental.tex
 ```
 
@@ -1037,13 +1039,19 @@ python scripts/aggregate_e4_1.py \
 
 The filter intervention rate falls as the policy is Lagrangian-trained.
 
-#### Implementation
+#### Implementation — ✅ BUILT (2026-05-30)
 
-**Piggybacks on P3 / P4 / P5 row 3 training**. At every eval cycle
-during training (every 2k frames), the W&B logger records
-`filter_intervention_rate` against the current snapshot, computed
-by `SafetyFilterWrapper` running in passive (observation-only) mode
-during the eval rollouts.
+**Piggybacks on P3 / P4 training.** Set `filter_passive.snapshot=<SVF critic>`
+(`cqn_as_config.yaml` `filter_passive` block, or the `FILTER_PASSIVE` env var on
+the P3/P4 launchers) and `train_cqn_as.eval()` logs
+`eval/filter_intervention_rate` every eval cycle (2.5k frames). The hook wraps
+the adapter's inner env with `benchmark.filter_attach.ObsCacheWrapper` and
+queries the frozen SVF critic on each executed action **observe-only** — the
+trajectory is never changed (it mirrors `benchmark.runners.apply_veto`'s raw-obs
++ `_convert_action_to_raw` path). Guarded with try/except so a logging error
+disables the metric rather than crashing the run. Requires `bodyslam!=off` (the
+critic needs `human_pos_estimate`). The reference pseudocode below describes the
+same passive computation.
 
 ```python
 # safety_bigym/agents/cqn_as/lagrangian_agent.py — eval hook
