@@ -28,7 +28,7 @@
 #   STAGE2      row-1 + row-4 policy (P1 unconstrained baseline). Default = recorded G1 stage-2.
 #   ROW3        row-3 + row-5 policy (P3 continuous + d_knee). Unset -> rows 3,5,5_noisy skipped.
 #   ROW2        row-2 policy (+ workspace-shaping training run). Unset -> row 2 skipped.
-#   SVF_FILTER  SVF critic for rows 4/5. Default checkpoints/svf_coworker_train_g1_v1.pt.
+#   SVF_FILTER  SVF critic for rows 4/5. Default checkpoints/svf_coworker_train_g1_0p3.pt.
 #   FILTER_R    veto threshold R. Default 4.0 (snapshots.py provisional knee).
 #   SEEDS (0,1,2), EPISODES (20), DISRUPTION (coworker_train),
 #   NUM_DEMOS_FOR_STATS (0 = faithful full count; cap on a laptop), OUTDIR.
@@ -48,7 +48,7 @@ DISRUPTION="${DISRUPTION:-coworker_train}"
 # Recorded P1 stage-2 (filters/snapshots.py::G1_CURRICULUM). Repo-relative so it
 # resolves from REPO_ROOT; override STAGE2=<abs path> to use another baseline.
 STAGE2="${STAGE2:-exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt}"
-SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_v1.pt}"
+SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_0p3.pt}"
 FILTER_R="${FILTER_R:-4.0}"
 NUM_DEMOS_FOR_STATS="${NUM_DEMOS_FOR_STATS:-0}"
 

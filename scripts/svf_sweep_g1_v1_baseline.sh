@@ -14,7 +14,7 @@
 # Run on the GPU box (swirl). G1 is AMASS-free, so AMASS_DATA_DIR is not needed.
 #
 # Required env vars (paths live on the GPU box):
-#   SVF_CRITIC      — retrained G1 SVF checkpoint (e.g. checkpoints/svf_coworker_train_g1_v1.pt)
+#   SVF_CRITIC      — retrained G1 SVF checkpoint (e.g. checkpoints/svf_coworker_train_g1_0p3.pt)
 #   STAGE2_SNAPSHOT — P1 stage-2 G1 baseline snapshot (CQN-AS .pt)
 # Optional:
 #   POLICY          — "snapshot" (default, deployment-accurate) or "random"

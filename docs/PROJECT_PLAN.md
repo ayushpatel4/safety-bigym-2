@@ -29,7 +29,7 @@ guarantees needed for ISO 15066 compliance.
 | Phase 1 wrapper | **COMPLETE** | `BodySLAMWrapper` with off / oracle / noisy modes, calibrated against BodySLAM++ characteristics |
 | Phase 1 E1.1 | **COMPLETE (negative)** | BC obs-ablation: oracle doesn't help under pure BC |
 | Phase 2 (SMPL-H) | **COMPLETE** | SVF α_CQL=5.0, R=4.0 — **did not transfer to G1** |
-| Phase 2 (G1) | **✅ RETRAINED (2026-05-30)** | `svf_coworker_train_g1_v1.pt` on `noisy`+G1, proximity τ=0.3 m; R-swept. **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap sweep pending — **P2** |
+| Phase 2 (G1) | **✅ RETRAINED (2026-05-30)** | `svf_coworker_train_g1_0p3.pt` on `noisy`+G1, proximity τ=0.3 m; R-swept. **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap sweep pending — **P2** |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
 | G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
@@ -240,7 +240,7 @@ smoke pipeline runs ~75s.
 
 **Outcome.** Tasks 1–4 below ran. The diagnosis held (old checkpoint
 over-fires on G1), so we recollected on `coworker_train`+`noisy` and
-retrained → `svf_coworker_train_g1_v1.pt` (proximity label **τ=0.3 m**,
+retrained → `svf_coworker_train_g1_0p3.pt` (proximity label **τ=0.3 m**,
 the new `SSMConfig.proximity_threshold`). **The retrain succeeded**:
 healthy Pareto, `mean_q` 1.2–3.2 (the 0.31→100%-everywhere pathology
 is gone). **R = 4.0** is documented as the *provisional* operating
@@ -335,7 +335,7 @@ finding rules out a simple threshold re-tune.
 - The new R operating point is documented in
   `safety_bigym/filters/snapshots.py` and consumed by the headline
   E4.1 row 4 and row 5.
-- Filter snapshot file naming: `svf_coworker_train_g1_v1.pt`
+- Filter snapshot file naming: `svf_coworker_train_g1_0p3.pt`
   (preserve `v1` for SMPL-H reproducibility).
 
 #### Decision rule
@@ -979,7 +979,7 @@ python scripts/benchmark_policy.py \
 # Row 4 — eval P1 snapshot WITH filter
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --filter-threshold 4.0 \
   --obs-mode oracle \
   --out results/e4.1_row4.csv
@@ -987,7 +987,7 @@ python scripts/benchmark_policy.py \
 # Row 5 — eval P3 snapshot WITH filter
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --filter-threshold 4.0 \
   --obs-mode oracle \
   --out results/e4.1_row5.csv
@@ -995,7 +995,7 @@ python scripts/benchmark_policy.py \
 # Row 5-diagnostic — same as row 5 but with noisy eval, for the sim-to-real diagnostic
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --filter-threshold 4.0 \
   --obs-mode noisy \
   --out results/e4.1_row5_noisy_diagnostic.csv
@@ -1118,6 +1118,17 @@ Re-run the P5 row 1 and row 5 evals on `coworker_eval` (the wider
 ParameterSpace from Table~\ref{tab:coworker-params}) instead of
 `coworker_train`. **Pure eval** — no new training.
 
+Easiest: re-run the P5 driver with the disruption flipped (it emits all rows;
+use rows 1 and 5 for the OOD comparison):
+
+```bash
+SVF_FILTER=checkpoints/svf_coworker_train_g1_0p3.pt \
+STAGE2=$STAGE2 ROW3=$ROW3 DISRUPTION=coworker_eval RUN_TAG=e5_2_ood \
+  bash scripts/run_e4_1_headline.sh
+```
+
+The explicit per-row commands (retained for reference):
+
 ```bash
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
@@ -1126,7 +1137,7 @@ python scripts/benchmark_policy.py \
 
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt \
   --disruption coworker_eval \
   --out results/e5.2_row5_ood.csv
 ```

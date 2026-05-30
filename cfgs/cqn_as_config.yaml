@@ -43,7 +43,7 @@ num_eval_episodes: 10
 # the veto — the trajectory is unchanged. Free side-product of P3/P4 training;
 # off by default. Requires bodyslam!=off (the critic needs human_pos_estimate).
 filter_passive:
-  snapshot: null      # path to an SVF critic checkpoint, e.g. checkpoints/svf_coworker_train_g1_v1.pt
+  snapshot: null      # path to an SVF critic checkpoint, e.g. checkpoints/svf_coworker_train_g1_0p3.pt
   threshold: 4.0      # veto threshold R (intervention counted when Q_safe < R)
 
 # Snapshot — saved after each eval cycle (eval_every_frames), not on a

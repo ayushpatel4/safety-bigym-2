@@ -11,7 +11,7 @@ multi-hour launch.
 > - **P1 DONE** — G1 base-policy curriculum ran; stage-2 snapshot in hand
 >   (the unconstrained baseline / row-1 reference).
 > - **P2 mostly done** — SVF recollected on G1+`noisy`, retrained as
->   `svf_coworker_train_g1_v1.pt`, R swept. The retrain fixed the
+>   `svf_coworker_train_g1_0p3.pt`, R swept. The retrain fixed the
 >   100%-intervention pathology (`mean_q` now 1.2–3.2). **R = 4.0** set as the
 >   *provisional* operating point in `safety_bigym/filters/snapshots.py`
 >   (`SVF_FILTERS` / `SVF_FILTER_THRESHOLD_R` / `resolve_svf_filter`). Two cheap
@@ -69,7 +69,7 @@ multi-hour launch.
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
-| Phase 2 (G1) | ✅ recollect (`noisy`) + retrain + R-sweep | `svf_coworker_train_g1_v1.pt`; **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap pending (`svf_sweep_g1_v1_baseline.sh`). §results:filter-pareto |
+| Phase 2 (G1) | ✅ recollect (`noisy`) + retrain + R-sweep | `svf_coworker_train_g1_0p3.pt`; **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap pending (`svf_sweep_g1_v1_baseline.sh`). §results:filter-pareto |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
@@ -116,7 +116,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **Done**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
   (2) recollected the dataset on `disruption=coworker_train`, `bodyslam=noisy`
   (random + BiGym demos + Phase 0 ACT); (3) retrained
-  → `svf_coworker_train_g1_v1.pt` (3-MLP [256,256,256], α_CQL=5.0, τ=0.005,
+  → `svf_coworker_train_g1_0p3.pt` (3-MLP [256,256,256], α_CQL=5.0, τ=0.005,
   200k steps, proximity label **τ=0.3 m**); (4) swept R∈{1,2,3,4,5,6,8}, 3 seeds,
   20 ep. **Retrain succeeded** — healthy Pareto, `mean_q` 1.2–3.2 (the 0.31 →
   100%-everywhere pathology is gone). **R=4.0** documented as *provisional* in
@@ -215,7 +215,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   per row. **Incremental**: rows 1 & 4 run now from `STAGE2` (P1 stage-2) + the
   SVF filter; rows 3/5/5_noisy skip until `ROW3` (the P3 d_knee snapshot) is set;
   row 2 skips until `ROW2` is set. Defaults `STAGE2`→recorded G1 stage-2,
-  `SVF_FILTER`→`checkpoints/svf_coworker_train_g1_v1.pt`, `FILTER_R`→4.0.
+  `SVF_FILTER`→`checkpoints/svf_coworker_train_g1_0p3.pt`, `FILTER_R`→4.0.
 - **Acceptance**: row 5 dominates each of rows 1–4 on
   `ep_proximity_violation_rate` with non-overlapping CIs. If row 5
   ties row 3, the filter is redundant on a well-trained policy —
@@ -319,7 +319,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   **observe-only** (the trajectory is unchanged; mirrors
   `benchmark.runners.apply_veto`). Guarded so a logging error can never kill
   training. Wired into the P3/P4 launchers via the `FILTER_PASSIVE` env var.
-- **Run**: add `FILTER_PASSIVE=checkpoints/svf_coworker_train_g1_v1.pt` to the
+- **Run**: add `FILTER_PASSIVE=checkpoints/svf_coworker_train_g1_0p3.pt` to the
   P3 (and/or P4) launch — the curve falls out for free. Requires `bodyslam!=off`.
 - **GPU**: 0 (piggybacks on P3). **Validate** with `SMOKE=1 FILTER_PASSIVE=<svf>`
   on the GPU box before the headline run (needs a real critic + MuJoCo).
@@ -336,6 +336,17 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **Goal**: populate Tables \ref{tab:e5.1-tail} and
   Figure~\ref{fig:e5.2-ood}. Mostly pure eval if P5 snapshots are
   already produced.
+- **E5.1 (tail-risk)**: **zero new runs** — `benchmark_policy.py` already emits
+  `cvar95_ep_cost_integral`, `cvar95_ep_min_separation`, `p99_ep_min_separation`
+  in every P5 row CSV. Post-hoc aggregation only.
+- **E5.2 (OOD)**: re-run the P5 driver on the wider band — just flip the
+  disruption:
+  ```bash
+  SVF_FILTER=$SVF STAGE2=$STAGE2 ROW3=$ROW3 DISRUPTION=coworker_eval \
+    RUN_TAG=e5_2_ood bash scripts/run_e4_1_headline.sh
+  ```
+  Compare the train→eval degradation of row 1 vs row 5 (hybrid should degrade
+  less). `coworker_eval.yaml` exists.
 - **GPU**: ~2 h (eval-only, both bands)
 
 ---

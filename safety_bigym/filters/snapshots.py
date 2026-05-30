@@ -76,7 +76,7 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 # filter-alone row-4, re-sweep R against the row-3 snapshot. The filterless
 # (R=0) baseline + the 26%->82% gap come from scripts/svf_sweep_g1_v1_baseline.sh.
 SVF_FILTERS: Dict[str, Optional[str]] = {
-    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_v1.pt",
+    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3.pt",
 }
 
 # Recommended veto threshold R per task (provisional; see note above).
