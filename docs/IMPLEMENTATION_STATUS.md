@@ -59,26 +59,34 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **Cmd**:
   ```bash
   python train_cqn_as.py task=saucepan_to_hob \
-    disruption=coworker_idle  frames=20000 +snapshot_path=null
+    disruption=coworker_idle  bodyslam=oracle frames=20000 +snapshot_path=null
   python train_cqn_as.py task=saucepan_to_hob \
-    disruption=coworker_easy  frames=15000 +snapshot_path=stage0_final.pt
+    disruption=coworker_easy  bodyslam=oracle frames=15000 +snapshot_path=stage0_final.pt
   python train_cqn_as.py task=saucepan_to_hob \
-    disruption=coworker_train frames=60000 +snapshot_path=stage1_final.pt
+    disruption=coworker_train bodyslam=oracle frames=60000 +snapshot_path=stage1_final.pt
   ```
 - **Populates**: §results:baseline (Table~\ref{tab:results:baseline}),
   warm-start for P3 and P5.
 - **GPU**: ~20 h
+- **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-evaluation under G1 coworker
-- **Goal**: confirm $R=4.0$, $\alpha_{\rm CQL}=5.0$ remain the
-  operating points after the G1 swap, and produce filter-on-baseline
-  numbers for Table~\ref{tab:e4.1-feature-incremental} row 4.
-- **Acceptance**: filter alone reduces
-  `ep_proximity_violation_rate` on the unconstrained baseline by
-  ≥ 30% at intervention rate ≤ 20%. If the operating point shifts,
-  re-run sweep E2.3.
+### P2. Phase 2 SVF re-evaluation + likely retrain under G1 coworker
+- **Goal**: confirm operating points after the G1 swap; **expect to
+  retrain** because the harness has already shown the existing
+  `svf_coworker_train_v1.pt` over-fires on G1 (`mean_q_value ≈ 0.31
+  ≪ R=4.0` → ~100% intervention).
+- **Acceptance**: after retraining on G1 + noisy data, filter alone
+  reduces `ep_proximity_violation_rate` on the unconstrained
+  baseline by ≥ 30% at intervention rate ≤ 25%.
+- **Tasks**: (1) brief R-sweep on existing checkpoint to confirm
+  diagnosis; (2) recollect dataset on `disruption=coworker_train`
+  with `bodyslam=noisy` (3 sources: random + BiGym demos + Phase 0
+  ACT); (3) retrain SVF (same hyperparameters: 3-MLP [256,256,256],
+  α_CQL=5.0, τ=0.005, 200k steps); (4) re-sweep R on the new
+  checkpoint to find the knee. Save as `svf_coworker_train_g1_v1.pt`.
 - **Populates**: §results:filter-pareto, row 4 of E4.1 table.
-- **GPU**: ~3 h
+- **GPU**: ~6 h (sweep ~1 h + recollect ~3 h + retrain ~1 h + re-sweep ~1 h)
+- **Perception mode**: train + eval **`noisy`** (the filter is the only component that trains on noisy — its training distribution must match its deployment distribution; see Perception Mode Policy in PROJECT_PLAN.md, Rationale paragraph)
 
 ### P3. E3.1: cost-signal form ablation (continuous vs binary vs fixed)
 - **Goal**: validate the load-bearing claim that continuous cost
@@ -89,12 +97,13 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **Cmd template**:
   ```bash
   python train_cqn_as.py task=saucepan_to_hob \
-    disruption=coworker_train frames=60000 \
+    disruption=coworker_train bodyslam=oracle frames=60000 \
     cost_signal={fixed,binary,continuous} seed={0,1,2} \
     +snapshot_path=stage2_final.pt
   ```
 - **Populates**: Table~\ref{tab:e3.1-cost-signal}.
 - **GPU**: 9 cells × ~2 h = ~18 h
+- **Perception mode**: train + eval both `oracle` (isolates the cost-signal variable; see Perception Mode Policy in PROJECT_PLAN.md)
 
 ### P4. E3.2: cost-budget Pareto sweep
 - **Goal**: identify the headline $d$ operating point as the knee.
@@ -189,7 +198,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
     --filter-snapshot path/to/svf.pt \   # optional
     --task saucepan_to_hob \
     --disruption coworker_eval \
-    --obs-mode noisy \
+    --obs-mode oracle \                  # oracle for headline cells; noisy for E3.6 sweep + sim-to-real diagnostic — see Perception Mode Policy in PROJECT_PLAN.md
     --seeds 0,1,2 \
     --episodes 20 \
     --out results/cell.csv
@@ -205,7 +214,8 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **Goal**: closes RQ1 (off / oracle / noisy on top of B-value-mean
   with continuous cost). Resolves the E1.1 ambiguity.
 - **Populates**: Table~\ref{tab:e3.6-obs-rl}.
-- **GPU**: ~6 h
+- **GPU**: ~7 h — 3 trained policies on `bodyslam=oracle` (~6 h) + 9 eval cells across 3 modes via the harness (<1 h)
+- **Perception mode**: train on `oracle`; eval sweeps `off / oracle / noisy` (this experiment's whole purpose is to *measure* the perception gap; see Perception Mode Policy in PROJECT_PLAN.md)
 
 ### P8. E4.3: filter intervention rate during training
 - **Goal**: produce the internalisation curve

@@ -31,6 +31,7 @@
 # Usage:
 #   scripts/run_base_curriculum.sh                 # saucepan_to_hob (default)
 #   TASK=drawers_open_all scripts/run_base_curriculum.sh
+#   TASK=dishwasher_close scripts/run_base_curriculum.sh
 #   SMOKE=1 scripts/run_base_curriculum.sh         # ≤2000-frame stage-0 smoke only
 #   SMOKE=1 TASK=drawers_open_all scripts/run_base_curriculum.sh
 #   STAGE0_FRAMES=30000 STAGE1_FRAMES=30000 STAGE2_FRAMES=40000 \
@@ -81,12 +82,13 @@ cd "${REPO_ROOT}"
 TASK="${TASK:-saucepan_to_hob}"
 if [[ ! -f "${REPO_ROOT}/cfgs/env/safety_bigym/${TASK}.yaml" ]]; then
   echo "ERROR: TASK=${TASK} — no cfgs/env/safety_bigym/${TASK}.yaml" >&2
-  echo "       Built-in: saucepan_to_hob (36 demos), drawers_open_all (50 demos)" >&2
+  echo "       Built-in: saucepan_to_hob (36), drawers_open_all (50), dishwasher_close (50)" >&2
   exit 1
 fi
 case "${TASK}" in
-  saucepan_to_hob)  NUM_DEMOS="${NUM_DEMOS:-36}" ;;
-  drawers_open_all) NUM_DEMOS="${NUM_DEMOS:-50}" ;;
+  saucepan_to_hob)   NUM_DEMOS="${NUM_DEMOS:-36}" ;;
+  drawers_open_all)  NUM_DEMOS="${NUM_DEMOS:-50}" ;;
+  dishwasher_close)  NUM_DEMOS="${NUM_DEMOS:-50}" ;;
   *)
     NUM_DEMOS="${NUM_DEMOS:-36}"
     echo "WARNING: TASK=${TASK} using NUM_DEMOS=${NUM_DEMOS} (set NUM_DEMOS= to override)" >&2
@@ -120,8 +122,9 @@ if [[ -z "${RUN_TAG:-}" ]]; then
     _human_tag="smplh_amass"
   fi
   case "${TASK}" in
-    drawers_open_all) _task_tag="drawers" ;;
-    saucepan_to_hob)  _task_tag="saucepan" ;;
+    drawers_open_all)  _task_tag="drawers" ;;
+    saucepan_to_hob)   _task_tag="saucepan" ;;
+    dishwasher_close)  _task_tag="dishwasher" ;;
     *) _task_tag="${TASK}" ;;
   esac
   if [[ "${SMOKE:-0}" == "1" ]]; then
