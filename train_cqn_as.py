@@ -829,26 +829,51 @@ class Workspace:
             f"{loaded_ep} episodes"
         )
 
+    def close(self) -> None:
+        """Free the env's MuJoCo/EGL renderers deterministically.
+
+        Without this, ``self.train_env`` (and the EGL ``GLContext`` its
+        renderers hold) is only torn down by interpreter-shutdown GC, where
+        ``Renderer.__del__`` runs *after* EGL has been de-initialised and
+        raises ``EGLError(EGL_NOT_INITIALIZED)`` from ``eglMakeCurrent``.
+        Closing here while EGL is still live frees the contexts cleanly;
+        mujoco's ``Renderer.close`` / ``GLContext.free`` are idempotent
+        (both guard on the handle and null it), so the later ``__del__``
+        becomes a no-op. Best-effort — teardown must never mask the real
+        run outcome.
+        """
+        env = getattr(self, "train_env", None)
+        if env is not None and hasattr(env, "close"):
+            try:
+                env.close()
+            except Exception as exc:  # pragma: no cover - teardown only
+                logger.warning(f"env close failed during teardown: {exc}")
+
 
 @hydra.main(version_base=None, config_path="cfgs", config_name="cqn_as_config")
 def main(cfg: DictConfig) -> None:
     workspace = Workspace(cfg)
-    # Eval-only mode: load a saved policy, run eval() once, exit.
-    # phase1_reward_pilot_cqn_as.py --eval uses this path with
-    # num_train_frames=0 and +snapshot_path=<peak snapshot>.
-    snapshot_path = cfg.get("snapshot_path") if hasattr(cfg, "get") else None
-    if snapshot_path is not None:
-        workspace.load_snapshot(snapshot_path)
-    if int(cfg.num_train_frames) <= 0:
-        if snapshot_path is None:
-            logger.warning(
-                "num_train_frames<=0 with no snapshot_path — agent is "
-                "freshly initialised; eval results will be ~random."
-            )
-        workspace.eval()
-        return
-    workspace.load_demos()
-    workspace.train()
+    try:
+        # Eval-only mode: load a saved policy, run eval() once, exit.
+        # phase1_reward_pilot_cqn_as.py --eval uses this path with
+        # num_train_frames=0 and +snapshot_path=<peak snapshot>.
+        snapshot_path = cfg.get("snapshot_path") if hasattr(cfg, "get") else None
+        if snapshot_path is not None:
+            workspace.load_snapshot(snapshot_path)
+        if int(cfg.num_train_frames) <= 0:
+            if snapshot_path is None:
+                logger.warning(
+                    "num_train_frames<=0 with no snapshot_path — agent is "
+                    "freshly initialised; eval results will be ~random."
+                )
+            workspace.eval()
+            return
+        workspace.load_demos()
+        workspace.train()
+    finally:
+        # Deterministic renderer teardown — see Workspace.close. The early
+        # return in eval-only mode and any train() exception both route here.
+        workspace.close()
 
 
 if __name__ == "__main__":
