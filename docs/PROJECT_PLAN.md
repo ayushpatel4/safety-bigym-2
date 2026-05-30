@@ -1340,8 +1340,10 @@ python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
 python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
   agent=cqn_as_lagrangian num_train_frames=100 num_demos=0 wandb.use=false
 
-# P3.0 cost-flow smoke (verify c_t flows end-to-end)
-python scripts/phase3_p30_smoke.py
+# P3.0 cost-flow smoke (verify c_t flows end-to-end) — Hydra-based, NEEDS a task.
+# (+phase3_p30_smoke.dry_run=true runs only the warm-start guard, no MuJoCo.)
+python scripts/phase3_p30_smoke.py env=safety_bigym/saucepan_to_hob \
+  disruption=coworker_train bodyslam=oracle pixels=false
 
 # P6 benchmark harness (P6)
 python scripts/benchmark_policy.py --smoke
