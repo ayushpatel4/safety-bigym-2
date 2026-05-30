@@ -85,6 +85,20 @@ SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
 }
 
 
+# G1 base-policy curriculum snapshots (P1 — run base_g1_30k_30k_40k_20260529_124749).
+#   stage1 (coworker_easy) = warm-start for P3 (E3.1) and P4 (E3.2) Lagrangian runs.
+#   stage2 (coworker_train) = the unconstrained baseline: row-1 reference, the
+#     policy the P2 R/baseline sweep rolls out, and the P5 row-1/row-4 eval input.
+# Stored repo-relative so they resolve on both the GPU box and a local clone
+# (resolved via _resolve_path against the safety_bigym repo root).
+G1_CURRICULUM: Dict[str, Dict[str, str]] = {
+    "saucepan_to_hob": {
+        "stage1": "exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt",
+        "stage2": "exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt",
+    },
+}
+
+
 def _resolve_path(value: str) -> Path:
     p = Path(os.path.expanduser(value))
     if not p.is_absolute():
@@ -174,4 +188,5 @@ __all__ = [
     "SVF_FILTERS",
     "SVF_FILTER_THRESHOLD_R",
     "resolve_svf_filter",
+    "G1_CURRICULUM",
 ]

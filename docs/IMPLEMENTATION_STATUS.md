@@ -84,10 +84,13 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 
 ### P1. G1 base-policy curriculum (stages 0/1/2) on `saucepan_to_hob` — ✅ DONE (2026-05-30)
 - **Status**: ran via `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`,
-  3 stages idle→easy→`coworker_train`, warm-start chained). Stage-2 snapshot is
-  the unconstrained baseline / row-1 reference and the warm-start for P3/P5.
-  **Record the exact stage-1 and stage-2 snapshot paths** — P3 (E3.1) warm-starts
-  from **stage 1**, P5 row-1/row-4 eval uses **stage 2**.
+  3 stages idle→easy→`coworker_train`, warm-start chained). Snapshots
+  (run `base_g1_30k_30k_40k_20260529_124749`, recorded in
+  `filters/snapshots.py::G1_CURRICULUM`):
+  - **stage 1** (warm-start for P3/P4):
+    `exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt`
+  - **stage 2** (unconstrained baseline; P5 row-1/row-4 eval + P2 baseline sweep):
+    `exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt`
 - **Goal**: produce the unconstrained baseline snapshot used as the
   starting point for everything downstream + as row 1 of the
   feature-incremental Table~\ref{tab:e4.1-feature-incremental}.
