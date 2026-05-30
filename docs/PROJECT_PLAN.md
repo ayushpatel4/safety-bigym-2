@@ -33,7 +33,7 @@ guarantees needed for ISO 15066 compliance.
 | G1 coworker swap | **CODE COMPLETE, CURRICULUM PENDING** | Unit-tested, smoke-validated; full base-policy curriculum (stages 0/1/2) is **P1** |
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent (value-based dual critic on CQN-AS); P3.0 cost-flow smoke + P3.1 training smoke pass |
 | Phase 3 experiments | **PENDING** | E3.1 (cost-signal form), E3.2 (budget Pareto), E3.6 (obs under constrained policy) — **P3, P4, P7 below** |
-| Phase 4 harness | **NOT STARTED** | `benchmark_policy.py` snapshot eval harness — **P6 below** |
+| Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
 | Phase 4 headline | **NOT STARTED** | E4.1 five-row feature-incremental table + E4.3 internalisation curve — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
 
@@ -543,7 +543,20 @@ emits the canonical metrics schema for every results table in the
 report. (ii) Run the headline E4.1 five-row feature-incremental
 comparison and the E4.3 internalisation curve.
 
-### **P6 — `scripts/benchmark_policy.py` (the benchmark harness)**
+### **P6 — `scripts/benchmark_policy.py` (the benchmark harness)** — ✅ DONE (2026-05-30)
+
+**Status**: built + unit-tested (8 tests) + validated end-to-end on the real
+CQN-AS snapshot `snapshot_17826.pt` (saucepan_to_hob/G1), filter off and on.
+Code: CLI `scripts/benchmark_policy.py` + `safety_bigym/benchmark/` package
+(`stats`/`records`/`schema`/`aggregate`/`env_build`/`filter_attach`/`runners`/
+`loader`) + `scripts/benchmark_visualize.py` + `scripts/benchmark_demo.sh`.
+Usage doc: `docs/benchmark_harness.md`. Deviations + portability fixes are
+recorded in `IMPLEMENTATION_STATUS.md` (P6) and the usage doc — notably: raw
+rolls are **parquet** (`pandas`+`pyarrow` added to `setup.py`) + JSONL sidecar;
+`success` = `info["task_success"]`; `build_cqn_cfg` rebases the snapshot's baked
+AMASS path onto the local `AMASS_DATA_DIR`; `--num-demos-for-stats` caps the
+CQN-AS action-stat demo load to avoid laptop OOM. The text below is the original
+spec, retained for reference.
 
 This is the load-bearing deliverable for the C1 benchmark
 contribution (§bench:harness of the report). Without it, every

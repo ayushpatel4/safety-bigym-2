@@ -40,6 +40,7 @@ multi-hour launch.
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 | ✅ P3.0/P3.1 smoke (B-value-mean) — code only | Full curriculum/headline runs still pending |
 | G1 swap | ✅ Implemented + unit-tested + smoked | Full curriculum reproduction is **P1 below** |
+| P6 harness | ✅ `benchmark_policy.py` built + tested + validated on a real CQN-AS snapshot | See **P6 below** (was pending; now DONE). Docs: `docs/benchmark_harness.md` |
 
 ---
 
@@ -122,16 +123,48 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: Row 2 = ~6 h (3 seeds). Rows 4 + 5 are pure eval (~0.5 h
   total). Total marginal: ~6.5 h.
 
-### P6. **Snapshot-evaluation benchmark harness** (`benchmark_policy.py`)
+### P6. **Snapshot-evaluation benchmark harness** (`benchmark_policy.py`) — ✅ DONE (2026-05-30)
+- **Status**: built, unit-tested (8 tests, `tests/test_benchmark_harness.py`),
+  and validated end-to-end on the **real CQN-AS snapshot** `snapshot_17826.pt`
+  (saucepan_to_hob/G1), filter off and on. Usage doc:
+  [`docs/benchmark_harness.md`](benchmark_harness.md).
+  - **Code**: CLI `scripts/benchmark_policy.py` + package
+    `safety_bigym/benchmark/` (`stats`, `records`, `schema`, `aggregate`,
+    `env_build`, `filter_attach`, `runners`, `loader`) +
+    `scripts/benchmark_visualize.py` (Pareto / bars / separation) +
+    `scripts/benchmark_demo.sh`.
+  - **Validated paths**: random+G1, random+SVF-filter+G1 (local
+    `svf_coworker_train_v1.pt`), **CQN-AS real snapshot**, **CQN-AS + in-loop
+    SVF veto**. ACT path: loader dispatch unit-tested; full run reuses the
+    already-tested `svf_collect_dataset.load_snapshot_policy` (no ACT snapshot
+    available locally).
+  - **Schema deviations from the round-4 spec (all documented in
+    `benchmark_harness.md`)**: raw rolls persisted as **parquet** (`pandas`+
+    `pyarrow` added to `setup.py`) plus a JSONL sidecar — not the originally
+    sketched parquet-only; `success` uses `info["task_success"]` (matches
+    `train_cqn_as`) with cumulative-reward>0 fallback; one appended **CSV row
+    per invocation** aggregating all seeds×episodes (the `seeds` column +
+    bootstrap CIs over the pooled rolls), not one row per seed.
+  - **Two portability fixes landed during validation**: (1) `build_cqn_cfg`
+    rebases the snapshot's baked GPU `motion_clip_dir` onto the local
+    `AMASS_DATA_DIR` (snapshots portable across machines); (2)
+    `--num-demos-for-stats` caps the demo count for the CQN-AS action-stat
+    step (the full 36-demo pixel load OOM-kills a laptop; use the full count
+    on the GPU box).
+  - **Finding for P2**: at $R=4.0$ the SVF filter over-fires on the G1 policy
+    (`mean_q_value ≈ 0.31 ≪ 4.0` → ~100% intervention). The harness surfaces
+    `mean_q_value`, making this diagnosable. Reinforces the P2 "re-calibrate
+    $R$ under G1" task — sweep $R$ before locking E4.1 row-4/row-5 numbers.
 - **Goal**: a single CLI that, given any policy checkpoint, produces
   a CSV row per (task, disruption, obs-mode, seed) cell with the
   full safety-metric schema. **This is the load-bearing piece of
   benchmark deliverable C1** (§bench:harness).
 - **Acceptance**: smoke test (`--smoke` flag, CPU, < 5 min) runs
-  end-to-end on a Phase 0 ACT snapshot and produces a non-empty CSV
-  with the schema documented in §bench:metrics:flavours. Used as
-  the canonical data source for every results table in the report
-  (per §impl:metrics).
+  end-to-end and produces a non-empty CSV with the documented schema.
+  ✅ Met — `--smoke` finishes in ~9 s. (Implemented to use a **random
+  policy** when no `--snapshot` is given, since no Phase-0 ACT snapshot
+  exists on this machine; it uses whatever snapshot is passed otherwise.)
+  Used as the canonical data source for every results table in the report.
 - **CSV columns must include** (round-3 + round-4 schema):
   - **Safety**: `ep_proximity_violation_rate`, `ep_ssm_violation_rate`,
     `ep_ssm_violation_actual_rate`, `ep_min_separation`,

@@ -4,6 +4,8 @@
 > legacy scenario breakdowns. Current thesis metrics use the three-flavour
 > safety schema in [safety_metrics.md](safety_metrics.md) and the COWORKER/G1
 > evaluation path tracked in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+> **For the P6 snapshot-evaluation harness (`benchmark_policy.py`, singular) that
+> produces the report's results tables, see [benchmark_harness.md](benchmark_harness.md).**
 
 This guide explains how to use the Safety Benchmark system for evaluating visuomotor policies in `safety-bigym`.
 
