@@ -79,7 +79,17 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     p.add_argument("--episodes-per-R", type=int, default=10)
     p.add_argument("--max-steps", type=int, default=300)
-    p.add_argument("--bodyslam-mode", choices=("oracle", "noisy"), default="oracle")
+    p.add_argument(
+        "--bodyslam-mode",
+        choices=("oracle", "noisy"),
+        default=None,
+        help=(
+            "Env BodySLAM mode. If unset, a snapshot policy uses its own "
+            "trained mode (peeked) and random uses oracle. Set explicitly to "
+            "match the SVF critic's training-collection mode (e.g. noisy) when "
+            "it differs from the snapshot's."
+        ),
+    )
     p.add_argument("--output-csv", type=Path, default=None)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--log-level", default="INFO")
@@ -123,12 +133,26 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
                 f"--snapshot-override {args.task}=PATH."
             )
         snapshot_cameras, snapshot_resolution = peek_snapshot_cameras(snapshot_path)
-        bodyslam_mode = peek_snapshot_bodyslam_mode(snapshot_path)
+        peeked = peek_snapshot_bodyslam_mode(snapshot_path)
+        if args.bodyslam_mode is None:
+            bodyslam_mode = peeked
+        else:
+            bodyslam_mode = args.bodyslam_mode
+            if bodyslam_mode != peeked:
+                logger.warning(
+                    f"Overriding env BodySLAM: snapshot trained {peeked!r}, "
+                    f"running env at {bodyslam_mode!r} (use this to match the "
+                    "SVF critic's training-collection mode)."
+                )
         logger.info(
-            f"Snapshot bodyslam={bodyslam_mode}, "
+            f"Snapshot bodyslam(trained)={peeked}, env bodyslam={bodyslam_mode}, "
             f"cameras={list(snapshot_cameras) or 'none'} "
             f"@ {snapshot_resolution[0]}x{snapshot_resolution[1]}"
         )
+
+    # Random policy (or unset): default to oracle, preserving prior behavior.
+    if bodyslam_mode is None:
+        bodyslam_mode = "oracle"
 
     env = _build_live_env(
         args.task, args.disruption, bodyslam_mode, DEFAULT_CLIPS,
