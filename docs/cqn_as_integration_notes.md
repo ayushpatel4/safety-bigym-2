@@ -22,6 +22,7 @@ upstream code with `num_demos=0` (which upstream never did).
 6. **Hydra 1.1+ doesn't `chdir` by default** — set `hydra.job.chdir=true` or `buffer/` pollutes across runs.
 7. **`logging.basicConfig` is a no-op if root already has a handler** — always pass `force=True`.
 8. **`CQNASAgent` is not an `nn.Module`** — it had no `state_dict`/`load_state_dict`; we added them.
+9. **Running a CQN-AS snapshot as a *policy* inside the SVF collector** (Phase 2 G1 re-eval) needs a dedicated loader (`agent_state`/`config` payload, split `act(rgb,low_dim)` args) + a vendored inference-path `.view`→`.reshape` fix for torch≥2 CPU.
 
 ---
 
@@ -200,6 +201,80 @@ if int(cfg.num_train_frames) <= 0:
 This is what `phase1_reward_pilot_cqn_as.py --eval` requires (it emits `+snapshot_path=...` + `num_train_frames=0`).
 
 **Architecture must match at load time.** A snapshot trained with `bodyslam=oracle` cannot be loaded into a workspace constructed with `bodyslam=off` — the low_dim encoder input dim differs by 24 (6D × frame_stack=4) and `load_state_dict` will raise on a shape mismatch. That's correct; the eval flow in `phase1_reward_pilot_cqn_as.py` passes `bodyslam={mode}` consistently.
+
+## 9. Loading a CQN-AS snapshot as a *policy* in the SVF collector (Phase 2 G1)
+
+The Phase-2 SVF re-eval under G1 needs to roll out a **trained CQN-AS policy**
+as the `snapshot` source inside [`scripts/svf_collect_dataset.py`](../scripts/svf_collect_dataset.py)
+and [`scripts/svf_threshold_sweep.py`](../scripts/svf_threshold_sweep.py).
+That collector was written for RoboBase ACT/DP snapshots; CQN-AS snapshots are
+a different shape and need their own path.
+
+**Payload dispatch.** RoboBase snapshots carry `payload["cfg"]` (a Hydra
+`DictConfig`) + `payload["agent"]`; CQN-AS (`train_cqn_as.py:save_snapshot`)
+carries `payload["config"]` (resolved container) + `payload["agent_state"]`.
+`load_snapshot_policy` branches on `"agent_state" in payload` and, for CQN-AS,
+delegates to `_load_cqn_as_snapshot_policy`. `_peek_snapshot_cfg` accepts
+either `cfg` or `config`, so the camera/bodyslam peeks work for both.
+
+**Agent rebuild.** `make_agent` bakes `rgb_obs_shape` / `low_dim_obs_shape` /
+`action_shape` into `config.agent` at train time (and `save_snapshot` persists
+the resolved config), so the agent rebuilds with a plain
+`hydra.utils.instantiate(config.agent)` + `agent.load_state_dict(agent_state)`
+— no env needed to recover the specs.
+
+**`_CQNASSnapshotPolicy` mirrors the adapter, not the agent.** The vendored
+`CQNASAgent.act(rgb_obs, low_dim_obs, step, eval_mode)` takes **split** rgb /
+low_dim arrays (not a gym dict), frame-stacked, with `[-1,1]`-normalised
+actions. The wrapper replicates [`env_adapter.py`](../safety_bigym/agents/cqn_as/env_adapter.py)`._extract_obs`
+(state-key concat → optional `human_pos_estimate` → per-camera frames stacked
+to `(V, C·frame_stack, H, W)`) and `_convert_action_to_raw` (denorm to the env
+range). It queries every step and executes `chunk[0]` (receding horizon —
+matching the ACT `_SnapshotPolicy` convention), and **resets its frame-stack
+deques per episode** via `reset()`, which `rollout_episode` calls after
+`env.reset()`.
+
+**`includes_human_pos` is decoupled from the env's bodyslam mode.** It's read
+from the *snapshot's trained* mode (`config.env.bodyslam.mode`): a
+`bodyslam=oracle`-trained policy is fed low_dim **without** noise-channel
+surprises, while the collection env runs `--bodyslam-mode noisy` so the SVF
+dataset still records `human_pos_estimate` (the critic's load-bearing
+feature). Same separation the ACT path uses. In the sweep, pass
+`--bodyslam-mode noisy` explicitly to match the **critic's training-collection
+mode** when it differs from the snapshot's (the sweep otherwise peeks the
+snapshot's mode).
+
+**Device portability.** Snapshots trained on the GPU box carry
+`device="cuda"`; `_load_cqn_as_snapshot_policy` overrides `config.agent.device`
+to CPU when CUDA is absent, so the collector/sweep load locally too.
+
+### Vendored `.view` → `.reshape` (inference path)
+
+On torch ≥2 / CPU, `MultiViewCNNEncoder.forward` runs conv over the
+**non-contiguous slice** `obs[:, v]`, and `C2FCriticNetwork.forward_each_level`
+produces non-contiguous post-GRU/cat tensors — so `.view(...)` raises
+`"view size is not compatible with input tensor's size and stride"`. Switched
+the **four inference-path** calls (encoder line + `forward_each_level`) to
+`.reshape`, which is value-identical for contiguous tensors and copies only
+when needed. The training-path `forward` / C51 projection views are untouched
+(not on the `act()` path). Logged in the `agent.py` header next to the
+sanctioned `linspace`→`arange` fix. Works on the GPU box (same training code
+path); the change just makes snapshot inference portable to CPU/newer torch.
+
+### Local-venv note
+
+To load a CQN-AS snapshot locally you need `tensordict==0.6.0` **and** its
+transitive `orjson` (install `--no-deps` so it doesn't touch the local torch).
+Both are already present on the GPU box.
+
+### Tests
+
+[`tests/test_cqn_as_snapshot_policy.py`](../tests/test_cqn_as_snapshot_policy.py)
+covers the obs assembly (low_dim width with/without human_pos, rgb shape,
+frame-stack reset, no-camera placeholder) and action denorm (mid/min/max) with
+a stub agent — no MuJoCo. Validated end-to-end on a real G1 saucepan_to_hob
+snapshot (`snapshot_17826.pt`): env build (G1, AMASS-free, 3 cameras) →
+load → `act` → varied in-bounds 16-d actions.
 
 ---
 
