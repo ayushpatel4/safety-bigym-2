@@ -44,6 +44,47 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# SVF runtime-filter operating points (Phase 2 → headline E4.1 rows 4/5).
+#
+# Each task maps to (trained SVF critic checkpoint, recommended veto threshold
+# R). SafetyFilterWrapper vetoes the proposed action when Q_safe(s, a) < R.
+#
+# G1 coworker (2026-05-30): after recollecting on `coworker_train` +
+# `bodyslam=noisy` and retraining (3-MLP [256,256,256], alpha_CQL=5.0,
+# tau=0.005, 200k steps, proximity label tau=0.3 m), the threshold sweep on the
+# stage-2 G1 baseline policy gives a HEALTHY Pareto — the old SMPL-H
+# checkpoint's mean_q ≈ 0.31 → 100%-intervention-everywhere pathology on G1 is
+# gone (mean_q now 1.2–3.2). Seed-averaged knee (results/svf_sweep_g1_v1/):
+#
+#     R     intervention   ISO-SSM(residual)   proximity(tau=0.3 m)
+#     2.0      26%              0.80                0.066
+#     3.0      82%              0.32                0.060
+#     4.0      95%              0.046               0.030   <- provisional R
+#
+# The thesis-primary proximity axis only moves at R=4 (~95% intervention)
+# because a veto->zero-velocity filter cannot stop the G1 coworker (which
+# actively reaches into the workspace under coworker_train) from approaching a
+# stationary robot — seed-2 proximity floors at 0.05 even at 99.9% intervention.
+# The filter's clean win is the robot-velocity-driven ISO-SSM axis. This is the
+# core argument for the hybrid: the filter is the edge-case backstop, the
+# Lagrangian policy does proactive avoidance.
+#
+# R = 4.0 is PROVISIONAL (continuity with the SMPL-H R=4.0 operating point); it
+# is NOT locked. Per the plan's E4.1 decision rule, re-confirm against the
+# Phase-3 (row-3) snapshot in P5: if hybrid row-5 intervention is not well below
+# filter-alone row-4, re-sweep R against the row-3 snapshot. The filterless
+# (R=0) baseline + the 26%->82% gap come from scripts/svf_sweep_g1_v1_baseline.sh.
+SVF_FILTERS: Dict[str, Optional[str]] = {
+    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_v1.pt",
+}
+
+# Recommended veto threshold R per task (provisional; see note above).
+SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
+    "saucepan_to_hob": 4.0,
+}
+
+
 def _resolve_path(value: str) -> Path:
     p = Path(os.path.expanduser(value))
     if not p.is_absolute():
@@ -97,4 +138,40 @@ def resolve_snapshot(
     return path
 
 
-__all__ = ["SNAPSHOTS", "resolve_snapshot"]
+def resolve_svf_filter(
+    task_key: str,
+    *,
+    overrides: Optional[Mapping[str, str]] = None,
+) -> Optional[tuple[Path, float]]:
+    """Return ``(critic_path, threshold_R)`` for ``task_key``, or ``None`` if unset.
+
+    Mirrors :func:`resolve_snapshot` semantics: ``None`` means "no SVF filter
+    configured for this task" (deliberate skip); a listed-but-missing checkpoint
+    raises :class:`FileNotFoundError` (stale / typo'd path). The threshold falls
+    back to ``SVF_FILTER_THRESHOLD_R`` (default 4.0 if the task is absent).
+    """
+    raw = None
+    if overrides and task_key in overrides:
+        raw = overrides[task_key]
+    elif task_key in SVF_FILTERS:
+        raw = SVF_FILTERS[task_key]
+
+    if raw is None or raw == "":
+        return None
+
+    path = _resolve_path(str(raw))
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"SVF filter for task {task_key!r} listed but missing on disk: {path}. "
+            "Update SVF_FILTERS in safety_bigym/filters/snapshots.py."
+        )
+    return path, float(SVF_FILTER_THRESHOLD_R.get(task_key, 4.0))
+
+
+__all__ = [
+    "SNAPSHOTS",
+    "resolve_snapshot",
+    "SVF_FILTERS",
+    "SVF_FILTER_THRESHOLD_R",
+    "resolve_svf_filter",
+]

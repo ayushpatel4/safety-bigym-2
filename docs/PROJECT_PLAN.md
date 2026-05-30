@@ -28,11 +28,12 @@ guarantees needed for ISO 15066 compliance.
 | Phase 0 | **COMPLETE** | Collision-channel fix, SSM velocity fix (mocap pelvis), eval regression fix, ACT retrain on 4 tasks |
 | Phase 1 wrapper | **COMPLETE** | `BodySLAMWrapper` with off / oracle / noisy modes, calibrated against BodySLAM++ characteristics |
 | Phase 1 E1.1 | **COMPLETE (negative)** | BC obs-ablation: oracle doesn't help under pure BC |
-| Phase 2 | **COMPLETE** | SVF trained at α_CQL = 5.0, operating point R = 4.0 identified. **Re-eval needed under G1 coworker (P2 below)** |
+| Phase 2 (SMPL-H) | **COMPLETE** | SVF α_CQL=5.0, R=4.0 — **did not transfer to G1** |
+| Phase 2 (G1) | **✅ RETRAINED (2026-05-30)** | `svf_coworker_train_g1_v1.pt` on `noisy`+G1, proximity τ=0.3 m; R-swept. **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap sweep pending — **P2** |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
-| G1 coworker swap | **CODE COMPLETE, CURRICULUM PENDING** | Unit-tested, smoke-validated; full base-policy curriculum (stages 0/1/2) is **P1** |
-| Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent (value-based dual critic on CQN-AS); P3.0 cost-flow smoke + P3.1 training smoke pass |
-| Phase 3 experiments | **PENDING** | E3.1 (cost-signal form), E3.2 (budget Pareto), E3.6 (obs under constrained policy) — **P3, P4, P7 below** |
+| G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
+| Phase 3 code | **CODE COMPLETE (continuous only)** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **Cost form hardcoded continuous** — binary/fixed not wired (E3.1 prereq) |
+| Phase 3 experiments | **PENDING (P3 blocked on selector)** | E3.1 (cost-signal form — needs cost-form selector), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
 | Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
 | Phase 4 headline | **NOT STARTED** | E4.1 five-row feature-incremental table + E4.3 internalisation curve — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
@@ -235,7 +236,55 @@ smoke pipeline runs ~75s.
   on the previous SMPL-H coworker distribution.
 - **Snapshot:** `checkpoints/svf_coworker_train_v1.pt`.
 
-### What's pending — **P2** (re-eval and likely retrain under G1)
+### P2 — re-eval + retrain under G1 — ✅ MOSTLY DONE (2026-05-30)
+
+**Outcome.** Tasks 1–4 below ran. The diagnosis held (old checkpoint
+over-fires on G1), so we recollected on `coworker_train`+`noisy` and
+retrained → `svf_coworker_train_g1_v1.pt` (proximity label **τ=0.3 m**,
+the new `SSMConfig.proximity_threshold`). **The retrain succeeded**:
+healthy Pareto, `mean_q` 1.2–3.2 (the 0.31→100%-everywhere pathology
+is gone). **R = 4.0** is documented as the *provisional* operating
+point in `safety_bigym/filters/snapshots.py` (`SVF_FILTERS`,
+`SVF_FILTER_THRESHOLD_R`, `resolve_svf_filter`).
+
+**Seed-averaged R-sweep** (`results/svf_sweep_g1_v1/`, 3 seeds × 20 ep):
+
+| R | interv | residual (ISO-SSM) | proximity (τ=0.3 m) | mean_q |
+|---|---|---|---|---|
+| 2.0 | 26% | 0.80 | 0.066 | 2.55 |
+| 3.0 | 82% | 0.32 | 0.060 | 1.16 |
+| 4.0 | 95% | 0.046 | 0.030 | 1.45 |
+
+**Headline finding — the filter is axis-asymmetric.** It is excellent
+on the robot-velocity-driven **ISO-SSM** axis (`residual` collapses to
+~0 by R=4) but weak on the thesis-primary **geometric proximity** axis
+at usable intervention: proximity only halves at R=4 (~95% intervention),
+because a veto→zero-velocity filter cannot stop the G1 coworker — which
+actively reaches into the workspace under `coworker_train` — from
+approaching a *stationary* robot. (Seed-2 proximity floors at 0.05 even
+at 99.9% intervention: human-initiated approaches the filter is
+physically incapable of preventing.) This is the core empirical argument
+for the **hybrid** — filter as edge-case backstop, Lagrangian policy for
+proactive avoidance. Report in §results:filter-pareto + §disc.
+
+**Two cheap closeouts remain** (eval-only, ~2 GPU-h):
+1. **R=0 filterless baseline + the 26%→82% intervention gap.** Run
+   `scripts/svf_sweep_g1_v1_baseline.sh` (R=0 gives 0 interventions →
+   the exact filterless `proximity_violation_rate` denominator, since
+   the critic output is strictly >0 and the veto is `q < R`). This
+   settles the acceptance verdict below.
+   **Confirm whether the existing CSVs used `--policy snapshot` or
+   `random`** — the new sweep defaults to `snapshot` (deployment-accurate;
+   `load_snapshot_policy` handles CQN-AS via `_CQNASSnapshotPolicy`).
+2. **Acceptance verdict.** Against the ≤25%-intervention / ≥30%-proximity
+   bar: at R≤2 (≤26% interv) proximity barely moves, so the bar is
+   **likely not met on the proximity axis** — report honestly (met on
+   ISO-SSM; the proximity limitation motivates the hybrid), rather than
+   chasing R upward into the task-destroying ≥95%-intervention regime.
+
+---
+
+#### Historical context (pre-retrain rationale, carried forward)
 
 The R = 4.0 operating point was calibrated on the SMPL-H coworker
 distribution. The G1 coworker has different geometric extent
@@ -356,10 +405,18 @@ Documented in `docs/g1_coworker_swap.md`. Implementation:
   convergence, and disruption sampling. End-to-end smoke validated
   on GPU.
 
-### What's pending — **P1** (the base-policy curriculum on G1)
+### P1 — base-policy curriculum on G1 — ✅ DONE (2026-05-30)
 
-This is the single highest-priority pending workstream.
-**Everything downstream depends on the snapshot from this.**
+Ran via `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`, stages
+idle→easy→`coworker_train`, snapshot-resume chained). The **stage-2
+snapshot** is the unconstrained baseline (row-1 reference) and the
+warm-start for P3/P5. **Record the stage-1 and stage-2 snapshot paths**:
+P3 (E3.1) warm-starts from **stage 1**; P5 row-1/row-4 eval uses **stage 2**.
+The original task spec is retained below for reference (its inline `task=`/
+`frames=` keys are old sketches — `run_base_curriculum.sh` uses the real
+`env=safety_bigym/<task>` / `num_train_frames=`).
+
+**Everything downstream depends on the stage-2 snapshot from this.**
 
 #### Tasks
 
@@ -482,6 +539,32 @@ Three cells under the B-value-mean Lagrangian backbone, 3 seeds each:
 | Binary + λ | `c_t ∈ {0, 1}` from `1[ssm_violation]`; PID λ active | Does Lagrangian adaptivity help when cost signal is binary? |
 | **Continuous + λ** (ours) | `c_t = max(c_ssm, c_pfl)` per Equation 4.4 | Headline configuration |
 
+##### ⚠ BLOCKING CODE GAP (found 2026-05-30): only `continuous` is wired
+
+`safety_bigym/agents/cqn_as/env_adapter.py` unconditionally computes the
+**continuous** cost `c_t = compute_cost(info["safety"])`
+(`filters/cost_signal.py`). There is **no** code path for the **binary**
+(`c_t = 1[ssm_violation]`) or **fixed** (reward penalty `r − 0.05·1[violation]`,
+no Lagrangian) cells — the `cost_signal={fixed,binary,continuous}` selector in
+the pseudocode below **does not exist**. So 1 of the 3 E3.1 cells is runnable
+today; the launcher `scripts/run_e3_1_cost_signal.sh` runs `continuous` and
+**loudly skips** the unwired forms (it never silently runs them as continuous).
+
+**Cost-form selector — file-level plan (prerequisite for binary + fixed):**
+1. **`env_adapter.py`**: read a `cost_form` knob (e.g.
+   `env.safety.cost_form ∈ {continuous,binary}`, default `continuous`); when
+   `binary`, set `cost = float(safety_info.get("ssm_violation", 0.0))` in place
+   of `compute_cost(...)` at the per-step cost attachment.
+2. **`fixed` cell**: a reward-penalty path under plain `agent=cqn_as` (no Q_c /
+   no λ) — subtract `0.05·1[violation]` from the env reward via a new
+   `env.safety.violation_reward_penalty`, applied in `SafetyBiGymEnv._reward()`.
+   Keep within the C51 support invariant (β·c_ws/(1−γ) ≤ |v_min|).
+3. **Tests** in `tests/` for both forms (cost emitted == expected per form);
+   then add `binary` / `fixed` to `WIRED_FORMS` in the launcher.
+
+This is ~P3.1 completion, not a launch-only task. Until it lands, the
+`continuous` cell still produces the **P5 row-3 input**, so it is worth running.
+
 ##### Acceptance criteria
 
 - Continuous row dominates binary row on
@@ -491,32 +574,40 @@ Three cells under the B-value-mean Lagrangian backbone, 3 seeds each:
 
 ##### Implementation notes
 
-The three cells are selected via a single Hydra override:
+Use the launcher `scripts/run_e3_1_cost_signal.sh` (warm-starts from the P1
+stage-1 snapshot, so each cell shares row-1's training protocol and differs
+only in cost signal):
+
+```bash
+WARMSTART=exp_local/cqn_as_base_curriculum/<run>/stage1_easy/snapshot_XXXXX.pt \
+  scripts/run_e3_1_cost_signal.sh           # continuous x seeds {0,1,2} (runnable today)
+COST_FORMS="fixed binary continuous" WARMSTART=... scripts/run_e3_1_cost_signal.sh
+  # launches continuous; reports fixed+binary as BLOCKED until the selector lands
+```
+
+The **real** per-cell command (the plan's old `task=`/`frames=`/`cost_signal=`
+were sketches — verified keys against `train_cqn_as.py` + `cqn_as_config.yaml`):
 
 ```bash
 python train_cqn_as.py \
-  task=saucepan_to_hob \
+  env=safety_bigym/saucepan_to_hob \      # NOT task=
   disruption=coworker_train \
   bodyslam=oracle \
-  frames=60000 \
-  +snapshot_path=runs/stage1/final.pt \
-  cost_signal={fixed,binary,continuous} \
-  seed={0,1,2}
+  num_train_frames=60000 \                # NOT frames=
+  agent=cqn_as_lagrangian \               # selects Q_c + λ-PID (continuous cost)
+  agent.cost_budget=0.01 \                # the constraint target d
+  num_demos=36 \
+  env.safety.add_workspace_penalty=true env.safety.workspace_beta=0.05 \
+  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
+  seed=0 \
+  +snapshot_path=$WARMSTART               # P1 stage-1 snapshot
 ```
 
-The `cost_signal` selector in `train_cqn_as.py` switches between:
-
-```python
-if cost_signal == "fixed":
-    use_lagrangian = False
-    reward_modifier = lambda r, c: r - 0.05 * (c > 0)
-elif cost_signal == "binary":
-    use_lagrangian = True
-    cost_fn = lambda safety_info: float(safety_info["ssm_violation"])
-elif cost_signal == "continuous":
-    use_lagrangian = True
-    cost_fn = compute_continuous_cost  # the headline
-```
+The `cost_signal={fixed,binary,continuous}` selector below is the **planned**
+interface (does not exist yet — see the BLOCKING CODE GAP above). Once the
+cost-form selector lands, the launcher dispatches: `continuous` →
+`agent=cqn_as_lagrangian` (today); `binary` → same agent + `env.safety.cost_form=binary`;
+`fixed` → `agent=cqn_as` + `env.safety.violation_reward_penalty=0.05` (λ disabled).
 
 ##### Compute budget
 
@@ -547,14 +638,18 @@ Sweep cost budget `d ∈ {0.001, 0.01, 0.05, 0.1}`, 3 seeds each =
 ##### Implementation notes
 
 ```bash
+# Real keys (env=, num_train_frames=, agent=cqn_as_lagrangian, agent.cost_budget=).
+# cost_signal=continuous is implicit (the only wired form); sweep d = agent.cost_budget.
 python train_cqn_as.py \
-  task=saucepan_to_hob \
+  env=safety_bigym/saucepan_to_hob \
   disruption=coworker_train \
   bodyslam=oracle \
-  frames=60000 \
-  +snapshot_path=runs/stage1/final.pt \
-  cost_signal=continuous \
-  cost_budget={0.001,0.01,0.05,0.1} \
+  num_train_frames=60000 \
+  +snapshot_path=$WARMSTART \             # P1 stage-1 snapshot
+  agent=cqn_as_lagrangian \
+  agent.cost_budget={0.001,0.01,0.05,0.1} \
+  num_demos=36 env.safety.add_workspace_penalty=true env.safety.workspace_beta=0.05 \
+  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
   seed={0,1,2}
 ```
 
@@ -600,15 +695,17 @@ training-time confounds.
 
 ```bash
 # Train one policy under oracle (the same policy used in P5 row 3,
-# so we can reuse runs/p3_continuous_d_knee/ if it exists)
+# so we can reuse the P3 continuous + d_knee run if it exists). Real keys.
 python train_cqn_as.py \
-  task=saucepan_to_hob \
+  env=safety_bigym/saucepan_to_hob \
   disruption=coworker_train \
   bodyslam=oracle \
-  frames=60000 \
-  +snapshot_path=runs/stage1/final.pt \
-  cost_signal=continuous \
-  cost_budget=$D_HEADLINE \
+  num_train_frames=60000 \
+  +snapshot_path=$WARMSTART \             # P1 stage-1 snapshot
+  agent=cqn_as_lagrangian \
+  agent.cost_budget=$D_HEADLINE \
+  num_demos=36 env.safety.add_workspace_penalty=true env.safety.workspace_beta=0.05 \
+  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
   seed={0,1,2}
 
 # Then evaluate the same snapshots across three perception modes
@@ -836,12 +933,14 @@ python scripts/benchmark_policy.py \
   --obs-mode oracle --seeds 0,1,2 --episodes 20 \
   --out results/e4.1_row1.csv
 
-# Row 2 — NEW training run with workspace_shaping toggled
+# Row 2 — NEW training run with workspace shaping (plain agent=cqn_as, no λ).
+# Real keys: env=, num_train_frames=, env.safety.workspace_beta=. No cost_signal key.
 python train_cqn_as.py \
-  task=saucepan_to_hob disruption=coworker_train bodyslam=oracle frames=60000 \
-  +snapshot_path=runs/stage1/final.pt \
-  workspace_shaping.beta=0.05 \
-  cost_signal=none \
+  env=safety_bigym/saucepan_to_hob disruption=coworker_train bodyslam=oracle \
+  num_train_frames=60000 +snapshot_path=$WARMSTART \
+  env.safety.add_workspace_penalty=true env.safety.workspace_beta=0.05 \
+  env.safety.workspace_excess_cap=1.0 num_demos=36 \
+  agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
   seed={0,1,2}
 # Then eval
 python scripts/benchmark_policy.py \
@@ -858,7 +957,7 @@ python scripts/benchmark_policy.py \
 # Row 4 — eval P1 snapshot WITH filter
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_to_hob_g1_coworker_train/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
   --filter-threshold 4.0 \
   --obs-mode oracle \
   --out results/e4.1_row4.csv
@@ -866,7 +965,7 @@ python scripts/benchmark_policy.py \
 # Row 5 — eval P3 snapshot WITH filter
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
   --filter-threshold 4.0 \
   --obs-mode oracle \
   --out results/e4.1_row5.csv
@@ -874,7 +973,7 @@ python scripts/benchmark_policy.py \
 # Row 5-diagnostic — same as row 5 but with noisy eval, for the sim-to-real diagnostic
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
   --filter-threshold 4.0 \
   --obs-mode noisy \
   --out results/e4.1_row5_noisy_diagnostic.csv
@@ -997,7 +1096,7 @@ python scripts/benchmark_policy.py \
 
 python scripts/benchmark_policy.py \
   --snapshot runs/p3_continuous_d_knee/final.pt \
-  --filter-snapshot checkpoints/svf_coworker_train_v1.pt \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_v1.pt \
   --disruption coworker_eval \
   --out results/e5.2_row5_ood.csv
 ```
@@ -1192,8 +1291,13 @@ python -m safety_bigym.filters.dataset --smoke
 python -m safety_bigym.filters.train --smoke
 python -m safety_bigym.filters.sweep --smoke
 
-# Phase 3 training
-python train_cqn_as.py --smoke
+# Phase 3 training composition — `--smoke` does NOT exist (hydra rejects it);
+# the real gate is a short num_train_frames run with no demos/W&B.
+python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
+  num_train_frames=100 num_demos=0 wandb.use=false
+# Lagrangian agent composition (the P3 path)
+python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
+  agent=cqn_as_lagrangian num_train_frames=100 num_demos=0 wandb.use=false
 
 # P3.0 cost-flow smoke (verify c_t flows end-to-end)
 python scripts/phase3_p30_smoke.py

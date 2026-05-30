@@ -1,11 +1,38 @@
 # IMPLEMENTATION_STATUS.md
 ### Coding-agent brief — `safety_bigym` MEng project
-### Updated: 2026-05-28 (round 3)
+### Updated: 2026-05-30 (round 3 — P1 done, P2 retrained/swept, P3 prereq gap found)
 
 This document is the **single source of truth for what needs running**.
 It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
 Tasks are priority-ordered; smoke gates are mandatory before any
 multi-hour launch.
+
+> **2026-05-30 status delta.**
+> - **P1 DONE** — G1 base-policy curriculum ran; stage-2 snapshot in hand
+>   (the unconstrained baseline / row-1 reference).
+> - **P2 mostly done** — SVF recollected on G1+`noisy`, retrained as
+>   `svf_coworker_train_g1_v1.pt`, R swept. The retrain fixed the
+>   100%-intervention pathology (`mean_q` now 1.2–3.2). **R = 4.0** set as the
+>   *provisional* operating point in `safety_bigym/filters/snapshots.py`
+>   (`SVF_FILTERS` / `SVF_FILTER_THRESHOLD_R` / `resolve_svf_filter`). Two cheap
+>   closeouts remain: the filterless **R=0 baseline** + the 26%→82%
+>   intervention gap (run `scripts/svf_sweep_g1_v1_baseline.sh`).
+> - **Proximity label is now τ = 0.3 m** (`SSMConfig.proximity_threshold=0.3`,
+>   was 0.5 m); the G1 SVF trained at this τ. The sweep's
+>   `proximity_violation_rate` is the 0.3 m rate.
+> - **Key P2 finding (bank for §results:filter-pareto):** the filter is
+>   *axis-asymmetric*. It is excellent on the robot-velocity-driven **ISO-SSM**
+>   axis (`residual` 0.93→0.05 by R=4) but weak on the thesis-primary
+>   **geometric proximity** axis at usable intervention — proximity only halves
+>   at R=4 (~95% intervention), because a veto→freeze filter cannot stop the G1
+>   coworker from approaching a stationary robot (seed-2 proximity floors at 0.05
+>   even at 99.9% intervention). This is the core motivation for the hybrid; the
+>   ≤25%-intervention / ≥30%-proximity-reduction P2 bar is likely **not met on
+>   proximity** (confirm against the R=0 baseline).
+> - **P3 BLOCKED on a code gap** — `env_adapter.py` hardcodes the *continuous*
+>   cost; the **binary** and **fixed-penalty** E3.1 cells have no code path. Only
+>   the continuous cell is runnable (`scripts/run_e3_1_cost_signal.sh`). Wiring
+>   the cost-form selector is the prerequisite for completing E3.1 — see **P3**.
 
 ---
 
@@ -36,10 +63,11 @@ multi-hour launch.
 |---|---|---|
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
-| Phase 2 | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$ operating point. Results discussed in §results:filter-pareto |
+| Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
+| Phase 2 (G1) | ✅ recollect (`noisy`) + retrain + R-sweep | `svf_coworker_train_g1_v1.pt`; **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap pending (`svf_sweep_g1_v1_baseline.sh`). §results:filter-pareto |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
-| Phase 3 | ✅ P3.0/P3.1 smoke (B-value-mean) — code only | Full curriculum/headline runs still pending |
-| G1 swap | ✅ Implemented + unit-tested + smoked | Full curriculum reproduction is **P1 below** |
+| Phase 3 (continuous) | ✅ P3.0/P3.1 smoke — code; **continuous cost only** | binary/fixed cost forms **NOT wired** (E3.1 prereq — see **P3**) |
+| G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
 | P6 harness | ✅ `benchmark_policy.py` built + tested + validated on a real CQN-AS snapshot | See **P6 below** (was pending; now DONE). Docs: `docs/benchmark_harness.md` |
 
 ---
@@ -49,14 +77,20 @@ multi-hour launch.
 These are the experiments needed to populate `report.tex` headline
 tables and figures. Approximate GPU budget: ~70 A100-hours total.
 
-### P1. G1 base-policy curriculum (stages 0/1/2) on `saucepan_to_hob`
+### P1. G1 base-policy curriculum (stages 0/1/2) on `saucepan_to_hob` — ✅ DONE (2026-05-30)
+- **Status**: ran via `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`,
+  3 stages idle→easy→`coworker_train`, warm-start chained). Stage-2 snapshot is
+  the unconstrained baseline / row-1 reference and the warm-start for P3/P5.
+  **Record the exact stage-1 and stage-2 snapshot paths** — P3 (E3.1) warm-starts
+  from **stage 1**, P5 row-1/row-4 eval uses **stage 2**.
 - **Goal**: produce the unconstrained baseline snapshot used as the
   starting point for everything downstream + as row 1 of the
   feature-incremental Table~\ref{tab:e4.1-feature-incremental}.
 - **Acceptance**: end-of-stage-2 `ep_reward` ≥ +1.5; `success_rate`
   ≥ 0.5 averaged over last 20 eval episodes; no value-support
   saturation (`ep_reward` monotone non-decreasing across stages).
-- **Cmd**:
+- **Cmd** (illustrative sketch — the real run used `scripts/run_base_curriculum.sh`;
+  real keys are `env=safety_bigym/<task>` and `num_train_frames=`, not `task=`/`frames=`):
   ```bash
   python train_cqn_as.py task=saucepan_to_hob \
     disruption=coworker_idle  bodyslam=oracle frames=20000 +snapshot_path=null
@@ -70,39 +104,82 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~20 h
 - **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-evaluation + likely retrain under G1 coworker
-- **Goal**: confirm operating points after the G1 swap; **expect to
-  retrain** because the harness has already shown the existing
-  `svf_coworker_train_v1.pt` over-fires on G1 (`mean_q_value ≈ 0.31
-  ≪ R=4.0` → ~100% intervention).
-- **Acceptance**: after retraining on G1 + noisy data, filter alone
-  reduces `ep_proximity_violation_rate` on the unconstrained
-  baseline by ≥ 30% at intervention rate ≤ 25%.
-- **Tasks**: (1) brief R-sweep on existing checkpoint to confirm
-  diagnosis; (2) recollect dataset on `disruption=coworker_train`
-  with `bodyslam=noisy` (3 sources: random + BiGym demos + Phase 0
-  ACT); (3) retrain SVF (same hyperparameters: 3-MLP [256,256,256],
-  α_CQL=5.0, τ=0.005, 200k steps); (4) re-sweep R on the new
-  checkpoint to find the knee. Save as `svf_coworker_train_g1_v1.pt`.
+### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ MOSTLY DONE (2026-05-30)
+- **Done**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
+  (2) recollected the dataset on `disruption=coworker_train`, `bodyslam=noisy`
+  (random + BiGym demos + Phase 0 ACT); (3) retrained
+  → `svf_coworker_train_g1_v1.pt` (3-MLP [256,256,256], α_CQL=5.0, τ=0.005,
+  200k steps, proximity label **τ=0.3 m**); (4) swept R∈{1,2,3,4,5,6,8}, 3 seeds,
+  20 ep. **Retrain succeeded** — healthy Pareto, `mean_q` 1.2–3.2 (the 0.31 →
+  100%-everywhere pathology is gone). **R=4.0** documented as *provisional* in
+  `snapshots.py` (re-confirm against the row-3 snapshot in P5 per decision rule).
+- **Seed-averaged sweep** (results/svf_sweep_g1_v1/):
+
+  | R | interv | residual (ISO-SSM) | proximity (τ=0.3 m) | mean_q |
+  |---|---|---|---|---|
+  | 2.0 | 26% | 0.80 | 0.066 | 2.55 |
+  | 3.0 | 82% | 0.32 | 0.060 | 1.16 |
+  | 4.0 | 95% | 0.046 | 0.030 | 1.45 |
+
+- **Finding**: filter is **axis-asymmetric** — strong on ISO-SSM (robot speed),
+  weak on geometric proximity at usable intervention (proximity only halves at
+  R=4 / 95% interv, because veto→freeze can't stop the human approaching). Core
+  argument for the hybrid. See the status-delta block at the top.
+- **Remaining (cheap, eval-only, ~2 GPU-h)**: run
+  `scripts/svf_sweep_g1_v1_baseline.sh` to add the **R=0 filterless baseline**
+  (the missing denominator for the ≥30% acceptance test) + the 26%→82%
+  intervention gap. Then settle the P2 acceptance verdict (expected: not met on
+  proximity at ≤25% interv, met on ISO-SSM — reported honestly, motivates hybrid).
+  **Confirm whether the existing CSVs used `--policy snapshot` or `random`**;
+  the new sweep defaults to `snapshot` (deployment-accurate, CQN-AS-capable).
 - **Populates**: §results:filter-pareto, row 4 of E4.1 table.
-- **GPU**: ~6 h (sweep ~1 h + recollect ~3 h + retrain ~1 h + re-sweep ~1 h)
-- **Perception mode**: train + eval **`noisy`** (the filter is the only component that trains on noisy — its training distribution must match its deployment distribution; see Perception Mode Policy in PROJECT_PLAN.md, Rationale paragraph)
+- **Perception mode**: train + eval **`noisy`** (the filter's deployment
+  distribution; see Perception Mode Policy in PROJECT_PLAN.md, Rationale).
 
 ### P3. E3.1: cost-signal form ablation (continuous vs binary vs fixed)
 - **Goal**: validate the load-bearing claim that continuous cost
   dominates binary. Three cells, 3 seeds each.
+- **⚠ BLOCKING CODE GAP (found 2026-05-30)**: only the **continuous** cost is
+  wired. `env_adapter.py` unconditionally computes
+  `c_t = compute_cost(info["safety"])` (continuous); there is **no** code path
+  for **binary** (`c_t = 1[ssm_violation]`) or **fixed** (`r - 0.05·1[violation]`
+  reward penalty, no Lagrangian). The plan's `cost_signal={fixed,binary,continuous}`
+  selector **does not exist**. Wire it before E3.1 can complete (file-level plan
+  below). The launcher `scripts/run_e3_1_cost_signal.sh` runs `continuous` today
+  and loudly **skips** binary/fixed (never silently runs them as continuous).
+- **Cost-form selector — file-level plan (prereq for binary/fixed)**:
+  1. `safety_bigym/agents/cqn_as/env_adapter.py`: read a `cost_form` knob
+     (e.g. `env.safety.cost_form ∈ {continuous,binary}`); when `binary`, set
+     `cost = float(safety_info.get("ssm_violation", 0.0))` instead of
+     `compute_cost(...)`.
+  2. `fixed` cell: a reward-penalty path under plain `agent=cqn_as` (no Q_c/λ) —
+     subtract `0.05·1[violation]` from the env reward (new
+     `env.safety.violation_reward_penalty` applied in `SafetyBiGymEnv._reward()`
+     or the adapter). Keep within the C51 support invariant.
+  3. tests in `tests/` for both forms; then add them to `WIRED_FORMS` in the
+     launcher.
+- **Corrected launch surface** (the plan's `task=`/`frames=`/`cost_signal=` are
+  sketches — real keys verified against `train_cqn_as.py` + `cqn_as_config.yaml`):
+  ```bash
+  # continuous cell (runnable today) — via scripts/run_e3_1_cost_signal.sh:
+  WARMSTART=exp_local/.../stage1_easy/snapshot_XXXXX.pt \
+    scripts/run_e3_1_cost_signal.sh           # continuous x seeds {0,1,2}
+  # which runs, per cell:
+  python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
+    disruption=coworker_train bodyslam=oracle num_train_frames=60000 \
+    agent=cqn_as_lagrangian agent.cost_budget=0.01 \
+    num_demos=36 env.safety.add_workspace_penalty=true \
+    agent.v_min=-6.0 agent.v_max=2.0 agent.atoms=101 \
+    seed=0 +snapshot_path=$WARMSTART
+  ```
+  **Warm-start from the P1 stage-1 snapshot** (matches row-1's protocol: 60k on
+  `coworker_train` from the same start, differing only by the Lagrangian).
 - **Acceptance**: continuous row beats binary row on
   `ep_proximity_violation_rate` with non-overlapping 95% bootstrap
   CIs. If overlap, this is itself a finding to report honestly.
-- **Cmd template**:
-  ```bash
-  python train_cqn_as.py task=saucepan_to_hob \
-    disruption=coworker_train bodyslam=oracle frames=60000 \
-    cost_signal={fixed,binary,continuous} seed={0,1,2} \
-    +snapshot_path=stage2_final.pt
-  ```
 - **Populates**: Table~\ref{tab:e3.1-cost-signal}.
-- **GPU**: 9 cells × ~2 h = ~18 h
+- **GPU**: 9 cells × ~2 h = ~18 h (only 3 continuous cells runnable until the
+  selector lands)
 - **Perception mode**: train + eval both `oracle` (isolates the cost-signal variable; see Perception Mode Policy in PROJECT_PLAN.md)
 
 ### P4. E3.2: cost-budget Pareto sweep
@@ -304,10 +381,15 @@ python -m safety_bigym.filters.train --smoke
 # Phase 2 sweep
 python -m safety_bigym.filters.sweep --smoke
 
-# Phase 3 train_cqn_as.py (with B-value-mean)
-python train_cqn_as.py --smoke
+# Phase 3 train_cqn_as.py composition — `--smoke` does NOT exist (hydra rejects
+# it); the real gate is a short num_train_frames run with no demos/W&B.
+python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
+  num_train_frames=100 num_demos=0 wandb.use=false
+# Lagrangian agent composition (the P3 path)
+python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
+  agent=cqn_as_lagrangian num_train_frames=100 num_demos=0 wandb.use=false
 
-# Snapshot eval harness (P6)
+# Snapshot eval harness (P6) — this one IS an argparse CLI with a real --smoke
 python scripts/benchmark_policy.py --smoke
 ```
 
