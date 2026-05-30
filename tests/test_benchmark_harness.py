@@ -165,6 +165,36 @@ def _identification_meta():
     }
 
 
+def test_ssm_violation_actual_aggregates_correctly():
+    """The velocity-adaptive SSM axis (`ep_ssm_violation_actual_rate`) is
+    reported as a secondary safety metric to complement geometric proximity
+    (the binary SVF label is proximity-based; this column shows the speed-aware
+    ISO flavour for honesty). Guard that it aggregates to the per-episode mean
+    with bracketing CIs and isn't silently zeroed/mismapped.
+    """
+    vals = [0.0, 0.1, 0.2, 0.3]
+    records = [
+        EpisodeRecord(
+            seed=0, episode_index=i, success=True, episode_reward=1.0,
+            n_steps=50, steps_to_completion=20.0,
+            ep_safety=_ep_safety(ssm_actual=v),
+            ep_cost_integral=1.0, filtered=False, n_interventions=0,
+            filter_steps=0, sum_q_value=0.0,
+        )
+        for i, v in enumerate(vals)
+    ]
+    agg = aggregate_cell(records, stats_seed=1, n_resamples=500)
+    mean = sum(vals) / len(vals)
+    assert agg["ep_ssm_violation_actual_rate"] == pytest.approx(mean)
+    assert (
+        agg["ep_ssm_violation_actual_rate_ci_lo"]
+        <= mean
+        <= agg["ep_ssm_violation_actual_rate_ci_hi"]
+    )
+    # _ep_safety holds ep_min_ssm_margin_actual constant at 0.2.
+    assert agg["ep_min_ssm_margin_actual"] == pytest.approx(0.2)
+
+
 def test_csv_schema_completeness():
     records = [_record(i, success=(i % 2 == 0)) for i in range(4)]
 
