@@ -210,6 +210,12 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
     the P1 snapshot wrapped with the P2 SVF.
   - **Row 5** — Full hybrid (row 3 + filter). Pure deploy eval on
     the P3 snapshot wrapped with the P2 SVF.
+- **Driver**: `scripts/run_e4_1_headline.sh` (built 2026-05-30) — runs
+  `benchmark_policy.py` for every row (oracle, + 1 noisy diagnostic), one CSV
+  per row. **Incremental**: rows 1 & 4 run now from `STAGE2` (P1 stage-2) + the
+  SVF filter; rows 3/5/5_noisy skip until `ROW3` (the P3 d_knee snapshot) is set;
+  row 2 skips until `ROW2` is set. Defaults `STAGE2`→recorded G1 stage-2,
+  `SVF_FILTER`→`checkpoints/svf_coworker_train_g1_v1.pt`, `FILTER_R`→4.0.
 - **Acceptance**: row 5 dominates each of rows 1–4 on
   `ep_proximity_violation_rate` with non-overlapping CIs. If row 5
   ties row 3, the filter is redundant on a well-trained policy —

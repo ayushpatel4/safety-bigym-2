@@ -35,7 +35,7 @@ guarantees needed for ISO 15066 compliance.
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
 | Phase 3 experiments | **PENDING (launch-ready)** | E3.1 (cost-signal form — launcher built), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
 | Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
-| Phase 4 headline | **NOT STARTED** | E4.1 five-row feature-incremental table + E4.3 internalisation curve — **P5, P8 below** |
+| Phase 4 headline | **DRIVER READY** | E4.1 eval driver `scripts/run_e4_1_headline.sh` built (rows 1/4 runnable from stage-2 now; rows 3/5 await the P3 d_knee snapshot). E4.3 curve — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
 
 ---
@@ -932,6 +932,20 @@ each, evaluated on `saucepan_to_hob` under `coworker_train`.
 **Most rows are pure eval.** Only row 2 is a new training run.
 
 #### Tasks
+
+**Driver: `scripts/run_e4_1_headline.sh`** (built 2026-05-30) runs all rows via
+`benchmark_policy.py` (oracle + 1 noisy diagnostic), one CSV per row, skipping
+rows whose snapshot env var is unset so it is usable incrementally:
+
+```bash
+# Rows 1 & 4 now (need only STAGE2 + the SVF filter):
+STAGE2=.../stage2_full/snapshot_28203.pt bash scripts/run_e4_1_headline.sh
+# Rows 1,3,4,5,5_noisy once the P3 d_knee snapshot exists:
+STAGE2=.../stage2_full/snapshot_28203.pt ROW3=runs/p3_continuous_d_knee/.../snapshot_*.pt \
+  bash scripts/run_e4_1_headline.sh
+```
+
+The explicit per-row commands the driver wraps (retained for reference):
 
 ```bash
 # Row 1 — eval P1 snapshot
