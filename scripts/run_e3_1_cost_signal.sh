@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
-# E3.1 — cost-signal form ablation (P3). Trains the Phase-3 constrained policy
-# on saucepan_to_hob/coworker_train for COST_FORM x SEED, warm-started from the
-# P1 stage-1 snapshot so each cell shares row-1's training protocol (60k frames
-# on coworker_train from the same stage-1 start) and differs ONLY in the cost
-# signal. Mirrors run_base_curriculum.sh's invocation (support levers, workspace
-# shaping, :-separated W&B tags, SMOKE path).
+# E3.1 — cost-signal form ablation (P3). Trains the Phase-3 policy on
+# saucepan_to_hob/coworker_train for COST_FORM x SEED, warm-started from the P1
+# stage-1 snapshot so every cell shares row-1's training protocol (60k frames on
+# coworker_train from the same stage-1 start) and differs ONLY in the cost
+# signal. Mirrors run_base_curriculum.sh (support levers, workspace shaping,
+# :-separated W&B tags, SMOKE path).
 #
 # NOT launched from inside the agent — a human runs this on the GPU box.
 #
-# === IMPORTANT: only the `continuous` cell is runnable today ===
-# env_adapter.py hardcodes the continuous cost c_t = compute_cost(info["safety"]).
-# The `binary` (c_t = 1[ssm_violation]) and `fixed` (reward penalty, no Lagrangian)
-# cells have NO code path yet — they need the cost-form selector described in
-# docs/PROJECT_PLAN.md (Phase 3 / P3). This script LAUNCHES `continuous` and
-# LOUDLY SKIPS the unwired forms (it never silently runs them as continuous).
-# Until the selector lands, `continuous` alone is still useful: it is the P5
-# row-3 input.
+# The three cells (all wired as of 2026-05-30):
+#   continuous (ours) : agent=cqn_as_lagrangian, c_t = compute_cost (graded [0,1])
+#   binary            : agent=cqn_as_lagrangian + env.safety.cost_form=binary
+#                       (c_t = 1[ssm_violation]) — strips gradient richness
+#   fixed             : agent=cqn_as (NO Lagrangian) + env.safety.add_violation_penalty
+#                       (reward r - 0.05*1[violation]) — fixed-magnitude baseline
 #
 # Prereqs (GPU box):
 #   export MUJOCO_GL=egl MUJOCO_EGL_DEVICE_ID=0
@@ -24,11 +22,11 @@
 #
 # Usage:
 #   WARMSTART=exp_local/cqn_as_base_curriculum/<run>/stage1_easy/snapshot_XXXXX.pt \
-#     scripts/run_e3_1_cost_signal.sh                 # continuous x seeds {0,1,2}
+#     scripts/run_e3_1_cost_signal.sh                 # all 3 forms x seeds {0,1,2}
 #   SMOKE=1 scripts/run_e3_1_cost_signal.sh           # 1 cell, 2000 frames, no W&B
-#   COST_FORMS="fixed binary continuous" WARMSTART=... scripts/run_e3_1_cost_signal.sh
-#       # launches continuous; reports fixed+binary as BLOCKED (selector not wired)
-#   COST_BUDGET=0.01 SEEDS="0 1 2" FRAMES=60000 WARMSTART=... scripts/run_e3_1_cost_signal.sh
+#   COST_FORMS="continuous" WARMSTART=... scripts/run_e3_1_cost_signal.sh   # one form
+#   COST_BUDGET=0.01 FIXED_PENALTY=0.05 SEEDS="0 1 2" FRAMES=60000 WARMSTART=... \
+#     scripts/run_e3_1_cost_signal.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,9 +45,9 @@ case "${TASK}" in
   *) NUM_DEMOS="${NUM_DEMOS:-36}"; echo "WARNING: TASK=${TASK} NUM_DEMOS=${NUM_DEMOS}" >&2 ;;
 esac
 
-# Cost-signal forms wired in code today. Extend WIRED_FORMS when the selector lands.
-WIRED_FORMS=" continuous "
-COST_BUDGET="${COST_BUDGET:-0.01}"   # E3.1 fixes d; P4 (run separately) sweeps it.
+KNOWN_FORMS=" fixed binary continuous "
+COST_BUDGET="${COST_BUDGET:-0.01}"      # E3.1 fixes d; P4 (run separately) sweeps it.
+FIXED_PENALTY="${FIXED_PENALTY:-0.05}"  # reward-penalty magnitude for the `fixed` cell.
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   COST_FORMS="${COST_FORMS:-continuous}"
@@ -58,11 +56,11 @@ if [[ "${SMOKE:-0}" == "1" ]]; then
   WANDB=(wandb.use=false)
   export CUDA_LAUNCH_BLOCKING=1
 else
-  COST_FORMS="${COST_FORMS:-continuous}"
+  COST_FORMS="${COST_FORMS:-fixed binary continuous}"
   SEEDS="${SEEDS:-0 1 2}"
   FRAMES="${FRAMES:-60000}"
   WANDB=(wandb.use=true)
-  : "${WARMSTART:?Set WARMSTART to the P1 stage-1 snapshot (.pt) to warm-start row-3 cells}"
+  : "${WARMSTART:?Set WARMSTART to the P1 stage-1 snapshot (.pt) to warm-start the cells}"
   [[ -f "${WARMSTART}" ]] || { echo "ERROR: WARMSTART=${WARMSTART} not found" >&2; exit 1; }
 fi
 
@@ -90,35 +88,40 @@ COMMON=(
 )
 
 echo "== E3.1 cost-signal ablation | TASK=${TASK} forms='${COST_FORMS}' seeds='${SEEDS}' frames=${FRAMES} =="
-echo "   OUTDIR=${OUTDIR}  d(cost_budget)=${COST_BUDGET}  warmstart=${WARMSTART:-<none/smoke>}"
+echo "   OUTDIR=${OUTDIR}  d(cost_budget)=${COST_BUDGET}  fixed_penalty=${FIXED_PENALTY}  warmstart=${WARMSTART:-<none/smoke>}"
 
-LAUNCHED=(); BLOCKED=()
+LAUNCHED=(); SKIPPED=()
 for FORM in ${COST_FORMS}; do
-  if [[ "${WIRED_FORMS}" != *" ${FORM} "* ]]; then
-    echo ""
-    echo "############################################################"
-    echo "# BLOCKED: cost_signal='${FORM}' is NOT wired in code yet."
-    echo "#   binary  -> env_adapter must emit c_t = 1[ssm_violation]"
-    echo "#   fixed   -> reward penalty r - 0.05*1[violation], agent=cqn_as (no lambda)"
-    echo "# Implement the cost-form selector (docs/PROJECT_PLAN.md P3) first."
-    echo "# Skipping so this run never produces silent-wrong (continuous) data."
-    echo "############################################################"
-    BLOCKED+=("${FORM}")
+  if [[ "${KNOWN_FORMS}" != *" ${FORM} "* ]]; then
+    echo "ERROR: unknown cost form '${FORM}' (expected: fixed | binary | continuous)" >&2
+    SKIPPED+=("${FORM}")
     continue
   fi
+  # Per-form overrides — the ONLY difference between cells.
+  case "${FORM}" in
+    continuous)
+      FORM_OVERRIDES=(agent=cqn_as_lagrangian "agent.cost_budget=${COST_BUDGET}")
+      METHOD_TAG="lagrangian_continuous" ;;
+    binary)
+      FORM_OVERRIDES=(agent=cqn_as_lagrangian "agent.cost_budget=${COST_BUDGET}" \
+        env.safety.cost_form=binary)
+      METHOD_TAG="lagrangian_binary" ;;
+    fixed)
+      # Plain agent (no Q_c / no lambda); safety enters via the env reward penalty.
+      FORM_OVERRIDES=(agent=cqn_as env.safety.add_violation_penalty=true \
+        "env.safety.violation_penalty=${FIXED_PENALTY}")
+      METHOD_TAG="fixed_penalty" ;;
+  esac
   for SEED in ${SEEDS}; do
     NAME="${FORM}_seed${SEED}"
     STAGE_DIR="${OUTDIR}/${NAME}"
     echo "== launch ${NAME} -> ${STAGE_DIR} =="
-    # continuous + Lagrangian (agent=cqn_as_lagrangian). cost flows via env_adapter.
-    AGENT_OVERRIDES=(agent=cqn_as_lagrangian "agent.cost_budget=${COST_BUDGET}")
-    METHOD_TAG="lagrangian_${FORM}"
     EXTRA=()
     [[ -n "${WARMSTART:-}" ]] && EXTRA+=("+snapshot_path=${WARMSTART}")
     WB_TAGS="+wandb.tags=[e3_1,method:${METHOD_TAG},cost:${FORM},task:${TASK},human:${HUMAN_MODEL},seed:${SEED}]"
     python train_cqn_as.py \
       "${COMMON[@]}" "${WANDB[@]}" \
-      "${AGENT_OVERRIDES[@]}" \
+      "${FORM_OVERRIDES[@]}" \
       seed="${SEED}" \
       num_train_frames="${FRAMES}" \
       "hydra.run.dir=${STAGE_DIR}" \
@@ -131,8 +134,7 @@ done
 
 echo ""
 echo "== E3.1 done. launched: ${LAUNCHED[*]:-none} =="
-if [[ ${#BLOCKED[@]} -gt 0 ]]; then
-  echo "== BLOCKED (cost-form selector not wired): ${BLOCKED[*]} =="
-  echo "   E3.1 is INCOMPLETE until those cells run. See docs/PROJECT_PLAN.md P3."
+if [[ ${#SKIPPED[@]} -gt 0 ]]; then
+  echo "== SKIPPED unknown forms: ${SKIPPED[*]} ==" >&2
   exit 3
 fi

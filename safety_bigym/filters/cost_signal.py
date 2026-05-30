@@ -60,4 +60,49 @@ def compute_cost(
     return float(min(1.0, max(c_ssm, c_pfl)))
 
 
-__all__ = ["compute_cost", "D_BUFFER_DEFAULT", "PFL_RATIO_THRESHOLD_DEFAULT"]
+COST_FORMS = ("continuous", "binary")
+"""E3.1 cost-signal forms selectable via ``env.safety.cost_form``.
+
+The third E3.1 cell — ``fixed`` — is NOT a cost form: it disables the
+Lagrangian entirely and applies a reward penalty in the env
+(``env.safety.add_violation_penalty`` / ``violation_penalty``), so it never
+reaches :func:`select_cost`.
+"""
+
+
+def select_cost(
+    safety_info: Mapping[str, float],
+    *,
+    cost_form: str = "continuous",
+    d_buffer: float = D_BUFFER_DEFAULT,
+    pfl_threshold: float = PFL_RATIO_THRESHOLD_DEFAULT,
+) -> float:
+    """Return the per-step cost ``c_t`` for the requested E3.1 cost form.
+
+    - ``"continuous"`` (default, headline): the graded :func:`compute_cost`
+      value in ``[0, 1]``.
+    - ``"binary"``: ``1.0`` iff the worst-case ISO 15066 SSM flag
+      ``info["safety"]["ssm_violation"]`` is set, else ``0.0`` — the ablation
+      baseline that strips the gradient richness from the cost while keeping the
+      same ``[0, 1]`` range (so the cost critic's C51 support is unaffected).
+    """
+    if cost_form == "continuous":
+        return compute_cost(
+            safety_info, d_buffer=d_buffer, pfl_threshold=pfl_threshold
+        )
+    if cost_form == "binary":
+        if not safety_info:
+            return 0.0
+        return float(bool(safety_info.get("ssm_violation", False)))
+    raise ValueError(
+        f"cost_form must be one of {COST_FORMS!r}; got {cost_form!r}"
+    )
+
+
+__all__ = [
+    "compute_cost",
+    "select_cost",
+    "COST_FORMS",
+    "D_BUFFER_DEFAULT",
+    "PFL_RATIO_THRESHOLD_DEFAULT",
+]

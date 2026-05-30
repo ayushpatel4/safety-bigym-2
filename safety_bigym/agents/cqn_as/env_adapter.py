@@ -49,9 +49,10 @@ except ImportError as e:  # pragma: no cover - dm_env is a CQN-AS dependency
 
 from safety_bigym.envs.safety_bigym_factory import SafetyBiGymEnvFactory
 from safety_bigym.filters.cost_signal import (
+    COST_FORMS,
     D_BUFFER_DEFAULT,
     PFL_RATIO_THRESHOLD_DEFAULT,
-    compute_cost,
+    select_cost,
 )
 from safety_bigym.perception.bodyslam_wrapper import (
     OBS_KEY as BODYSLAM_OBS_KEY,
@@ -272,9 +273,19 @@ class SafetyBiGymCQNAdapter:
             self._cost_pfl_threshold = float(
                 safety_cfg.get("pfl_ratio_threshold", PFL_RATIO_THRESHOLD_DEFAULT)
             )
+            # E3.1 cost-signal form selector (continuous | binary). `fixed` is
+            # not a cost form — it disables the Lagrangian and uses the env
+            # reward penalty, so it never sets this.
+            self._cost_form = str(safety_cfg.get("cost_form", "continuous"))
         else:
             self._cost_d_buffer = D_BUFFER_DEFAULT
             self._cost_pfl_threshold = PFL_RATIO_THRESHOLD_DEFAULT
+            self._cost_form = "continuous"
+        if self._cost_form not in COST_FORMS:
+            raise ValueError(
+                f"env.safety.cost_form must be one of {COST_FORMS}; "
+                f"got {self._cost_form!r}"
+            )
 
         # Gate cameras on the top-level pixels flag — when pixels=False, the
         # factory builds the env with cameras=[] and the obs dict has no
@@ -338,9 +349,11 @@ class SafetyBiGymCQNAdapter:
         discount = float(1 - bool(terminated))
 
         # Phase 3 per-step cost. info["safety"] is populated by ISO15066Wrapper
-        # on every env-step; compute_cost handles missing/None fields gracefully.
-        cost = compute_cost(
+        # on every env-step; select_cost handles missing/None fields gracefully
+        # and dispatches on the E3.1 cost form (continuous | binary).
+        cost = select_cost(
             self._last_info.get("safety", {}),
+            cost_form=self._cost_form,
             d_buffer=self._cost_d_buffer,
             pfl_threshold=self._cost_pfl_threshold,
         )

@@ -32,8 +32,8 @@ guarantees needed for ISO 15066 compliance.
 | Phase 2 (G1) | **✅ RETRAINED (2026-05-30)** | `svf_coworker_train_g1_v1.pt` on `noisy`+G1, proximity τ=0.3 m; R-swept. **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap sweep pending — **P2** |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
 | G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
-| Phase 3 code | **CODE COMPLETE (continuous only)** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **Cost form hardcoded continuous** — binary/fixed not wired (E3.1 prereq) |
-| Phase 3 experiments | **PENDING (P3 blocked on selector)** | E3.1 (cost-signal form — needs cost-form selector), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
+| Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
+| Phase 3 experiments | **PENDING (launch-ready)** | E3.1 (cost-signal form — launcher built), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
 | Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
 | Phase 4 headline | **NOT STARTED** | E4.1 five-row feature-incremental table + E4.3 internalisation curve — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
@@ -539,31 +539,28 @@ Three cells under the B-value-mean Lagrangian backbone, 3 seeds each:
 | Binary + λ | `c_t ∈ {0, 1}` from `1[ssm_violation]`; PID λ active | Does Lagrangian adaptivity help when cost signal is binary? |
 | **Continuous + λ** (ours) | `c_t = max(c_ssm, c_pfl)` per Equation 4.4 | Headline configuration |
 
-##### ⚠ BLOCKING CODE GAP (found 2026-05-30): only `continuous` is wired
+##### ✅ Cost-form selector LANDED (2026-05-30) — all 3 cells wired
 
-`safety_bigym/agents/cqn_as/env_adapter.py` unconditionally computes the
-**continuous** cost `c_t = compute_cost(info["safety"])`
-(`filters/cost_signal.py`). There is **no** code path for the **binary**
-(`c_t = 1[ssm_violation]`) or **fixed** (reward penalty `r − 0.05·1[violation]`,
-no Lagrangian) cells — the `cost_signal={fixed,binary,continuous}` selector in
-the pseudocode below **does not exist**. So 1 of the 3 E3.1 cells is runnable
-today; the launcher `scripts/run_e3_1_cost_signal.sh` runs `continuous` and
-**loudly skips** the unwired forms (it never silently runs them as continuous).
+The `cost_signal={fixed,binary,continuous}` selector in the pseudocode below was
+a sketch and did **not** exist; it has now been implemented (smaller than first
+estimated — the `fixed` cell needed no new code):
+1. **`filters/cost_signal.py`** — new `select_cost(safety_info, cost_form=...)`
+   dispatches `continuous` → graded `compute_cost` (the headline) / `binary` →
+   `1[ssm_violation]`; exports `COST_FORMS=("continuous","binary")`.
+2. **`agents/cqn_as/env_adapter.py`** — reads `env.safety.cost_form` (default
+   `continuous`, validated) and calls `select_cost` at the per-step cost site
+   (replacing the hardcoded `compute_cost`).
+3. **`cfgs/env/safety_bigym.yaml`** — declares `cost_form: continuous` so
+   `env.safety.cost_form=binary` overrides cleanly (no `+`).
+4. **`fixed` cell** reuses the **pre-existing**, already-factory-threaded and
+   already-tested `env.safety.add_violation_penalty` / `violation_penalty=0.05`
+   reward penalty (`SafetyBiGymEnv._reward`) under plain `agent=cqn_as` (no Q_c /
+   no λ). No new code — same path `phase1_reward_pilot_cqn_as.py` uses.
+5. **Tests**: +8 `select_cost` cases in `tests/test_cost_signal.py` (31 cost-path
+   tests pass); Hydra composition verified for all three cells.
 
-**Cost-form selector — file-level plan (prerequisite for binary + fixed):**
-1. **`env_adapter.py`**: read a `cost_form` knob (e.g.
-   `env.safety.cost_form ∈ {continuous,binary}`, default `continuous`); when
-   `binary`, set `cost = float(safety_info.get("ssm_violation", 0.0))` in place
-   of `compute_cost(...)` at the per-step cost attachment.
-2. **`fixed` cell**: a reward-penalty path under plain `agent=cqn_as` (no Q_c /
-   no λ) — subtract `0.05·1[violation]` from the env reward via a new
-   `env.safety.violation_reward_penalty`, applied in `SafetyBiGymEnv._reward()`.
-   Keep within the C51 support invariant (β·c_ws/(1−γ) ≤ |v_min|).
-3. **Tests** in `tests/` for both forms (cost emitted == expected per form);
-   then add `binary` / `fixed` to `WIRED_FORMS` in the launcher.
-
-This is ~P3.1 completion, not a launch-only task. Until it lands, the
-`continuous` cell still produces the **P5 row-3 input**, so it is worth running.
+Launcher `scripts/run_e3_1_cost_signal.sh` runs the full 3×3 matrix. **E3.1 is
+launch-ready** — set `WARMSTART` to the P1 stage-1 snapshot.
 
 ##### Acceptance criteria
 
@@ -603,11 +600,12 @@ python train_cqn_as.py \
   +snapshot_path=$WARMSTART               # P1 stage-1 snapshot
 ```
 
-The `cost_signal={fixed,binary,continuous}` selector below is the **planned**
-interface (does not exist yet — see the BLOCKING CODE GAP above). Once the
-cost-form selector lands, the launcher dispatches: `continuous` →
-`agent=cqn_as_lagrangian` (today); `binary` → same agent + `env.safety.cost_form=binary`;
-`fixed` → `agent=cqn_as` + `env.safety.violation_reward_penalty=0.05` (λ disabled).
+The `cost_signal={fixed,binary,continuous}` pseudocode below was the original
+sketch; the **implemented** dispatch (see "Cost-form selector LANDED" above) is:
+`continuous` → `agent=cqn_as_lagrangian`; `binary` → same agent +
+`env.safety.cost_form=binary`; `fixed` → `agent=cqn_as` +
+`env.safety.add_violation_penalty=true env.safety.violation_penalty=0.05`
+(λ disabled). `scripts/run_e3_1_cost_signal.sh` applies exactly these.
 
 ##### Compute budget
 

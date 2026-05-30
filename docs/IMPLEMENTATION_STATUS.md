@@ -29,10 +29,15 @@ multi-hour launch.
 >   even at 99.9% intervention). This is the core motivation for the hybrid; the
 >   ≤25%-intervention / ≥30%-proximity-reduction P2 bar is likely **not met on
 >   proximity** (confirm against the R=0 baseline).
-> - **P3 BLOCKED on a code gap** — `env_adapter.py` hardcodes the *continuous*
->   cost; the **binary** and **fixed-penalty** E3.1 cells have no code path. Only
->   the continuous cell is runnable (`scripts/run_e3_1_cost_signal.sh`). Wiring
->   the cost-form selector is the prerequisite for completing E3.1 — see **P3**.
+> - **P3 cost-form selector DONE (2026-05-30)** — all three E3.1 cells are now
+>   wired and Hydra-composable: **continuous** (`agent=cqn_as_lagrangian`),
+>   **binary** (`env.safety.cost_form=binary` → `c_t=1[ssm_violation]`, via the
+>   new `select_cost` in `filters/cost_signal.py` + `env_adapter.py`), and
+>   **fixed** (`agent=cqn_as` + the pre-existing, already-threaded
+>   `env.safety.add_violation_penalty`/`violation_penalty=0.05`). The "fixed"
+>   cell needed **no new code**. `scripts/run_e3_1_cost_signal.sh` launches the
+>   full 3×3 matrix. 31 cost-path tests pass; composition verified. **E3.1 is
+>   launch-ready** — just set `WARMSTART` to the P1 stage-1 snapshot.
 
 ---
 
@@ -66,7 +71,7 @@ multi-hour launch.
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
 | Phase 2 (G1) | ✅ recollect (`noisy`) + retrain + R-sweep | `svf_coworker_train_g1_v1.pt`; **R=4.0 provisional** (`snapshots.py`). R=0 baseline + gap pending (`svf_sweep_g1_v1_baseline.sh`). §results:filter-pareto |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
-| Phase 3 (continuous) | ✅ P3.0/P3.1 smoke — code; **continuous cost only** | binary/fixed cost forms **NOT wired** (E3.1 prereq — see **P3**) |
+| Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
 | P6 harness | ✅ `benchmark_policy.py` built + tested + validated on a real CQN-AS snapshot | See **P6 below** (was pending; now DONE). Docs: `docs/benchmark_harness.md` |
 
@@ -139,32 +144,29 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 ### P3. E3.1: cost-signal form ablation (continuous vs binary vs fixed)
 - **Goal**: validate the load-bearing claim that continuous cost
   dominates binary. Three cells, 3 seeds each.
-- **⚠ BLOCKING CODE GAP (found 2026-05-30)**: only the **continuous** cost is
-  wired. `env_adapter.py` unconditionally computes
-  `c_t = compute_cost(info["safety"])` (continuous); there is **no** code path
-  for **binary** (`c_t = 1[ssm_violation]`) or **fixed** (`r - 0.05·1[violation]`
-  reward penalty, no Lagrangian). The plan's `cost_signal={fixed,binary,continuous}`
-  selector **does not exist**. Wire it before E3.1 can complete (file-level plan
-  below). The launcher `scripts/run_e3_1_cost_signal.sh` runs `continuous` today
-  and loudly **skips** binary/fixed (never silently runs them as continuous).
-- **Cost-form selector — file-level plan (prereq for binary/fixed)**:
-  1. `safety_bigym/agents/cqn_as/env_adapter.py`: read a `cost_form` knob
-     (e.g. `env.safety.cost_form ∈ {continuous,binary}`); when `binary`, set
-     `cost = float(safety_info.get("ssm_violation", 0.0))` instead of
-     `compute_cost(...)`.
-  2. `fixed` cell: a reward-penalty path under plain `agent=cqn_as` (no Q_c/λ) —
-     subtract `0.05·1[violation]` from the env reward (new
-     `env.safety.violation_reward_penalty` applied in `SafetyBiGymEnv._reward()`
-     or the adapter). Keep within the C51 support invariant.
-  3. tests in `tests/` for both forms; then add them to `WIRED_FORMS` in the
-     launcher.
+- **✅ Cost-form selector LANDED (2026-05-30)** — all three cells wired:
+  1. **`filters/cost_signal.py`** — new `select_cost(safety_info, cost_form=...)`
+     dispatches `continuous` → `compute_cost` (graded [0,1]) / `binary` →
+     `1[ssm_violation]`; exported `COST_FORMS=("continuous","binary")`.
+  2. **`agents/cqn_as/env_adapter.py`** — reads `env.safety.cost_form`
+     (default `continuous`, validated) and calls `select_cost` at the per-step
+     cost site.
+  3. **`cfgs/env/safety_bigym.yaml`** — declares `cost_form: continuous` so
+     `env.safety.cost_form=binary` overrides without `+`.
+  4. **`fixed` needed NO new code** — it reuses the pre-existing, factory-threaded
+     `env.safety.add_violation_penalty`/`violation_penalty=0.05` reward penalty
+     under plain `agent=cqn_as` (Lagrangian off).
+  5. **`tests/test_cost_signal.py`** — +8 `select_cost` tests (31 cost-path tests
+     pass). Hydra composition verified for all three cells.
+  `scripts/run_e3_1_cost_signal.sh` launches the full 3×3 matrix.
 - **Corrected launch surface** (the plan's `task=`/`frames=`/`cost_signal=` are
   sketches — real keys verified against `train_cqn_as.py` + `cqn_as_config.yaml`):
   ```bash
-  # continuous cell (runnable today) — via scripts/run_e3_1_cost_signal.sh:
+  # Full 3×3 matrix — via scripts/run_e3_1_cost_signal.sh (all forms wired):
   WARMSTART=exp_local/.../stage1_easy/snapshot_XXXXX.pt \
-    scripts/run_e3_1_cost_signal.sh           # continuous x seeds {0,1,2}
-  # which runs, per cell:
+    scripts/run_e3_1_cost_signal.sh           # {fixed,binary,continuous} x seeds {0,1,2}
+  # which runs, per cell (continuous shown; binary adds env.safety.cost_form=binary;
+  # fixed uses agent=cqn_as + env.safety.add_violation_penalty=true violation_penalty=0.05):
   python train_cqn_as.py env=safety_bigym/saucepan_to_hob \
     disruption=coworker_train bodyslam=oracle num_train_frames=60000 \
     agent=cqn_as_lagrangian agent.cost_budget=0.01 \
@@ -178,8 +180,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   `ep_proximity_violation_rate` with non-overlapping 95% bootstrap
   CIs. If overlap, this is itself a finding to report honestly.
 - **Populates**: Table~\ref{tab:e3.1-cost-signal}.
-- **GPU**: 9 cells × ~2 h = ~18 h (only 3 continuous cells runnable until the
-  selector lands)
+- **GPU**: 9 cells × ~2 h = ~18 h (all 3 forms now runnable)
 - **Perception mode**: train + eval both `oracle` (isolates the cost-signal variable; see Perception Mode Policy in PROJECT_PLAN.md)
 
 ### P4. E3.2: cost-budget Pareto sweep

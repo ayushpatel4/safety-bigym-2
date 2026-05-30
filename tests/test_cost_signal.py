@@ -5,9 +5,11 @@ import math
 import pytest
 
 from safety_bigym.filters.cost_signal import (
+    COST_FORMS,
     D_BUFFER_DEFAULT,
     PFL_RATIO_THRESHOLD_DEFAULT,
     compute_cost,
+    select_cost,
 )
 
 
@@ -110,3 +112,54 @@ def test_nan_margin_does_not_crash():
     c = compute_cost({"ssm_margin": float("nan")})
     # NaN may propagate; we only assert no exception.
     assert math.isnan(c) or 0.0 <= c <= 1.0
+
+
+# --- E3.1 cost-form selector (select_cost) --------------------------------
+
+
+def test_select_cost_continuous_matches_compute_cost():
+    # The default form is the graded compute_cost value, verbatim.
+    info = {"ssm_margin": 0.15, "pfl_force_ratio": 0.95}
+    assert select_cost(info, cost_form="continuous") == compute_cost(info)
+
+
+def test_select_cost_continuous_threads_d_buffer():
+    info = {"ssm_margin": 0.1}
+    assert select_cost(info, cost_form="continuous", d_buffer=0.2) == pytest.approx(
+        compute_cost(info, d_buffer=0.2)
+    )
+
+
+def test_select_cost_binary_fires_on_ssm_violation():
+    assert select_cost({"ssm_violation": True}, cost_form="binary") == 1.0
+    assert select_cost({"ssm_violation": 1}, cost_form="binary") == 1.0
+
+
+def test_select_cost_binary_zero_when_no_violation():
+    assert select_cost({"ssm_violation": False}, cost_form="binary") == 0.0
+    assert select_cost({}, cost_form="binary") == 0.0          # empty
+    assert select_cost({"ssm_margin": 0.0}, cost_form="binary") == 0.0  # key missing
+
+
+def test_select_cost_binary_ignores_graded_margin():
+    # Binary is purely the violation flag — a near-zero margin without the flag
+    # set is still 0.0 (contrast: continuous would report a large graded cost).
+    info = {"ssm_margin": 0.01, "ssm_violation": False}
+    assert select_cost(info, cost_form="binary") == 0.0
+    assert select_cost(info, cost_form="continuous") > 0.5
+
+
+def test_select_cost_binary_in_unit_interval():
+    for v in (True, False, 0, 1):
+        assert 0.0 <= select_cost({"ssm_violation": v}, cost_form="binary") <= 1.0
+
+
+def test_select_cost_rejects_unknown_form():
+    with pytest.raises(ValueError):
+        select_cost({"ssm_margin": 0.0}, cost_form="fixed")  # not a cost form
+    with pytest.raises(ValueError):
+        select_cost({}, cost_form="bogus")
+
+
+def test_cost_forms_constant():
+    assert COST_FORMS == ("continuous", "binary")

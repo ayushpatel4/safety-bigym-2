@@ -43,6 +43,12 @@ env:
   safety:
     add_violation_penalty: false
     violation_penalty: 0.05
+    # E3.1 cost-signal form for the Phase 3 Lagrangian cost c_t (env_adapter):
+    #   continuous (default, headline) = graded compute_cost in [0,1]
+    #   binary                         = 1[ssm_violation]
+    # The `fixed` E3.1 cell is NOT a cost form — it sets add_violation_penalty=true
+    # (reward penalty) under plain agent=cqn_as with the Lagrangian disabled.
+    cost_form: continuous
     # P3.0a workspace reward shaping. Penalises the EE for drifting outside a
     # radius around the task-relevant object — counters the C2 evacuation mode
     # where the agent learns to flee the human because the violation penalty
