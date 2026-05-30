@@ -5,10 +5,12 @@
 > §Phase 2: build a CQL-trained `Q_safe(s, a)` that vetoes unsafe proposed
 > actions through a `gym.Wrapper`, independent of the task policy.
 
-Status: **closed end-to-end as of 2026-05-20.** v1 critic deployed as a hard
-safety gate at operating point R≈4.0. B5.5 (v2 with snapshot action
-denormalization) is also closed: the patch was correct, but the residual
-violation floor was structural rather than caused by action-subspace narrowness.
+Status: **closed end-to-end as of 2026-05-20** (SMPL-H v1, below). **Re-run
+under the G1 coworker at the tighter 0.3 m bar on 2026-05-30 — see §0, which is
+the current production result; the SMPL-H sections below are retained as
+history.** B5.5 (v2 with snapshot action denormalization) is also closed: the
+patch was correct, but the residual violation floor was structural rather than
+caused by action-subspace narrowness.
 
 Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md),
 [CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md), [phase2_status.md](phase2_status.md)
@@ -32,7 +34,65 @@ Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_
 
 ---
 
-## 1. Pipeline overview
+## 0. G1 coworker re-eval (2026-05-30) — current production (P2)
+
+The SMPL-H v1 operating point (R≈4.0, τ=0.50 m) was recalibrated after the
+round-3 switch to the **Unitree G1 coworker** and the move to a tighter
+**0.3 m** geometric bar (both the eval metric `SSMConfig.proximity_threshold`
+and the SVF training label; see [safety_metrics.md](safety_metrics.md)).
+
+### Dataset — `datasets/svf_coworker_train_g1_v1/`
+- **105k transitions**, 1 task (`saucepan_to_hob`), `coworker_train` (G1),
+  `--bodyslam-mode noisy`, sources **random + snapshot** (210 ep × 250 steps each).
+- The `snapshot` source rolls out the **P1 stage-2 G1 baseline policy** (a
+  CQN-AS checkpoint) via the new `_CQNASSnapshotPolicy` loader in
+  `svf_collect_dataset.py` (see [cqn_as_integration_notes.md](cqn_as_integration_notes.md) §9).
+- Proximity-violation rate at τ=0.3 m: **3.6% overall** (random 1.6%,
+  **snapshot 5.6%**). The trained policy gets *closer* than random — it drives
+  the arm into the shared workspace where the G1 reaches in. Raw
+  `min_separation` is stored per step, so τ is re-thresholdable for free.
+
+### Critic — `checkpoints/svf_coworker_train_g1_0p3.pt`
+- Relabelled on the fly at **τ=0.3 m** (`svf_train_critic.py --proximity-threshold 0.3`,
+  ~1,985 violating / ~103k safe), then α_CQL=5.0, 200k steps, batch 512,
+  γ=0.99, τ_polyak=5e-3.
+
+### Threshold sweep (dense, 0.3 m) — `results/svf_sweep_g1_v1/sweep_dense_seed{0,1,2}.csv`
+Seed-averaged (3 seeds × 20 ep), filterless baseline at R=0:
+
+| R | intervention | proximity (τ=0.3) | reduction vs R=0 |
+|---|---|---|---|
+| 0.0 | 0.0% | 0.0435 | baseline |
+| 1.0–2.0 | 3–11% | ~0.044 | **~0%** (wasted) |
+| **2.25** | **21.6%** | **0.0297** | **31.7%** ✅ |
+| 2.5 | 34.3% | 0.0265 | 39.1% (interv >25%) |
+| 2.75 | 44.9% | 0.0248 | 42.9% (interv >25%) |
+| 3.0 | 78.5% | 0.0076 | 82.5% (hard gate) |
+| 4.0 | 98.0% | 0.0119 | 72.7% (frozen) |
+
+### Operating point: **R = 2.25** (pinned in `filters/snapshots.py`)
+The only threshold meeting the P2 acceptance bar (**≥30% proximity reduction at
+≤25% intervention**: 31.7% @ 21.6%). Findings, reported honestly:
+- **Marginal & seed-fragile.** Per-seed reduction 38.4 / 41.2 / **20.6%** —
+  seed-2's rollouts hit more proximity and the zero-velocity veto can't catch
+  them until the R=3.0 hard gate.
+- **Low-R interventions are wasted** (R≤2.0: vetoes 3–11% of steps with ~0%
+  proximity gain — the critic's Q doesn't cleanly separate near-violations at
+  the margin).
+- **The big proximity win (82%) costs ~79% intervention** (robot ~frozen). The
+  filter's robust, low-cost win is the robot-velocity ISO-SSM axis.
+- **This is the core hybrid argument**: a frozen-veto filter alone, on an
+  already-fairly-safe policy with a small (~4%) violation base, gives a modest
+  fragile proximity win — motivating the Phase-3 Lagrangian for *proactive*
+  avoidance, with the filter as the edge-case backstop.
+
+R=2.25 is **provisional** — re-confirm against the Phase-3 row-3 snapshot in P5
+(E4.1 decision rule). The coarse `sweep_seed*.csv` (R={1,2,3,4,5,6,8}) was the
+older **0.5-label** critic and is not comparable to the dense 0.3 run.
+
+---
+
+## 1. Pipeline overview (SMPL-H v1 — historical)
 
 ```
 ACT snapshots (×3 tasks, COWORKER-train, 4-dof base, peak-by-eval)

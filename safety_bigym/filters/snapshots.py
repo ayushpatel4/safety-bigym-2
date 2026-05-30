@@ -50,38 +50,41 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 # Each task maps to (trained SVF critic checkpoint, recommended veto threshold
 # R). SafetyFilterWrapper vetoes the proposed action when Q_safe(s, a) < R.
 #
-# G1 coworker (2026-05-30): after recollecting on `coworker_train` +
-# `bodyslam=noisy` and retraining (3-MLP [256,256,256], alpha_CQL=5.0,
-# tau=0.005, 200k steps, proximity label tau=0.3 m), the threshold sweep on the
-# stage-2 G1 baseline policy gives a HEALTHY Pareto — the old SMPL-H
-# checkpoint's mean_q ≈ 0.31 → 100%-intervention-everywhere pathology on G1 is
-# gone (mean_q now 1.2–3.2). Seed-averaged knee (results/svf_sweep_g1_v1/):
+# G1 coworker (2026-05-30): recollected on `coworker_train` + `bodyslam=noisy`,
+# retrained at proximity label tau=0.3 m (3-MLP [256,256,256], alpha_CQL=5.0,
+# tau=0.005, 200k steps) -> checkpoints/svf_coworker_train_g1_0p3.pt. The DENSE
+# threshold sweep on the stage-2 G1 baseline policy (filterless R=0 + fine grid
+# around the knee; results/svf_sweep_g1_v1/sweep_dense_seed{0,1,2}.csv, 3 seeds
+# x 20 ep, proximity tau=0.3 m), seed-averaged:
 #
-#     R     intervention   ISO-SSM(residual)   proximity(tau=0.3 m)
-#     2.0      26%              0.80                0.066
-#     3.0      82%              0.32                0.060
-#     4.0      95%              0.046               0.030   <- provisional R
+#     R       intervention   proximity(tau=0.3)   reduction vs R=0
+#     0.0        0.0%            0.0435             baseline
+#     2.0       11.5%           0.0441             ~0%   (wasted: vetoes non-violating actions)
+#     2.25      21.6%           0.0297             31.7% <- OPERATING POINT
+#     2.5       34.3%           0.0265             39.1% (intervention > 25%)
+#     3.0       78.5%           0.0076             82.5% (hard gate: robot ~frozen)
 #
-# The thesis-primary proximity axis only moves at R=4 (~95% intervention)
-# because a veto->zero-velocity filter cannot stop the G1 coworker (which
-# actively reaches into the workspace under coworker_train) from approaching a
-# stationary robot — seed-2 proximity floors at 0.05 even at 99.9% intervention.
-# The filter's clean win is the robot-velocity-driven ISO-SSM axis. This is the
-# core argument for the hybrid: the filter is the edge-case backstop, the
-# Lagrangian policy does proactive avoidance.
+# R = 2.25 is the only threshold meeting the P2 acceptance bar (>=30% proximity
+# reduction at <=25% intervention: 31.7% @ 21.6%). It is MARGINAL and seed-
+# fragile — per-seed reduction 38.4 / 41.2 / 20.6 %: seed-2's rollouts hit more
+# proximity and a zero-velocity veto can't catch them until the R=3.0 hard gate
+# (~79% intervention, robot ~frozen). The big proximity win (82%) thus costs
+# near-total intervention; the filter's robust, low-cost win is the robot-
+# velocity ISO-SSM axis. This is the core hybrid argument: the filter is the
+# edge-case backstop, the Lagrangian policy does proactive avoidance. Re-confirm
+# R against the Phase-3 row-3 snapshot in P5 (E4.1 decision rule).
 #
-# R = 4.0 is PROVISIONAL (continuity with the SMPL-H R=4.0 operating point); it
-# is NOT locked. Per the plan's E4.1 decision rule, re-confirm against the
-# Phase-3 (row-3) snapshot in P5: if hybrid row-5 intervention is not well below
-# filter-alone row-4, re-sweep R against the row-3 snapshot. The filterless
-# (R=0) baseline + the 26%->82% gap come from scripts/svf_sweep_g1_v1_baseline.sh.
+# NB: the COARSE sweep (sweep_seed{0,1,2}.csv, R={1,2,3,4,5,6,8}) was run on the
+# OLD 0.5-label critic (svf_coworker_train_g1_v1.pt) — ~3x the intervention at
+# R=2 — and is NOT comparable to the dense 0.3 run. Use the dense CSVs.
 SVF_FILTERS: Dict[str, Optional[str]] = {
     "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3.pt",
 }
 
-# Recommended veto threshold R per task (provisional; see note above).
+# Recommended veto threshold R per task. R=2.25 = the P2 acceptance knee on the
+# 0.3-label G1 critic (see note above); marginal/seed-fragile, re-confirm in P5.
 SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
-    "saucepan_to_hob": 4.0,
+    "saucepan_to_hob": 2.25,
 }
 
 
