@@ -134,6 +134,43 @@ class Workspace:
                 self.cfg.action_sequence,
             )
 
+        self._setup_filter_passive()
+
+    def _setup_filter_passive(self) -> None:
+        """P8 / E4.3 — load the SVF critic for the passive internalisation curve.
+
+        When ``cfg.filter_passive.snapshot`` is set, wrap the adapter's inner gym
+        env with ``ObsCacheWrapper`` so ``eval()`` can read the raw post-BodySLAM
+        obs each step and log the would-be SVF veto rate (observe-only; the
+        trajectory is never changed). Mirrors ``benchmark.runners.apply_veto``.
+        """
+        self._filter_critic = None
+        self._filter_threshold = 4.0
+        self._filter_passive_failed = False
+        fp_cfg = self.cfg.get("filter_passive") if hasattr(self.cfg, "get") else None
+        fp_snapshot = fp_cfg.get("snapshot") if fp_cfg is not None else None
+        if not fp_snapshot:
+            return
+        from safety_bigym.benchmark.filter_attach import (
+            ObsCacheWrapper,
+            assert_critic_covers_obs,
+            load_critic,
+        )
+
+        self._filter_critic = load_critic(Path(fp_snapshot))
+        self._filter_threshold = float(fp_cfg.get("threshold", 4.0))
+        inner = self.train_env._env
+        keys = (
+            inner.observation_space.spaces.keys()
+            if hasattr(inner.observation_space, "spaces")
+            else ()
+        )
+        assert_critic_covers_obs(self._filter_critic, keys)  # fail loud if obs-mode off
+        self.train_env._env = ObsCacheWrapper(inner)
+        logging.info(
+            "P8 passive filter enabled: %s (R=%.2f)", fp_snapshot, self._filter_threshold
+        )
+
     def _setup_replay(self) -> None:
         data_specs = (
             self.train_env.rgb_raw_observation_spec(),
@@ -570,6 +607,9 @@ class Workspace:
         ep_safety_maxes: dict = {}
         success_count = 0
         terminal_info_seen = 0
+        # P8 / E4.3 passive SVF filter: would-be intervention rate (observe-only).
+        filt_interventions = 0
+        filt_total = 0
 
         while eval_until_episode(episode):
             episode_step = 0
@@ -600,6 +640,24 @@ class Workspace:
                     sub_action = self.eval_temporal_ensemble.get_action()
                 else:
                     sub_action = action[episode_step % self.cfg.action_sequence]
+                # P8: passive SVF veto query on the action about to execute, using
+                # the raw pre-step obs (ObsCacheWrapper). Observe-only: sub_action
+                # is NOT modified. Guarded so a logging bug never kills training.
+                if self._filter_critic is not None and not self._filter_passive_failed:
+                    try:
+                        obs_dict = getattr(self.train_env._env, "last_obs", None)
+                        if obs_dict is not None:
+                            raw_a = self.train_env._convert_action_to_raw(sub_action)
+                            q = self._filter_critic.q_value(obs_dict, raw_a)
+                            q = float(q if not isinstance(q, np.ndarray) else q.item())
+                            filt_total += 1
+                            if q < self._filter_threshold:
+                                filt_interventions += 1
+                    except Exception as exc:  # pragma: no cover - defensive
+                        self._filter_passive_failed = True
+                        logging.warning(
+                            "P8 passive filter disabled after error: %s", exc
+                        )
                 time_step = self.train_env.step(sub_action)
                 total_reward += time_step.reward
                 step += 1
@@ -659,6 +717,9 @@ class Workspace:
             eval_row.update(ep_safety_mins)
             eval_row.update(ep_safety_maxes)
             eval_row["success_rate"] = success_count / terminal_info_seen
+        # P8 / E4.3 internalisation curve: would-be SVF intervention rate.
+        if self._filter_critic is not None and filt_total > 0:
+            eval_row["filter_intervention_rate"] = filt_interventions / filt_total
         self._log(eval_row, self.global_step, ty="eval")
         # Update best_eval (max-prefer reward/success, min-prefer safety).
         self._update_best_eval(eval_row)

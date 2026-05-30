@@ -48,6 +48,13 @@ esac
 KNOWN_FORMS=" fixed binary continuous "
 COST_BUDGET="${COST_BUDGET:-0.01}"      # E3.1 fixes d; P4 (run separately) sweeps it.
 FIXED_PENALTY="${FIXED_PENALTY:-0.05}"  # reward-penalty magnitude for the `fixed` cell.
+# Optional P8 / E4.3 internalisation curve — set FILTER_PASSIVE to an SVF critic
+# checkpoint to log eval/filter_intervention_rate per eval cycle (observe-only).
+FILTER_PASSIVE="${FILTER_PASSIVE:-}"
+FILTER_PASSIVE_R="${FILTER_PASSIVE_R:-4.0}"
+PASSIVE_OVERRIDES=()
+[[ -n "${FILTER_PASSIVE}" ]] && PASSIVE_OVERRIDES=(\
+  "filter_passive.snapshot=${FILTER_PASSIVE}" "filter_passive.threshold=${FILTER_PASSIVE_R}")
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   COST_FORMS="${COST_FORMS:-continuous}"
@@ -122,6 +129,7 @@ for FORM in ${COST_FORMS}; do
     python train_cqn_as.py \
       "${COMMON[@]}" "${WANDB[@]}" \
       "${FORM_OVERRIDES[@]}" \
+      "${PASSIVE_OVERRIDES[@]}" \
       seed="${SEED}" \
       num_train_frames="${FRAMES}" \
       "hydra.run.dir=${STAGE_DIR}" \

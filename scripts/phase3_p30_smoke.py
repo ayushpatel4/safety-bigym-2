@@ -256,6 +256,19 @@ def main(cfg: DictConfig) -> None:
         logger.info("--dry-run set; skipping env rollout.")
         return
 
+    # The full rollout needs a task; with no env= the `env` node exists but
+    # carries no task_name (just bodyslam), so the adapter later dies on a
+    # missing `env.episode_length`. Detect the real signal — no task_name —
+    # and fail with the exact command instead.
+    if OmegaConf.select(cfg, "env.task_name", default=None) is None:
+        raise RuntimeError(
+            "No env selected — the full P3.0 rollout needs a task. Run e.g.:\n"
+            "  python scripts/phase3_p30_smoke.py env=safety_bigym/dishwasher_close "
+            "disruption=coworker_train bodyslam=oracle pixels=false\n"
+            "Or add +phase3_p30_smoke.dry_run=true for the warm-start guard "
+            "check only (no MuJoCo / no env)."
+        )
+
     _check_amass_dir_or_die()
 
     # Force smoke-friendly overrides on top of the resolved Hydra config so

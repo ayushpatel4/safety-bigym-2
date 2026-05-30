@@ -41,6 +41,14 @@ case "${TASK}" in
   *) NUM_DEMOS="${NUM_DEMOS:-36}"; echo "WARNING: TASK=${TASK} NUM_DEMOS=${NUM_DEMOS}" >&2 ;;
 esac
 
+# Optional P8 / E4.3 internalisation curve — set FILTER_PASSIVE to an SVF critic
+# checkpoint to log eval/filter_intervention_rate per eval cycle (observe-only).
+FILTER_PASSIVE="${FILTER_PASSIVE:-}"
+FILTER_PASSIVE_R="${FILTER_PASSIVE_R:-4.0}"
+PASSIVE_OVERRIDES=()
+[[ -n "${FILTER_PASSIVE}" ]] && PASSIVE_OVERRIDES=(\
+  "filter_passive.snapshot=${FILTER_PASSIVE}" "filter_passive.threshold=${FILTER_PASSIVE_R}")
+
 if [[ "${SMOKE:-0}" == "1" ]]; then
   COST_BUDGETS="${COST_BUDGETS:-0.01}"
   SEEDS="${SEEDS:-0}"
@@ -96,6 +104,7 @@ for D in ${COST_BUDGETS}; do
     python train_cqn_as.py \
       "${COMMON[@]}" "${WANDB[@]}" \
       "agent.cost_budget=${D}" \
+      "${PASSIVE_OVERRIDES[@]}" \
       seed="${SEED}" \
       num_train_frames="${FRAMES}" \
       "hydra.run.dir=${STAGE_DIR}" \
