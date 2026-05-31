@@ -312,21 +312,27 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~7 h — 3 trained policies on `bodyslam=oracle` (~6 h) + 9 eval cells across 3 modes via the harness (<1 h)
 - **Perception mode**: train on `oracle`; eval sweeps `off / oracle / noisy` (this experiment's whole purpose is to *measure* the perception gap; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P8. E4.3: filter intervention rate during training — ✅ HOOK BUILT (2026-05-30)
+### P8. E4.3: filter internalisation curve — ✅ POST-HOC SCRIPT (2026-05-31)
 - **Goal**: produce the internalisation curve
   (Figure~\ref{fig:e4.3-internalisation}) — direct evidence that
-  policy and filter are complementary.
-- **Built**: `train_cqn_as.py` now logs `eval/filter_intervention_rate` per eval
-  cycle when `filter_passive.snapshot=<SVF critic>` is set (`cqn_as_config.yaml`
-  `filter_passive` block). It wraps the adapter's inner env with
-  `ObsCacheWrapper` and queries the frozen SVF critic on every executed action
-  **observe-only** (the trajectory is unchanged; mirrors
-  `benchmark.runners.apply_veto`). Guarded so a logging error can never kill
-  training. Wired into the P3/P4 launchers via the `FILTER_PASSIVE` env var.
-- **Run**: add `FILTER_PASSIVE=checkpoints/svf_coworker_train_g1_0p3.pt` to the
-  P3 (and/or P4) launch — the curve falls out for free. Requires `bodyslam!=off`.
-- **GPU**: 0 (piggybacks on P3). **Validate** with `SMOKE=1 FILTER_PASSIVE=<svf>`
-  on the GPU box before the headline run (needs a real critic + MuJoCo).
+  policy and filter are complementary (filter intervention rate falls as the
+  Lagrangian policy is trained).
+- **⚠ The "free during training" hook does NOT work** — P3/P4 train on `oracle`,
+  and the SVF filter's Q collapses on oracle obs (100% would-be intervention; the
+  same finding that moved E4.1 to noisy). So the in-training `FILTER_PASSIVE` hook
+  (still in `train_cqn_as.py`, harmless, off by default) would log a flat ~100%
+  curve — **don't use it.**
+- **Built (the real path): `scripts/run_e4_3_internalisation.sh`** — POST-HOC,
+  on **noisy**. Loops a P3/P4 training cell's saved `snapshot_<N>.pt` through
+  `benchmark_policy.py --filter-snapshot ... --obs-mode noisy` and writes
+  `internalisation_curve.csv` (frame, filter_intervention_rate, success_rate,
+  ep_proximity_violation_rate). On noisy the filter is in-distribution and the
+  rate is meaningful.
+- **Run**: `RUN_DIR=exp_local/e3_2_cost_budget/<run>/d0pXX_seed0 bash
+  scripts/run_e4_3_internalisation.sh` (`SMOKE=1` = newest snapshot only).
+- **GPU**: **NOT free anymore** — ~few min per snapshot (≈6–7 per run → ~30 min),
+  post-hoc eval. (The old "0 GPU, piggybacks on P3" estimate assumed the
+  in-training hook, which the oracle-collapse killed.)
 
 ### P9. E3.7: WCSAC external baseline
 - **Goal**: place our hybrid against the standard distributional
@@ -442,7 +448,7 @@ All gates < 5 min CPU. If any fail, do not launch the long run.
 | 3 | P1 stage-2 launch + monitor | 60k frames ≈ 12 h |
 | 4 | P2 (SVF re-eval) + P3 launch | P3 = 9 cells, par |
 | 5 | P3 finishes + P4 launch | P4 = 12 cells |
-| 6 | P4 finishes + P5 row 2; P8 piggyback baked in | |
+| 6 | P4 finishes + P5 row 2; P8 = post-hoc `run_e4_3_internalisation.sh` on a P3/P4 cell | |
 | 7 | P5 rows 4+5 (eval only); P7, P10 (eval only) | |
 | 8 | P9 (WCSAC) if compute remaining | |
 | 9 | Buffer for re-runs, final eval pass | |

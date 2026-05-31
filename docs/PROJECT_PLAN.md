@@ -1045,44 +1045,31 @@ python scripts/aggregate_e4_1.py \
 
 The filter intervention rate falls as the policy is Lagrangian-trained.
 
-#### Implementation — ✅ BUILT (2026-05-30)
+#### Implementation — ✅ POST-HOC ON NOISY (2026-05-31)
 
-**Piggybacks on P3 / P4 training.** Set `filter_passive.snapshot=<SVF critic>`
-(`cqn_as_config.yaml` `filter_passive` block, or the `FILTER_PASSIVE` env var on
-the P3/P4 launchers) and `train_cqn_as.eval()` logs
-`eval/filter_intervention_rate` every eval cycle (2.5k frames). The hook wraps
-the adapter's inner env with `benchmark.filter_attach.ObsCacheWrapper` and
-queries the frozen SVF critic on each executed action **observe-only** — the
-trajectory is never changed (it mirrors `benchmark.runners.apply_veto`'s raw-obs
-+ `_convert_action_to_raw` path). Guarded with try/except so a logging error
-disables the metric rather than crashing the run. Requires `bodyslam!=off` (the
-critic needs `human_pos_estimate`). The reference pseudocode below describes the
-same passive computation.
+**The original "free, piggybacks on P3" plan does NOT work.** It assumed an
+in-training passive hook (`filter_passive.snapshot=...`, still in
+`train_cqn_as.py`, harmless and off by default) logging
+`eval/filter_intervention_rate` each eval cycle. But P3/P4 train on `oracle`, so
+those eval cycles run on oracle — where the SVF filter's Q collapses (the same
+finding that moved E4.1 to noisy, footnote ²). A FILTER_PASSIVE curve logged
+during oracle training is a **flat ~100%** line, not the internalisation signal.
 
-```python
-# safety_bigym/agents/cqn_as/lagrangian_agent.py — eval hook
-def evaluate_with_filter_passive(snapshot, filter_critic, n_episodes=5):
-    """
-    Run eval rollouts; for each step, ALSO query the filter's
-    safety value WITHOUT acting on its veto. Record the intervention
-    rate that WOULD HAVE happened.
-    """
-    interventions = 0
-    total_steps = 0
-    for ep in range(n_episodes):
-        ...
-        for s, a in rollout:
-            q_safe = filter_critic(s, a)
-            if q_safe < FILTER_R:
-                interventions += 1
-            total_steps += 1
-            # Execute a regardless (we're in passive mode)
-    return interventions / total_steps
+**Real path: `scripts/run_e4_3_internalisation.sh` — post-hoc, on `noisy`.**
+For each saved `snapshot_<N>.pt` in a P3/P4 training cell, it evaluates the
+policy WITH the filter on noisy via `benchmark_policy.py` and records
+`filter_intervention_rate` vs training frame:
+
+```bash
+RUN_DIR=exp_local/e3_2_cost_budget/<run>/d0pXX_seed0 \
+  bash scripts/run_e4_3_internalisation.sh
+# -> results/e4_3/<tag>/internalisation_curve.csv
+#    (frame, filter_intervention_rate, success_rate, ep_proximity_violation_rate)
 ```
 
-This is cheap (one extra MLP forward per step during eval) and
-produces the internalisation curve as a free side-product of the
-P3 training runs.
+On noisy the filter is in-distribution, so the rate is meaningful and should
+fall as the frame grows. **Not free** (~few min/snapshot, ~30 min/run) — the
+oracle-collapse turned this from a logging side-product into a post-hoc eval.
 
 #### Acceptance criteria
 
@@ -1094,7 +1081,8 @@ P3 training runs.
 
 #### Compute budget
 
-**Zero additional** — runs piggyback on P3.
+**~30 min post-hoc per run** (≈6–7 saved snapshots × a few min each, eval-only
+on noisy). NOT free — the oracle-collapse moved this off the in-training path.
 
 ### Deliverable for Phase 4
 
@@ -1224,7 +1212,7 @@ Phase 0–2.6 (DONE)
             │                                               │
             └── P5 (E4.1 headline) ─────────────────────────┤
                     │                                       │
-                    ├── P8 (E4.3 internalisation — free)    │
+                    ├── P8 (E4.3 internalisation — post-hoc) │
                     │                                       │
                     └── P10 (E5.1 + E5.2 — pure eval) ──────┤
                                                             │
@@ -1322,7 +1310,7 @@ Current config (β=0.05, c_ws=1.0, v_min=-6) leaves 20% headroom.
 | **P5** — E4.1 headline (row 2 train only; rows 1/3/4/5 are eval) | 6 |
 | **P6** — Benchmark harness (engineering, not GPU) | 0 |
 | **P7** — E3.6 obs-channel under constrained policy (de-prioritise) | 7 |
-| **P8** — E4.3 internalisation curve | 0 (piggybacks on P3) |
+| **P8** — E4.3 internalisation curve (post-hoc on noisy, ~0.5 h/run) | ~1 |
 | **P9** — WCSAC external baseline (sanity gate + full run) | 10 |
 | **P10** — E5.1 + E5.2 (pure eval) | 2 |
 | **Total — mandatory (P1, P2, P3, P4, P5, P6, P8)** | **~73** |
@@ -1400,7 +1388,7 @@ At project completion, the following artefacts populate the report:
 | Table~\ref{tab:e3.6-obs-rl} | P7 outputs | Pending P7 (de-prioritisable) |
 | Table~\ref{tab:e3.7-wcsac} | P9 outputs | Pending P9 (cuttable) |
 | **Table~\ref{tab:e4.1-feature-incremental}** (the headline) | P5 outputs | Pending P5 (depends on P1, P3, P6) |
-| Figure~\ref{fig:e4.3-internalisation} | P8 (piggybacks on P3) | Pending P3 |
+| Figure~\ref{fig:e4.3-internalisation} | P8 post-hoc (`run_e4_3_internalisation.sh`, noisy) | Pending P3/P4 |
 | Table~\ref{tab:e5.1-tail} | P10 post-hoc on P5 rolls | Pending P10 (cheap) |
 | Figure~\ref{fig:e5.2-ood} | P10 OOD eval | Pending P10 (cheap) |
 

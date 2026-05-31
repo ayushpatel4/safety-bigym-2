@@ -41,8 +41,10 @@ case "${TASK}" in
   *) NUM_DEMOS="${NUM_DEMOS:-36}"; echo "WARNING: TASK=${TASK} NUM_DEMOS=${NUM_DEMOS}" >&2 ;;
 esac
 
-# Optional P8 / E4.3 internalisation curve — set FILTER_PASSIVE to an SVF critic
-# checkpoint to log eval/filter_intervention_rate per eval cycle (observe-only).
+# Optional in-training passive-filter logging — set FILTER_PASSIVE to an SVF critic.
+# CAVEAT: this trains on oracle, where the SVF Q collapses (100% would-be veto), so
+# the logged curve is flat/meaningless. For the real E4.3 internalisation curve use
+# scripts/run_e4_3_internalisation.sh (post-hoc, on noisy). Left here, off by default.
 FILTER_PASSIVE="${FILTER_PASSIVE:-}"
 # Default R from snapshots.py::SVF_FILTER_THRESHOLD_R (standalone load, no torch);
 # R=2.25 for saucepan (dense-0.3m-sweep operating point). Override FILTER_PASSIVE_R=.
