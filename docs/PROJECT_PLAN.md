@@ -811,7 +811,7 @@ python scripts/benchmark_policy.py \
   --filter-threshold 2.25 \             # optional — only used if --filter-snapshot given
   --task saucepan_to_hob \
   --disruption coworker_eval \         # or coworker_train; or any other ParameterSpace key
-  --obs-mode oracle \                  # oracle for headline cells; noisy only for E3.6 sweep + sim-to-real diagnostic — see Perception Mode Policy above
+  --obs-mode noisy \                   # noisy = E4.1 headline (filter is noisy-native; oracle collapses it); oracle = policy-only reference — see Perception Mode Policy above
   --seeds 0,1,2 \
   --episodes 20 \
   --out results/cell.csv \

@@ -1,6 +1,6 @@
 # IMPLEMENTATION_STATUS.md
 ### Coding-agent brief — `safety_bigym` MEng project
-### Updated: 2026-05-30 (round 3 — P1 done, P2 retrained/swept, P3 prereq gap found)
+### Updated: 2026-05-31 (round 3 — P1/P2 done, P3/P4 launching, E4.1→noisy, full toolchain)
 
 This document is the **single source of truth for what needs running**.
 It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
@@ -36,6 +36,25 @@ multi-hour launch.
 >   cell needed **no new code**. `scripts/run_e3_1_cost_signal.sh` launches the
 >   full 3×3 matrix. 31 cost-path tests pass; composition verified. **E3.1 is
 >   launch-ready** — just set `WARMSTART` to the P1 stage-1 snapshot.
+
+> **2026-05-31 update.**
+> - **E4.1 evaluates the WHOLE table on `noisy`** (`run_e4_1_headline.sh` default
+>   `OBS_MODE=noisy`). The G1 SVF is noisy-native: on `oracle` its Q collapses
+>   (`mean_q≈0.016 ≪ R=2.25` → 100% intervention, success 0.78→0.0; the broken
+>   oracle run `results/e4_1/..._190001` is kept as §disc evidence). Noisy keeps
+>   the filter in-distribution and the comparison apples-to-apples. `OBS_MODE=oracle`
+>   = policy-only reference (rows 1–3 only; filter rows are meaningless there).
+> - **E4.3 is post-hoc on noisy** (`run_e4_3_internalisation.sh`), NOT the free
+>   in-training `FILTER_PASSIVE` hook (same oracle-collapse → flat curve).
+> - **Lagrangian warm-start bug fixed (`2577355`)** — `LagrangianCQNASAgent.load_state_dict`
+>   now guards on the cost-net keys, so P3/P4 can warm-start from the plain
+>   (unconstrained) stage-1 snapshot (was `KeyError: 'cost_encoder'`). Re-launch
+>   e3_1/e3_2 after `git pull`; **do not set `FILTER_PASSIVE`**.
+> - **Toolchain complete** — one command per stage: `svf_sweep_g1_v1_baseline.sh`
+>   (P2), `run_e3_1/2_*.sh` + `analyze_e3.py` (P3/P4 + d_knee), `run_e4_1_headline.sh`
+>   + `aggregate_e4_1.py` (P5), `run_e4_3_internalisation.sh` (E4.3),
+>   `aggregate_e5_1.py` (E5.1). All on `origin/phase3`.
+> - **Open**: P9 (WCSAC) not built; row-2 decision (4-row table vs no-shaping retrain).
 
 ---
 
@@ -297,7 +316,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
     --filter-snapshot path/to/svf.pt \   # optional
     --task saucepan_to_hob \
     --disruption coworker_eval \
-    --obs-mode oracle \                  # oracle for headline cells; noisy for E3.6 sweep + sim-to-real diagnostic — see Perception Mode Policy in PROJECT_PLAN.md
+    --obs-mode noisy \                   # noisy for E4.1 headline (filter is noisy-native; oracle collapses it); oracle = policy-only reference — see Perception Mode Policy in PROJECT_PLAN.md
     --seeds 0,1,2 \
     --episodes 20 \
     --out results/cell.csv

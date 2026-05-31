@@ -31,7 +31,7 @@ python scripts/benchmark_policy.py --smoke --out results/smoke.csv
 # A headline-style cell on a trained policy + the SVF filter
 python scripts/benchmark_policy.py \
   --snapshot runs/saucepan_g1/final.pt \
-  --filter-snapshot svf_coworker_train_v1.pt --filter-threshold 4.0 \
+  --filter-snapshot checkpoints/svf_coworker_train_g1_0p3.pt --filter-threshold 2.25 \
   --task saucepan_to_hob --disruption coworker_train --obs-mode noisy \
   --human-model g1 --seeds 0,1,2 --episodes 20 --out results/row5.csv
 
@@ -45,7 +45,7 @@ bash scripts/benchmark_demo.sh
 |---|---|---|
 | `--snapshot` | *(none)* | Policy checkpoint. Omit → random policy. ACT vs CQN-AS auto-detected from payload keys. |
 | `--filter-snapshot` | *(none)* | SVF critic checkpoint to wrap the policy with `SafetyFilterWrapper`. |
-| `--filter-threshold` | `4.0` | SVF Q-value threshold `R`; the filter vetoes when `q < R`. |
+| `--filter-threshold` | `2.25` | SVF Q-value threshold `R`; the filter vetoes when `q < R`. 2.25 = G1 dense-0.3 m-sweep operating point (`snapshots.py`). **The G1 SVF is noisy-native — on `--obs-mode oracle` its Q collapses → ~100% intervention; eval filtered cells on `noisy`.** |
 | `--fallback` | `zero_velocity` | Fallback action when the filter triggers (`FallbackRegistry`). |
 | `--task` | `saucepan_to_hob` | Task key (see `env_build.TASK_REGISTRY`). For CQN-AS, defaults to the snapshot's trained task; overriding warns + merges the env config. |
 | `--disruption` | `coworker_train` | `coworker_train` / `coworker_eval` (ParameterSpace presets) or a `DisruptionType` name. |
@@ -67,21 +67,23 @@ bash scripts/benchmark_demo.sh
 - `<out>.raw_episodes.parquet`: every per-episode record — re-aggregate to the CSV row
   with `records.read_parquet` + `aggregate.aggregate_cell` (no re-rollout needed).
 - `<out>.episodes.jsonl`: a live, crash-resilient sidecar (one JSON line per episode).
-- `<out_dir>/benchmark_videos/step_0_ep0.mp4` (only with `--render`): see below.
+- `<out_dir>/<out-stem>_videos/step_0_ep0.mp4` (only with `--render`): see below.
 
 ### `--render` (rollout video)
 
 With `--render`, the harness captures a frame per env step **inline during the first
 `--render-episodes` scored episodes** (no extra rollouts — the videos correspond to real
 scored episodes), via `eval_video.render_frame`, and writes one mp4 per episode with
-`eval_video.write_eval_video` to `<out_dir>/benchmark_videos/step_<i>_ep0.mp4` (next to
-`--out`). It works on any policy path — on a trained snapshot the clip shows the actual
-behavior, and with `--filter-snapshot` it shows the filter's zero-velocity braking.
+`eval_video.write_eval_video` to `<out_dir>/<out-stem>_videos/step_<i>_ep0.mp4` (the dir
+is keyed off the `--out` CSV stem so multiple cells sharing one out-dir — e.g. the E4.1
+driver's per-row CSVs — don't overwrite each other). It works on any policy path — on a
+trained snapshot the clip shows the actual behavior, and with `--filter-snapshot` it shows
+the filter's zero-velocity braking.
 
 ```bash
 # record the first 3 episodes of a real cell
 ... --render --render-episodes 3 --out results/cell.csv
-# -> results/benchmark_videos/step_0_ep0.mp4, step_1_ep0.mp4, step_2_ep0.mp4
+# -> results/cell_videos/step_0_ep0.mp4, step_1_ep0.mp4, step_2_ep0.mp4
 ```
 
 Notes:
