@@ -1099,8 +1099,12 @@ the benchmark harness packaged for re-use.
 
 Pure post-hoc analysis of the P5 episode rolls. The
 `benchmark_policy.py` harness already emits `cvar95_*` and
-`p99_*` columns; the only work is the LaTeX-table aggregation
-(`scripts/aggregate_e5_1.py`).
+`p99_*` columns; aggregate them with **`scripts/aggregate_e5_1.py`**
+(built 2026-05-31 — `cvar95` cost + worst-case min-separation table):
+```bash
+python scripts/aggregate_e5_1.py --in-dir results/e4_1/<noisy_run_tag> \
+  --out report_tables/e5.1_tail.tex
+```
 
 ##### Compute budget
 

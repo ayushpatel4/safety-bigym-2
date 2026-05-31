@@ -187,6 +187,10 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   `agent.cost_budget` over continuous-cost Lagrangian runs, warm-started from the
   P1 stage-1 snapshot (`WARMSTART`). `SMOKE=1` for a 2000-frame composition check.
 - **Independent of the P2 sweep** — warm-starts from stage-1, not the SVF filter.
+- **Analysis**: `scripts/analyze_e3.py --in-dir exp_local/e3_2_cost_budget/<run>`
+  (built 2026-05-31) — seed-averaged success/proximity per `d` + a suggested
+  `d_knee`. Works mid-run (reads `metrics.jsonl` if `final_metrics.json` absent);
+  also summarises E3.1 (`exp_local/e3_1_cost_signal/<run>`, no knee line).
 - **Populates**: Figure~\ref{fig:e3.2-pareto}.
 - **GPU**: 12 cells × ~2 h = ~24 h
 
@@ -348,7 +352,8 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   already produced.
 - **E5.1 (tail-risk)**: **zero new runs** — `benchmark_policy.py` already emits
   `cvar95_ep_cost_integral`, `cvar95_ep_min_separation`, `p99_ep_min_separation`
-  in every P5 row CSV. Post-hoc aggregation only.
+  in every P5 row CSV. Aggregate with `scripts/aggregate_e5_1.py --in-dir
+  results/e4_1/<noisy_run_tag>` (built 2026-05-31).
 - **E5.2 (OOD)**: re-run the P5 driver on the wider band — just flip the
   disruption:
   ```bash
