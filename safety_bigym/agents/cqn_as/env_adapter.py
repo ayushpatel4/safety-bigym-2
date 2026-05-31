@@ -70,6 +70,33 @@ _DEFAULT_STATE_KEYS: Tuple[str, ...] = (
 )
 
 
+def action_stats_from_actions(
+    actions: np.ndarray,
+    env_low: np.ndarray,
+    env_high: np.ndarray,
+) -> Dict[str, np.ndarray]:
+    """Per-dim action min/max over ``actions`` (N, A); gripper tail forced [0,1];
+    clamped to env bounds. Port of CQN-AS ``BiGym.extract_action_stats``.
+
+    **Single source of truth** for CQN-AS action de-normalisation. Both the live
+    adapter (training) and the SVF snapshot-collection policy
+    (``svf_collect_dataset._CQNASSnapshotPolicy``) MUST derive their de-norm range
+    from this — otherwise the snapshot policy de-normalises differently from how
+    the agent actually deploys, the SVF dataset stores mis-scaled actions, and the
+    runtime filter critic sees out-of-distribution actions (the 2026-06-01
+    benchmark Q-collapse / 100%-intervention bug).
+    """
+    actions = np.asarray(actions)
+    action_max = np.hstack([np.max(actions, 0)[:-2], 1, 1]).astype(np.float32)
+    action_min = np.hstack([np.min(actions, 0)[:-2], 0, 0]).astype(np.float32)
+    env_low = np.asarray(env_low)
+    env_high = np.asarray(env_high)
+    if not (np.all(action_min >= env_low) and np.all(action_max <= env_high)):
+        action_min = np.maximum(action_min, env_low).astype(np.float32)
+        action_max = np.minimum(action_max, env_high).astype(np.float32)
+    return {"min": action_min, "max": action_max}
+
+
 class TimeStep(NamedTuple):
     """Mirror of CQN-AS/bigym_src/bigym_env.py:TimeStep.
 
@@ -577,30 +604,13 @@ class SafetyBiGymCQNAdapter:
         return timesteps, successful_demo
 
     def _extract_action_stats(self, demos: list) -> Dict[str, np.ndarray]:
-        """Per-dim action min/max over all demos; gripper tail forced [0,1].
-
-        Port of CQN-AS BiGym.extract_action_stats. Overrides the identity
-        default so demo + live actions share one normalisation.
-        """
-        actions = []
-        for demo in demos:
-            for ts in demo:
-                actions.append(ts.action)
-        actions = np.stack(actions)
-
-        action_max = np.hstack([np.max(actions, 0)[:-2], 1, 1]).astype(np.float32)
-        action_min = np.hstack([np.min(actions, 0)[:-2], 0, 0]).astype(np.float32)
-
-        env_low = self._env.action_space.low
-        env_high = self._env.action_space.high
-        if not (np.all(action_min >= env_low) and np.all(action_max <= env_high)):
-            logger.warning(
-                "Demo action stats exceed env action bounds; clipping to range."
-            )
-            action_min = np.maximum(action_min, env_low).astype(np.float32)
-            action_max = np.minimum(action_max, env_high).astype(np.float32)
-
-        return {"min": action_min, "max": action_max}
+        """Per-dim action min/max over all demos (delegates to the shared
+        :func:`action_stats_from_actions` — the single source of truth so the
+        SVF snapshot policy de-normalises identically)."""
+        actions = np.stack([ts.action for demo in demos for ts in demo])
+        return action_stats_from_actions(
+            actions, self._env.action_space.low, self._env.action_space.high
+        )
 
     def _rescale_demo_actions(self, demo: list) -> list:
         """Rescale each demo action raw→[-1,1] under the current action_stats."""

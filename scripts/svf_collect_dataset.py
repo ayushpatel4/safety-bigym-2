@@ -1075,6 +1075,50 @@ def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshot
     pixels_on = bool(cfg.get("pixels", False))
     camera_keys = tuple(str(c) for c in cfg.env.get("cameras", [])) if pixels_on else ()
 
+    # --- Deployment-matched action de-normalisation (2026-06-01 fix) ---------
+    # The CQN agent was TRAINED with the adapter's DEMO-derived action stats
+    # (`extract_action_stats`), NOT env.action_space. The snapshot policy must
+    # de-normalise the SAME way, or the actions it executes + stores in the SVF
+    # dataset are mis-scaled and the runtime filter critic later sees OOD actions
+    # (the benchmark Q-collapse / ~100%-intervention bug). Recover the exact
+    # stats by building a throwaway adapter and replaying demos — the identical
+    # path `train_cqn_as` and `benchmark.build_cqn_adapter` use. Loud fallback to
+    # env.action_space (the OLD, buggy behaviour) so collection never crashes.
+    from safety_bigym.agents.cqn_as import env_adapter as _ea  # noqa: E402
+
+    action_low, action_high = env.action_space.low, env.action_space.high
+    n_demos = int(cfg.get("num_demos", 0) or cfg.env.get("demos", 0) or 0)
+    if n_demos > 0:
+        try:
+            _wrap = _ea.make(
+                cfg, frame_stack=int(cfg.get("frame_stack", 1)),
+                normalize_low_dim_obs=False,
+            )
+            _stats_adapter = _wrap._env
+            _stats_adapter.get_demos(n_demos)  # populates demo-derived _action_stats
+            action_low = np.asarray(_stats_adapter._action_stats["min"], dtype=np.float32)
+            action_high = np.asarray(_stats_adapter._action_stats["max"], dtype=np.float32)
+            logger.info(
+                "Snapshot policy de-norm: DEMO-derived action stats (matches "
+                "deployment); range=[%.3f..%.3f]", float(action_low.min()),
+                float(action_high.max()),
+            )
+            try:
+                _wrap.close()
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Could not derive demo action stats (%s); snapshot policy FALLS "
+                "BACK to env.action_space de-norm — the SVF critic will see OOD "
+                "actions. DO NOT trust a dataset collected via this fallback.", e,
+            )
+    else:
+        logger.warning(
+            "cfg has no num_demos; snapshot policy uses env.action_space de-norm "
+            "(may mismatch deployment — see the 2026-06-01 de-norm fix)."
+        )
+
     return _CQNASSnapshotPolicy(
         agent=agent,
         state_keys=_DEFAULT_STATE_KEYS,
@@ -1082,8 +1126,8 @@ def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshot
         camera_keys=camera_keys,
         frame_stack=int(cfg.get("frame_stack", 1)),
         action_sequence=int(cfg.get("action_sequence", 1)),
-        action_low=env.action_space.low,
-        action_high=env.action_space.high,
+        action_low=action_low,
+        action_high=action_high,
         rgb_placeholder_shape=tuple(agent_cfg.get("rgb_obs_shape")),
     )
 

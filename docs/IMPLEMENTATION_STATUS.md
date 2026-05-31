@@ -56,6 +56,22 @@ multi-hour launch.
 >   `aggregate_e5_1.py` (E5.1). All on `origin/phase3`.
 > - **Open**: P9 (WCSAC) not built; row-2 decision (4-row table vs no-shaping retrain).
 
+> **2026-06-01 update — ⚠ P2 RE-DO REQUIRED (action de-norm bug).**
+> - The E4.1 noisy validation showed row-4 **still ~100% intervention, mean_q≈0.02,
+>   success 0** — so the earlier "oracle-collapse" diagnosis was **wrong**; the
+>   noisy switch didn't fix it. Root cause: `svf_collect`'s `_CQNASSnapshotPolicy`
+>   de-normalised the agent action via `env.action_space` instead of the agent's
+>   **demo-derived** stats (how it deploys). So the SVF dataset/critic are on a
+>   mis-de-normalised policy, and `benchmark_policy` (correct de-norm) feeds the
+>   critic OOD actions → over-veto. **`phase2_results.md §0` (R=2.25, the dense
+>   sweep, the 0.0435 baseline) is superseded.**
+> - **Fix landed**: shared `env_adapter.action_stats_from_actions` + the snapshot
+>   policy now de-normalises with demo stats (`tests/test_action_stats.py`; 33
+>   tests pass). **Re-do P2**: `scripts/run_p2_recollect_g1.sh` (preflight →
+>   re-collect → retrain `svf_coworker_train_g1_0p3_v2.pt` → re-sweep), then
+>   update `snapshots.py` to the new checkpoint + R and re-run E4.1 rows 4/5.
+> - **Unaffected**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
+
 ---
 
 ## Confirmed decision points (round 3)

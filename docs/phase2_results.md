@@ -34,7 +34,23 @@ Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_
 
 ---
 
-## 0. G1 coworker re-eval (2026-05-30) — current production (P2)
+## 0. G1 coworker re-eval (2026-05-30) — ⚠ SUPERSEDED pending re-collect (2026-06-01)
+
+> **⚠ The R=2.25 operating point and the dense-sweep numbers below are on a
+> MIS-DE-NORMALISED policy.** `svf_collect`'s `_CQNASSnapshotPolicy` de-normalised
+> the CQN agent's `[-1,1]` action via `env.action_space.low/high` instead of the
+> agent's demo-derived stats (the range it actually deploys with). So the SVF
+> dataset rolled out a different policy than deployment, and at runtime
+> `benchmark_policy` (correct demo-stats de-norm) feeds the critic OOD actions →
+> `mean_q≈0.02` → ~100% intervention (observed 2026-06-01, both oracle and noisy).
+> The sweep below "works" only because it shares the same wrong de-norm. **Fix
+> landed** (`env_adapter.action_stats_from_actions` shared source of truth +
+> `_CQNASSnapshotPolicy` demo-stats de-norm); **re-do via
+> `scripts/run_p2_recollect_g1.sh`** (re-collect → retrain
+> `svf_coworker_train_g1_0p3_v2.pt` → re-sweep). The new R replaces 2.25. Until
+> then, treat §0's numbers as **not valid for the deployed policy**; the dense
+> sweep's filterless baseline (0.0435) also disagrees with the benchmark's
+> deployment baseline (~0.296) for the same reason.
 
 The SMPL-H v1 operating point (R≈4.0, τ=0.50 m) was recalibrated after the
 round-3 switch to the **Unitree G1 coworker** and the move to a tighter
