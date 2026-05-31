@@ -138,6 +138,24 @@ def test_update_target_critic_soft_updates_cost_target():
     assert any(not torch.equal(b, a) for b, a in zip(before, after))
 
 
+def test_load_plain_cqn_as_snapshot_warm_start():
+    """Warm-start from a plain CQN-AS (unconstrained) snapshot — the e3_1/e3_2
+    path. The plain snapshot has no cost-net keys, so load must not crash and
+    must leave Q_c / Q_c-target / λ / the PID freshly initialised."""
+    plain_sd = CQNASAgent(**_base_kwargs()).state_dict()
+    assert "cost_encoder" not in plain_sd
+
+    agent = LagrangianCQNASAgent(**_base_kwargs())
+    cost_before = [p.detach().clone() for p in agent.cost_critic.parameters()]
+    lam_before = agent.lam
+
+    agent.load_state_dict(plain_sd)  # regression: used to KeyError on 'cost_encoder'
+
+    assert agent.lam == lam_before  # λ untouched (stays at init 0.0)
+    for b, a in zip(cost_before, agent.cost_critic.parameters()):
+        assert torch.equal(b, a)  # cost critic stays fresh (nothing to load)
+
+
 def test_state_dict_roundtrip_includes_cost_nets_and_lambda():
     agent = LagrangianCQNASAgent(**_base_kwargs())
     for _ in range(3):

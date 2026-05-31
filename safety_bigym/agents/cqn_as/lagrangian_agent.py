@@ -156,6 +156,13 @@ class LagrangianCQNASAgent(CQNASAgent):
 
     def load_state_dict(self, state_dict):
         super().load_state_dict(state_dict)
+        # Warm-starting from a plain (unconstrained) CQN-AS snapshot: it carries
+        # only the reward-side state (loaded by super() above), no cost nets. Leave
+        # Q_c / its target / λ / the PID freshly initialised — that's the intended
+        # warm-start (competent reward policy, cost critic learned from scratch).
+        # A full Lagrangian snapshot carries all the keys below and restores them.
+        if "cost_encoder" not in state_dict:
+            return
         self.cost_encoder.load_state_dict(state_dict["cost_encoder"])
         self.cost_critic.load_state_dict(state_dict["cost_critic"])
         self.cost_critic_target.load_state_dict(state_dict["cost_critic_target"])
