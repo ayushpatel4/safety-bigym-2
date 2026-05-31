@@ -1,5 +1,11 @@
 # Updated Project Plan: Hybrid Safety Critic for safety_bigym
 
+> **⚠ SUPERSEDED (2026-05-31) by [PROJECT_PLAN.md](PROJECT_PLAN.md)** — the current
+> granular plan (acceptance criteria, decision rules, R=2.25 operating point,
+> noisy E4.1 eval, the live `run_e3_*/run_e4_*` toolchain). Kept as a historical
+> design plan; do not rely on it for current state. Read
+> [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for what to run next.
+
 ## Overview
 
 This plan supersedes the original `HYBRID_SAFETY_CRITIC_PLAN.md`. It is a design plan, not the live status ledger. For the current next action and run state, read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) first.
