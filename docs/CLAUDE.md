@@ -4,7 +4,7 @@
 
 A multi-project workspace for a safety-aware manipulation robot. The active project is [safety_bigym/](../) — a BiGym extension that injects a live coworker into manipulation scenes (SMPL-H driven by AMASS CMU clips by default, or Unitree G1 via `env.human_model=g1`) and adds ISO 15066 safety monitoring (Speed and Separation Monitoring + Power and Force Limiting). Policies are trained through RoboBase ([robobase/](robobase/)), which is a local clone rather than a pip-installed dep.
 
-The goal of this workspace: implement the Hybrid Safety Critic described in [.claude/UPDATED_PROJECT_PLAN.md](../../.claude/UPDATED_PROJECT_PLAN.md) — a constrained-RL policy plus a decoupled Safety Value Function filter at runtime.
+The goal of this workspace: implement the Hybrid Safety Critic described in [PROJECT_PLAN.md](PROJECT_PLAN.md) — a constrained-RL policy plus a decoupled Safety Value Function filter at runtime.
 
 ## Directory layout
 
@@ -162,17 +162,16 @@ The goal of this workspace: implement the Hybrid Safety Critic described in [.cl
     4. Diffusion-policy EMA shadow is persisted/restored explicitly (`payload["actor_ema"]`). The `diffusers.EMAModel` at `Actor.ema` is not an `nn.Module`, so its `shadow_params` — the actual eval-time weights (`Actor.infer` does `self.ema.copy_to(self.ema_actor.parameters())` on every forward) — are invisible to `agent.state_dict()`. Without this fix, reloaded snapshots run eval with a freshly-initialized (untrained) EMA and produce random actions, even though `load_state_dict` is `strict=True` and doesn't throw. Legacy snapshots (saved before this fix) are salvageable: `load_snapshot` falls back to seeding `ema.shadow_params` from the loaded `ema_actor.parameters()`, which are in the `agent` state_dict and contain the correct EMA weights because FYP3 drift (point 1) saves snapshots right after `_eval()` calls `infer()` → `copy_to(ema_actor)`.
   - [robobase/robobase/envs/bigym.py](robobase/robobase/envs/bigym.py) `_wrap_env`: the upstream `assert cfg.demos != 0` is relaxed to `assert cfg.demos != 0 or self._action_stats is not None` — stats-in-snapshot makes `demos=0` a valid eval config.
   Beyond these two files, don't edit RoboBase in-place. If Phase 3 Option B becomes necessary, fork RoboBase into a sibling directory.
-- Start every phase-related session by reading [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md), [UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md) and this file — all in `safety_bigym/docs/`.
+- Start every phase-related session by reading [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [PROJECT_PLAN.md](PROJECT_PLAN.md) and this file — all in `safety_bigym/docs/`.
 - Hand off to the human when visual verification is required.
 
 ## Where the project docs live (as of 2026-05-20)
 
 **Canonical home is `safety_bigym/docs/` — version-controlled in the safety_bigym repo. Read and edit these:**
-- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — living status + the "Next session — start here" block (read this first)
-- [CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md) — change inventory
-- [UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md) — the Hybrid Safety Critic plan
+- [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) — living status; read the dated status-delta block at the top first
+- [PROJECT_PLAN.md](PROJECT_PLAN.md) — the granular Hybrid Safety Critic plan (acceptance criteria, decision rules). **Supersedes `UPDATED_PROJECT_PLAN.md` + `HYBRID_SAFETY_CRITIC_PLAN.md`.**
 - `docs/CLAUDE.md` — this file
 
 **CLAUDE.md special case:** Claude Code auto-loads the FYP3-root `/CLAUDE.md` (the working dir), so that copy must exist and stay current. Treat `safety_bigym/docs/CLAUDE.md` as canonical; after editing it, mirror the prose to the root `/CLAUDE.md` (the root copy uses root-relative links like `safety_bigym/...`; the docs copy uses `../...` — only the link hrefs differ, prose is identical).
 
-**Superseded:** the old `.claude/IMPLEMENTATION_STATUS.md`, `.claude/CHANGES_AND_NEXT_STEPS.md`, and `.claude/UPDATED_PROJECT_PLAN.md` are now stale mirrors (the FYP3 root is outside any git repo). The `docs/` copies are source of truth; the IDE may still open the `.claude/` ones, so don't edit those — edit `docs/`.
+**Superseded / historical (don't rely on for current state):** `docs/UPDATED_PROJECT_PLAN.md` (now superseded by `PROJECT_PLAN.md`); `docs/CHANGES_AND_NEXT_STEPS.md` (a frozen 2026-05-15 plan-rewrite record — it defers to IMPLEMENTATION_STATUS); and the old `.claude/IMPLEMENTATION_STATUS.md` / `.claude/CHANGES_AND_NEXT_STEPS.md` / `.claude/UPDATED_PROJECT_PLAN.md` root mirrors (the FYP3 root is outside any git repo). The `docs/` copies are source of truth; the IDE may still open the `.claude/` ones, so don't edit those — edit `docs/`.
