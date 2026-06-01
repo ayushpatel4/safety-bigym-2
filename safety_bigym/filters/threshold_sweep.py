@@ -71,6 +71,13 @@ def evaluate_threshold(
 
     for ep in range(n_episodes):
         obs, _info = wrapped.reset(seed=seed + ep)
+        # Reset per-episode policy state (frame stacks + CQN-AS action-chunk /
+        # temporal-ensemble step counter) — mirrors rollout_episode in the
+        # collector. Without this the ensemble's _cur_step accumulates across
+        # episodes and overflows its history (IndexError); stateless policies
+        # (e.g. random_policy) have no reset and are skipped.
+        if hasattr(policy, "reset"):
+            policy.reset()
         for _ in range(max_steps):
             action = policy(obs)
             obs, _r, terminated, truncated, info = wrapped.step(action)

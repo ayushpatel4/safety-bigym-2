@@ -128,6 +128,63 @@ def test_temporal_ensemble_matches_runner_math():
     assert got == expected
 
 
+def test_sweep_resets_policy_each_episode():
+    """evaluate_threshold must call policy.reset() per episode.
+
+    Regression for the 2026-06-01 IndexError: the sweep rolls out n_episodes but
+    never reset the policy, so the temporal-ensemble _cur_step accumulated across
+    episodes and overflowed its history. The collector (rollout_episode) always
+    reset; the sweep didn't.
+    """
+    sweep = pytest.importorskip("safety_bigym.filters.threshold_sweep")
+    import gymnasium as gym
+
+    class _StubEnv(gym.Env):
+        action_space = gym.spaces.Box(-1.0, 1.0, (4,), np.float32)
+        observation_space = gym.spaces.Dict(
+            {"x": gym.spaces.Box(-1.0, 1.0, (2,), np.float32)}
+        )
+
+        def __init__(self):
+            self.t = 0
+
+        def reset(self, *, seed=None, options=None):
+            self.t = 0
+            return {"x": np.zeros(2, np.float32)}, {}
+
+        def step(self, action):
+            self.t += 1
+            return {"x": np.zeros(2, np.float32)}, 0.0, False, self.t >= 3, {"safety": {}}
+
+    class _StubCritic:
+        def eval(self):
+            return self
+
+        def q_value(self, obs, action):
+            return 999.0  # always safe -> never veto, never touch the fallback
+
+    class _StubFallback:
+        def compute(self, *, obs, proposed):
+            return proposed
+
+    class _CountingPolicy:
+        def __init__(self):
+            self.resets = 0
+
+        def reset(self):
+            self.resets += 1
+
+        def __call__(self, obs):
+            return np.zeros(4, np.float32)
+
+    pol = _CountingPolicy()
+    sweep.evaluate_threshold(
+        env=_StubEnv(), critic=_StubCritic(), fallback=_StubFallback(),
+        threshold_R=1.0, policy=pol, n_episodes=3, max_steps=10, seed=0,
+    )
+    assert pol.resets == 3  # once per episode
+
+
 def test_reset_clears_episode_state():
     """reset() must restart chunk indexing so episode 2 begins with a fresh plan."""
     pol, agent = _make_policy(temporal_ensemble=None)
