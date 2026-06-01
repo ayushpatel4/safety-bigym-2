@@ -75,26 +75,33 @@ multi-hour launch.
 >   15/16 open-loop fraction ≈ the 89.5% observed. **Fix**: the snapshot policy now
 >   reuses the SAME `TemporalEnsembleControl` and mirrors `CQNASRunner.step`
 >   (`tests/test_snapshot_policy_execution.py`).
-> - **Bug 3 — episode length** (fixed in the v3 recipe): collection/sweep ran
->   `max_steps=250` (~12.5 s at 20 Hz) but deployment runs `1000`
->   (`episode_length//demo_down_sample_rate = 25000/25`, ~50 s). The
->   `coworker_train` near-dwell is **12–18 s**, so 250 steps truncate before the
->   close-proximity phase → the v2 dataset sampled only the first ~25% of the
->   episode (filterless proximity 0.028 @250 vs the benchmark's 0.296 @1000). The
->   v3 launcher now collects+sweeps at `MAX_STEPS=1000` (EPISODES_PER_CELL 210→150
->   to bound compute).
+> - **Bug 3 — env control_frequency (THE root cause, pinpointed via the diagnostic).**
+>   `_build_live_env` built the collection/sweep env via `make_safety_env` WITHOUT
+>   `control_frequency`, so it ran at the full `CONTROL_FREQUENCY_MAX=500 Hz` (1
+>   physics substep/step, `action_scale=1`). The RoboBase factory `_create_env`
+>   (which the deployment adapter uses) sets `control_frequency = 500 //
+>   demo_down_sample_rate = 20 Hz` for saucepan (25 substeps/step, `action_scale=25`).
+>   The 25× mismatch: each action moved the robot ~25× less/step → the policy
+>   **never completed the task** (`diagnose_collection_policy`: 0% success vs
+>   deployment 85%); action_scale differed 25× (so even demo-stats de-norm was
+>   mis-scaled); and 1000 steps covered ~2 s vs deployment's ~50 s → coworker
+>   barely approached (proximity 0.05 vs 0.30). **Fix**: `_build_live_env` now sets
+>   `control_frequency = CONTROL_FREQUENCY_MAX // demo_down_sample_rate` (read from
+>   the task env yaml); propagates to collection AND the sweep. The earlier
+>   `max_steps 250→1000` change was necessary (deployment uses 1000 control steps
+>   ≈ 50 s) but inert without this.
 > - **Pre-check (Step 1) CONFIRMED Bug 2**: re-sweeping the v2 critic with the
 >   ensemble-fixed policy collapsed it (R=2.5: **70% intervention, mean_q 1.6** vs
->   the buggy `chunk[0]` sweep's 7.9%/3.3) — the sweep now tracks the benchmark
->   (89%/0.97). "NO QUALIFYING KNEE" on v2 is the correct verdict. The residual
->   70→89 / proximity 0.028→0.296 gap is Bug 3 (episode length).
+>   the buggy `chunk[0]` sweep's 7.9%/3.3) — the sweep moved toward the benchmark.
+>   The residual (proximity 0.028→0.296, success 0% vs 85%) was Bug 3.
 > - **⚠ v1/R=2.25 + v2/R=2.50 SUPERSEDED.** `snapshots.py::SVF_FILTERS` points at
 >   the not-yet-collected `_v3` so filtered rows fail LOUD; flip R after the re-do.
-> - **Next**: (1) ~45 min confirm — re-sweep the v2 critic at `--max-steps 1000`
->   (`--thresholds 0 2.5`); expect proximity→~0.3, intervention→~89%, mean_q→~1
->   (sweep == benchmark). (2) Full **v3 re-do** at the deployment horizon → flip
->   `snapshots.py` to `_v3` + new R → E4.1 rows 1/4. (3) If the confirm still gaps,
->   collect via the benchmark env/runner directly (unify) rather than a v4.
+> - **Next**: (1) **validate Bug 3 fix** — re-run `diagnose_collection_policy.py`
+>   (expect success ~85%, proximity ~0.3, `terminated` firing). (2) Full **v3 re-do**
+>   (`run_p2_recollect_g1.sh`, MAX_STEPS=1000) → flip `snapshots.py` to `_v3` + the
+>   v3 knee → E4.1 rows 1/4. (3) Only if the diagnostic STILL shows 0% success is a
+>   full env-unify warranted (another factory param missing) — but control_frequency
+>   is very likely the last one.
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---

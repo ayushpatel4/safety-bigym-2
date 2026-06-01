@@ -8,12 +8,14 @@
 #      horizon chunk[0]. v2 still had this bug: with action_sequence=16 +
 #      temporal_ensemble=true the policy deploys BLENDED actions, but the v2
 #      critic trained on raw chunk[0] -> ~89% spurious veto, success 0.
-#   3. episode length — collect/sweep at the DEPLOYMENT horizon (MAX_STEPS=1000 =
-#      episode_length//demo_down_sample_rate = 25000/25), NOT 250. At 250 control
-#      steps (~12.5s) the rollout truncates before the coworker's 12-18s near-
-#      dwell, so the v2 dataset under-sampled the close-proximity phase that
-#      dominates deployment (filterless proximity 0.028 @250 vs 0.296 @1000).
-#      Episodes are now ~2-4x longer, so EPISODES_PER_CELL defaults to 150 (was 210).
+#   3. env control_frequency (THE root cause) — _build_live_env now sets
+#      control_frequency = CONTROL_FREQUENCY_MAX // demo_down_sample_rate (20 Hz
+#      for saucepan), matching the factory _create_env the deployment adapter uses.
+#      Before, the collection env ran at the full 500 Hz: each action moved the
+#      robot ~25x less/step (policy never completed the task: 0% vs 85% success),
+#      action_scale was 25x off, and 1000 steps covered ~2s not ~50s (coworker
+#      barely approached). MAX_STEPS=1000 (=deployment horizon) is now meaningful;
+#      episodes run longer, so EPISODES_PER_CELL defaults to 150 (was 210).
 # v3 rebuilds the dataset/critic/operating-point on a snapshot policy that runs
 # EXACTLY what deployment runs (execution mode + horizon), so the sweep finally
 # predicts the benchmark.
