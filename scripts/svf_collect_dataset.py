@@ -1255,6 +1255,11 @@ def _load_cqn_as_snapshot_policy(
     n_demos = int(cfg.get("num_demos", 0) or cfg.env.get("demos", 0) or 0)
     if n_demos > 0:
         try:
+            logger.info(
+                "Recovering demo-derived action stats: building a throwaway "
+                "adapter + loading %d demos (BodySLAM replay). This runs SILENTLY "
+                "for a few minutes — not a hang.", n_demos,
+            )
             _wrap = _ea.make(
                 cfg, frame_stack=int(cfg.get("frame_stack", 1)),
                 normalize_low_dim_obs=False,
@@ -1453,8 +1458,20 @@ def _collect_live_env_source(
                     proximity_threshold=plan.proximity_threshold,
                 )
                 if payload is None:
+                    logger.info(
+                        "  [%s] episode %d/%d produced 0 transitions (instability "
+                        "at step 0?) — skipped.", source, _ep + 1,
+                        plan.episodes_per_cell,
+                    )
                     continue
                 n = len(payload["action"])
+                _n_unsafe = int((np.asarray(payload["r_safe"]) == 0.0).sum())
+                logger.info(
+                    "  [%s] episode %d/%d: %d steps, %d unsafe (proximity<%.2f); "
+                    "cumulative transitions=%d",
+                    source, _ep + 1, plan.episodes_per_cell, n, _n_unsafe,
+                    plan.proximity_threshold, total + n,
+                )
                 name = _smoke_shard_name(plan) or (
                     f"{source}__{task_key}__{disruption}__{shard_idx:04d}"
                 )
