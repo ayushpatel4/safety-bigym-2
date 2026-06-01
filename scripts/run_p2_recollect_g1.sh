@@ -48,6 +48,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# Optional live logging: set LOG=path/to.log to tee ALL output (stdout+stderr) to
+# a file as it runs. PYTHONUNBUFFERED keeps the per-episode/sweep lines flushing
+# live (else the pipe block-buffers). LOG defaults to a timestamp-free per-VER file.
+export PYTHONUNBUFFERED=1
+if [[ -n "${LOG:-}" ]]; then
+  mkdir -p "$(dirname "${LOG}")"
+  exec > >(tee -a "${LOG}") 2>&1
+  echo "== logging to ${LOG} =="
+fi
+
 : "${STAGE2:?Set STAGE2 to the P1 stage-2 G1 snapshot (.pt)}"
 TASK="${TASK:-saucepan_to_hob}"
 # Version tag for dataset/critic/sweep. v3 = execution-mode fix (open-loop +

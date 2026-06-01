@@ -53,6 +53,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
 
+# Optional live logging: LOG=path/to.log tees ALL output to a file as it runs.
+export PYTHONUNBUFFERED=1
+if [[ -n "${LOG:-}" ]]; then
+  mkdir -p "$(dirname "${LOG}")"
+  exec > >(tee -a "${LOG}") 2>&1
+  echo "== logging to ${LOG} =="
+fi
+
 TASK="${TASK:-saucepan_to_hob}"
 HUMAN_MODEL="${HUMAN_MODEL:-g1}"
 DISRUPTION="${DISRUPTION:-coworker_train}"
