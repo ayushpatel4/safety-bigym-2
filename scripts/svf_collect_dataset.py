@@ -179,6 +179,38 @@ def _resolve_demo_down_sample_rate(task_key: str, default: int = 20) -> int:
     return rate
 
 
+def _resolve_coworker_overrides(disruption: str) -> Dict[str, Any]:
+    """Read coworker_* ParameterSpace overrides from a disruption config yaml.
+
+    The deployment factory (``safety_bigym_factory._create_env``) builds the
+    COWORKER ParameterSpace from ``cfg.env.disruptions`` (the merged disruption
+    yaml). The Python presets (``_COWORKER_*_RANGES``) drifted from those yamls,
+    so collection must read the yaml to match deployment. Returns a dict of
+    overrides (``coworker_*_range`` as tuples + ``coworker_trajectory_weights``
+    as a dict), or ``{}`` if the yaml/section is absent (caller falls back to
+    the Python preset).
+    """
+    from omegaconf import OmegaConf
+
+    yaml = REPO_ROOT / "cfgs" / "disruption" / f"{disruption}.yaml"
+    if not yaml.is_file():
+        return {}
+    try:
+        sect = OmegaConf.select(OmegaConf.load(yaml), "env.disruptions")
+        if sect is None:
+            return {}
+        sect = OmegaConf.to_container(sect, resolve=True)
+    except Exception:  # noqa: BLE001 — fall back to the preset
+        return {}
+    out: Dict[str, Any] = {}
+    for key, val in (sect or {}).items():
+        if key.endswith("_range") and isinstance(val, (list, tuple)):
+            out[key] = tuple(val)
+        elif key == "coworker_trajectory_weights" and isinstance(val, dict):
+            out[key] = dict(val)
+    return out
+
+
 def _build_live_env(
     task_key: str,
     disruption: str,
@@ -227,6 +259,7 @@ def _build_live_env(
     from safety_bigym.scenarios.scenario_sampler import (
         ParameterSpace,
         ScenarioSampler,
+        _coworker_space,
         make_coworker_train_space,
         make_coworker_eval_space,
     )
@@ -240,17 +273,38 @@ def _build_live_env(
         motion_clip_paths=motion_clip_paths,
         human_model=human_model,
     )
-    # Cell label dispatch: "coworker_train" / "coworker_eval" use the strict-
-    # superset COWORKER factories; any other value is treated as a legacy
-    # DisruptionType name and pinned to a 1.0-weight single-type space.
-    if disruption == "coworker_train":
-        parameter_space = make_coworker_train_space(
-            clip_paths=human_config.motion_clip_paths,
-        )
-    elif disruption == "coworker_eval":
-        parameter_space = make_coworker_eval_space(
-            clip_paths=human_config.motion_clip_paths,
-        )
+    # Cell label dispatch. For coworker_train/coworker_eval, build the COWORKER
+    # ParameterSpace from the disruption YAML — the SAME source the deployment
+    # factory (_create_env) reads via cfg.env.disruptions. The Python presets
+    # (_COWORKER_*_RANGES used by make_coworker_*_space) drifted from those yamls
+    # (coworker_train was tightened 2026-05-27: closest 0.60-0.95 / fast reach
+    # 1.3-2.2, but the preset stayed loose 0.9-1.4 / slow 4.5-6.5), so a
+    # preset-built coworker stays too far and the collection sees ~0 proximity
+    # while deployment sees 0.30. Reading the yaml makes collection==deployment.
+    # Any other disruption is a legacy DisruptionType pinned to a 1.0-weight space.
+    if disruption in ("coworker_train", "coworker_eval"):
+        _ov = _resolve_coworker_overrides(disruption)
+        if _ov:
+            _ranges = {k: v for k, v in _ov.items() if k.endswith("_range")}
+            _extra = {k: v for k, v in _ov.items() if not k.endswith("_range")}
+            parameter_space = _coworker_space(
+                _ranges, clip_paths=human_config.motion_clip_paths, **_extra
+            )
+            logger.info(
+                "Coworker scenario for %s from disruption yaml (matches "
+                "deployment): %s", disruption, {k: _ov[k] for k in sorted(_ov)},
+            )
+        else:
+            logger.warning(
+                "Disruption yaml for %s not found/empty; falling back to the "
+                "Python preset (may drift from deployment).", disruption,
+            )
+            _builder = (
+                make_coworker_train_space
+                if disruption == "coworker_train"
+                else make_coworker_eval_space
+            )
+            parameter_space = _builder(clip_paths=human_config.motion_clip_paths)
     else:
         parameter_space = ParameterSpace(
             clip_paths=human_config.motion_clip_paths,
