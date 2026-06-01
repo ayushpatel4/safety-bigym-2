@@ -50,41 +50,49 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 # Each task maps to (trained SVF critic checkpoint, recommended veto threshold
 # R). SafetyFilterWrapper vetoes the proposed action when Q_safe(s, a) < R.
 #
-# G1 coworker (2026-05-30): recollected on `coworker_train` + `bodyslam=noisy`,
-# retrained at proximity label tau=0.3 m (3-MLP [256,256,256], alpha_CQL=5.0,
-# tau=0.005, 200k steps) -> checkpoints/svf_coworker_train_g1_0p3.pt. The DENSE
-# threshold sweep on the stage-2 G1 baseline policy (filterless R=0 + fine grid
-# around the knee; results/svf_sweep_g1_v1/sweep_dense_seed{0,1,2}.csv, 3 seeds
-# x 20 ep, proximity tau=0.3 m), seed-averaged:
+# G1 coworker — v2 (2026-06-01): RE-COLLECTED after the action de-normalisation
+# fix (the snapshot-collection policy now de-normalises actions with the agent's
+# demo-derived stats, like deployment, instead of env.action_space). Same recipe
+# as v1: `coworker_train` + `bodyslam=noisy`, proximity label tau=0.3 m, 3-MLP
+# [256,256,256], alpha_CQL=5.0, tau=0.005, 200k steps ->
+# checkpoints/svf_coworker_train_g1_0p3_v2.pt. DENSE sweep on the stage-2 G1
+# baseline policy (results/svf_sweep_g1_0p3_v2/sweep_dense_seed{0,1,2}.csv, 3
+# seeds x 20 ep, proximity tau=0.3 m), seed-averaged:
 #
 #     R       intervention   proximity(tau=0.3)   reduction vs R=0
-#     0.0        0.0%            0.0435             baseline
-#     2.0       11.5%           0.0441             ~0%   (wasted: vetoes non-violating actions)
-#     2.25      21.6%           0.0297             31.7% <- OPERATING POINT
-#     2.5       34.3%           0.0265             39.1% (intervention > 25%)
-#     3.0       78.5%           0.0076             82.5% (hard gate: robot ~frozen)
+#     0.00       0.0%           0.0109             baseline
+#     2.25       6.0%           0.0081             25.2%
+#     2.50       7.9%           0.0074             31.9% <- OPERATING POINT
+#     2.75      18.0%           0.0072             33.7%
+#     3.00      15.9%           0.0072             33.7%
+#     3.50      67.7%           0.0000            100%   (hard gate: robot frozen)
 #
-# R = 2.25 is the only threshold meeting the P2 acceptance bar (>=30% proximity
-# reduction at <=25% intervention: 31.7% @ 21.6%). It is MARGINAL and seed-
-# fragile — per-seed reduction 38.4 / 41.2 / 20.6 %: seed-2's rollouts hit more
-# proximity and a zero-velocity veto can't catch them until the R=3.0 hard gate
-# (~79% intervention, robot ~frozen). The big proximity win (82%) thus costs
-# near-total intervention; the filter's robust, low-cost win is the robot-
-# velocity ISO-SSM axis. This is the core hybrid argument: the filter is the
-# edge-case backstop, the Lagrangian policy does proactive avoidance. Re-confirm
-# R against the Phase-3 row-3 snapshot in P5 (E4.1 decision rule).
+# R = 2.50 meets the P2 acceptance bar (>=30% reduction at <=25% intervention:
+# 31.9% @ 7.9%) and — unlike v1's marginal R=2.25 — is ROBUST: post-filter
+# proximity is 0.0074 on ALL THREE seeds (per-seed intervention 6.4/6.2/11.1%).
+# The proximity floor (~0.0072) is reached by R=2.75 and held until the R>=3.5
+# cliff drives the robot to a frozen 100%-intervention state; R=2.50 sits just
+# below that floor at light-touch intervention. This makes the hybrid argument
+# concrete: the correctly-de-normalised policy is already safe at baseline
+# (0.0109 — ~4x safer than the v1 mis-scaled policy's 0.0435), and the filter is
+# a cheap edge-case backstop, not a hard gate. mean_q ~3.3 across the grid
+# (healthy); the sweep and benchmark now share the demo-stats de-norm, so the
+# benchmark mean_q should match (NOT the ~0.02 collapse the bug produced) — this
+# is the E4.1 rows-1/4 go/no-go.
 #
-# NB: the COARSE sweep (sweep_seed{0,1,2}.csv, R={1,2,3,4,5,6,8}) was run on the
-# OLD 0.5-label critic (svf_coworker_train_g1_v1.pt) — ~3x the intervention at
-# R=2 — and is NOT comparable to the dense 0.3 run. Use the dense CSVs.
+# SUPERSEDED: v1 (svf_coworker_train_g1_0p3.pt, R=2.25) and its sweep CSVs
+# (results/svf_sweep_g1_v1/) were collected on the mis-de-normalised policy.
+# See the 2026-06-01 de-norm fix in svf_collect_dataset.py +
+# agents/cqn_as/env_adapter.py (action_stats_from_actions).
 SVF_FILTERS: Dict[str, Optional[str]] = {
-    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3.pt",
+    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3_v2.pt",
 }
 
-# Recommended veto threshold R per task. R=2.25 = the P2 acceptance knee on the
-# 0.3-label G1 critic (see note above); marginal/seed-fragile, re-confirm in P5.
+# Recommended veto threshold R per task. R=2.50 = the P2 acceptance knee on the
+# de-norm-fixed v2 G1 critic (see note above): 31.9% proximity reduction at 7.9%
+# intervention, robust across 3 seeds.
 SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
-    "saucepan_to_hob": 2.25,
+    "saucepan_to_hob": 2.50,
 }
 
 

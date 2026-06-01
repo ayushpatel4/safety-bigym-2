@@ -56,21 +56,25 @@ multi-hour launch.
 >   `aggregate_e5_1.py` (E5.1). All on `origin/phase3`.
 > - **Open**: P9 (WCSAC) not built; row-2 decision (4-row table vs no-shaping retrain).
 
-> **2026-06-01 update — ⚠ P2 RE-DO REQUIRED (action de-norm bug).**
-> - The E4.1 noisy validation showed row-4 **still ~100% intervention, mean_q≈0.02,
->   success 0** — so the earlier "oracle-collapse" diagnosis was **wrong**; the
->   noisy switch didn't fix it. Root cause: `svf_collect`'s `_CQNASSnapshotPolicy`
->   de-normalised the agent action via `env.action_space` instead of the agent's
->   **demo-derived** stats (how it deploys). So the SVF dataset/critic are on a
->   mis-de-normalised policy, and `benchmark_policy` (correct de-norm) feeds the
->   critic OOD actions → over-veto. **`phase2_results.md §0` (R=2.25, the dense
->   sweep, the 0.0435 baseline) is superseded.**
-> - **Fix landed**: shared `env_adapter.action_stats_from_actions` + the snapshot
->   policy now de-normalises with demo stats (`tests/test_action_stats.py`; 33
->   tests pass). **Re-do P2**: `scripts/run_p2_recollect_g1.sh` (preflight →
->   re-collect → retrain `svf_coworker_train_g1_0p3_v2.pt` → re-sweep), then
->   update `snapshots.py` to the new checkpoint + R and re-run E4.1 rows 4/5.
-> - **Unaffected**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
+> **2026-06-01 update — ✅ P2 RE-DO DONE (action de-norm bug fixed & validated).**
+> - **Bug** (now fixed): `svf_collect`'s `_CQNASSnapshotPolicy` de-normalised the
+>   agent action via `env.action_space` instead of the agent's **demo-derived**
+>   stats (how it deploys), so the SVF critic was trained on a mis-de-normalised
+>   policy → `benchmark_policy` (correct de-norm) fed it OOD actions → `mean_q≈0.02`,
+>   ~100% intervention on BOTH oracle and noisy (disproving the earlier
+>   "oracle-collapse" read). **Fix**: shared `env_adapter.action_stats_from_actions`
+>   + snapshot policy de-normalises with demo stats (commit `41fd93b`;
+>   `tests/test_action_stats.py`).
+> - **Re-done** via `scripts/run_p2_recollect_g1.sh` → `svf_coworker_train_g1_0p3_v2.pt`.
+>   De-norm-fixed dense sweep (`results/svf_sweep_g1_0p3_v2/`, 3 seeds × 20 ep):
+>   **new operating point R=2.50 — 31.9% proximity reduction @ 7.9% intervention,
+>   ROBUST** (post-filter proximity 0.0074 on all 3 seeds; not v1's seed-fragile
+>   R=2.25). The corrected policy is ~4× safer at baseline (filterless proximity
+>   0.0109 vs v1's 0.0435) and `mean_q≈3.3` (healthy). **Pinned in `snapshots.py`
+>   (`_v2`, R=2.50); `phase2_results.md §0` updated.**
+> - **Next**: E4.1 rows 1/4 (go/no-go — row-4 intervention should now be ~8%, not
+>   100%), then the full headline once E3.1/E3.2 land `d_knee`.
+> - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---
 
@@ -102,7 +106,7 @@ multi-hour launch.
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
-| Phase 2 (G1) | ⚠ **RE-DO (2026-06-01)** — action de-norm bug | `g1_0p3` critic trained on a mis-de-normalised snapshot policy → **R=2.25 superseded**, ~100% intervention at deploy on BOTH oracle & noisy. Fix landed (`41fd93b`); re-collect via `run_p2_recollect_g1.sh` → `_v2` critic + new R. See status-delta at top + `phase2_results.md` §0 |
+| Phase 2 (G1) | ✅ **CLOSED (2026-06-01)** — de-norm bug fixed, re-done | `svf_coworker_train_g1_0p3_v2.pt`; **R=2.50** (`snapshots.py`): 31.9% proximity reduction @ 7.9% intervention, robust across 3 seeds. v1/R=2.25 superseded (action de-norm bug, `41fd93b`). `phase2_results.md` §0 |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
@@ -145,16 +149,17 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~20 h
 - **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-eval + retrain under G1 — ⚠ RE-OPENED (2026-06-01: action de-norm bug)
-> **2026-06-01:** the work below ran on a critic trained against a snapshot
-> policy that de-normalised actions via `env.action_space` instead of the
-> agent's demo-derived stats, so the critic saw a mis-scaled policy and
-> over-vetoes at deploy (~100% intervention on oracle AND noisy; `mean_q≈0.02`).
-> **R=2.25 and the §0 sweep numbers are superseded.** Fix landed (commit
-> `41fd93b`: shared `action_stats_from_actions`, snapshot policy now uses demo
-> stats). Re-collect/retrain/re-sweep via `run_p2_recollect_g1.sh` → `_v2`
-> critic + new R, then update `snapshots.py`. Everything below is kept for
-> method/provenance only.
+### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ CLOSED (2026-06-01: re-done after de-norm fix)
+> **2026-06-01:** the original work (below) ran on a critic trained against a
+> snapshot policy that de-normalised actions via `env.action_space` instead of
+> the agent's demo-derived stats → over-veto at deploy (~100% intervention on
+> oracle AND noisy; `mean_q≈0.02`). **Fixed** (commit `41fd93b`: shared
+> `action_stats_from_actions`, snapshot policy now uses demo stats) and **re-done**
+> via `run_p2_recollect_g1.sh` → `svf_coworker_train_g1_0p3_v2.pt`. New operating
+> point **R=2.50** (31.9% proximity reduction @ 7.9% intervention, robust across
+> 3 seeds; corrected policy ~4× safer at baseline, `mean_q≈3.3`), pinned in
+> `snapshots.py`. **R=2.25 and the §0 sweep numbers below are superseded** — kept
+> for method/provenance only.
 - **Done (on the buggy critic — provenance only)**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
   (2) recollected on `coworker_train`, `bodyslam=noisy` (random + snapshot,
   105k transitions); (3) retrained at **τ=0.3 m** → `svf_coworker_train_g1_0p3.pt`

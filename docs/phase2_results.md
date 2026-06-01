@@ -34,23 +34,45 @@ Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_
 
 ---
 
-## 0. G1 coworker re-eval (2026-05-30) — ⚠ SUPERSEDED pending re-collect (2026-06-01)
+## 0. G1 coworker re-eval — ✅ RESOLVED 2026-06-01 (v2 critic, R=2.50)
 
-> **⚠ The R=2.25 operating point and the dense-sweep numbers below are on a
-> MIS-DE-NORMALISED policy.** `svf_collect`'s `_CQNASSnapshotPolicy` de-normalised
-> the CQN agent's `[-1,1]` action via `env.action_space.low/high` instead of the
-> agent's demo-derived stats (the range it actually deploys with). So the SVF
-> dataset rolled out a different policy than deployment, and at runtime
-> `benchmark_policy` (correct demo-stats de-norm) feeds the critic OOD actions →
-> `mean_q≈0.02` → ~100% intervention (observed 2026-06-01, both oracle and noisy).
-> The sweep below "works" only because it shares the same wrong de-norm. **Fix
-> landed** (`env_adapter.action_stats_from_actions` shared source of truth +
-> `_CQNASSnapshotPolicy` demo-stats de-norm); **re-do via
-> `scripts/run_p2_recollect_g1.sh`** (re-collect → retrain
-> `svf_coworker_train_g1_0p3_v2.pt` → re-sweep). The new R replaces 2.25. Until
-> then, treat §0's numbers as **not valid for the deployed policy**; the dense
-> sweep's filterless baseline (0.0435) also disagrees with the benchmark's
-> deployment baseline (~0.296) for the same reason.
+> **✅ The de-norm bug is fixed and P2 has been re-done.** The original §0 below
+> (R=2.25) ran on a MIS-DE-NORMALISED policy: `svf_collect`'s
+> `_CQNASSnapshotPolicy` de-normalised the CQN agent's `[-1,1]` action via
+> `env.action_space.low/high` instead of the agent's demo-derived stats (the
+> range it actually deploys with), so the SVF dataset rolled out a different
+> policy than deployment → `benchmark_policy` fed the critic OOD actions →
+> `mean_q≈0.02` → ~100% intervention on BOTH oracle and noisy. Fix landed
+> (`env_adapter.action_stats_from_actions` shared source of truth +
+> `_CQNASSnapshotPolicy` demo-stats de-norm; commit `41fd93b`).
+>
+> **Re-done via `scripts/run_p2_recollect_g1.sh`** → `svf_coworker_train_g1_0p3_v2.pt`.
+> The de-norm-fixed dense sweep (`results/svf_sweep_g1_0p3_v2/`, 3 seeds × 20 ep,
+> τ=0.3 m), seed-averaged:
+>
+> | R | intervention | proximity(τ=0.3) | reduction vs R=0 |
+> |---|---|---|---|
+> | 0.00 | 0.0% | 0.0109 | baseline |
+> | 2.25 | 6.0% | 0.0081 | 25.2% |
+> | **2.50** | **7.9%** | **0.0074** | **31.9% ← OPERATING POINT** |
+> | 2.75 | 18.0% | 0.0072 | 33.7% |
+> | 3.00 | 15.9% | 0.0072 | 33.7% |
+> | 3.50 | 67.7% | 0.0000 | 100% (hard gate, robot frozen) |
+>
+> **R=2.50 meets the bar (31.9% reduction @ 7.9% intervention) and is ROBUST** —
+> post-filter proximity = 0.0074 on **all three seeds** (per-seed intervention
+> 6.4/6.2/11.1%), not the seed-fragile knife-edge v1's R=2.25 was. Two headline
+> changes vs the buggy v1: (1) the correctly-de-normalised policy is **~4× safer
+> at baseline** (filterless proximity 0.0109 vs v1's 0.0435) because it now
+> executes its *trained* actions; (2) `mean_q ≈ 3.3` across the grid (healthy) —
+> the sweep and benchmark now share the demo-stats de-norm, so the benchmark
+> `mean_q` should match (NOT the 0.02 collapse). **Pinned in `snapshots.py`:
+> `svf_coworker_train_g1_0p3_v2.pt`, R=2.50.** Go/no-go = E4.1 rows 1/4.
+>
+> Everything below this banner is the **superseded v1 §0** (R=2.25, mis-de-normalised
+> policy), kept for provenance only.
+
+### 0(v1, superseded). G1 coworker re-eval (2026-05-30)
 
 The SMPL-H v1 operating point (R≈4.0, τ=0.50 m) was recalibrated after the
 round-3 switch to the **Unitree G1 coworker** and the move to a tighter
