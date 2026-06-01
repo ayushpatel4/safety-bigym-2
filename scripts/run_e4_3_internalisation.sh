@@ -40,7 +40,9 @@ cd "${REPO_ROOT}"
 TASK="${TASK:-saucepan_to_hob}"
 DISRUPTION="${DISRUPTION:-coworker_train}"
 HUMAN_MODEL="${HUMAN_MODEL:-g1}"
-SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_0p3.pt}"
+# Critic path + threshold both default from snapshots.py (single source of truth):
+# the P2 re-do's SVF_FILTERS edit propagates here without touching this script.
+SVF_FILTER="${SVF_FILTER:-$(python -c "import importlib.util as u;sp=u.spec_from_file_location('s','safety_bigym/filters/snapshots.py');m=u.module_from_spec(sp);sp.loader.exec_module(m);print(m.SVF_FILTERS.get('${TASK}','checkpoints/svf_coworker_train_g1_0p3.pt'))" 2>/dev/null || echo checkpoints/svf_coworker_train_g1_0p3.pt)}"
 # Veto threshold from the single source of truth (snapshots.py), standalone load.
 FILTER_R="${FILTER_R:-$(python -c "import importlib.util as u;sp=u.spec_from_file_location('s','safety_bigym/filters/snapshots.py');m=u.module_from_spec(sp);sp.loader.exec_module(m);print(m.SVF_FILTER_THRESHOLD_R.get('${TASK}',2.25))" 2>/dev/null || echo 2.25)}"
 [[ -f "${SVF_FILTER}" ]] || { echo "ERROR: SVF_FILTER=${SVF_FILTER} not found" >&2; exit 1; }

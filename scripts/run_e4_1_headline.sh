@@ -62,7 +62,11 @@ OBS_MODE="${OBS_MODE:-noisy}"
 # Recorded P1 stage-2 (filters/snapshots.py::G1_CURRICULUM). Repo-relative so it
 # resolves from REPO_ROOT; override STAGE2=<abs path> to use another baseline.
 STAGE2="${STAGE2:-exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage2_full/snapshot_28203.pt}"
-SVF_FILTER="${SVF_FILTER:-checkpoints/svf_coworker_train_g1_0p3.pt}"
+# SVF critic path AND threshold both default from snapshots.py (single source of
+# truth): after the P2 re-do, editing SVF_FILTERS/SVF_FILTER_THRESHOLD_R there
+# propagates here automatically (no per-script path drift). Falls back to the old
+# g1_0p3 critic if the lookup fails. Override with SVF_FILTER=<path>.
+SVF_FILTER="${SVF_FILTER:-$(python -c "import importlib.util as u;sp=u.spec_from_file_location('s','safety_bigym/filters/snapshots.py');m=u.module_from_spec(sp);sp.loader.exec_module(m);print(m.SVF_FILTERS.get('${TASK}','checkpoints/svf_coworker_train_g1_0p3.pt'))" 2>/dev/null || echo checkpoints/svf_coworker_train_g1_0p3.pt)}"
 # Default the veto threshold R from the single source of truth — snapshots.py::
 # SVF_FILTER_THRESHOLD_R (loaded standalone: stdlib-only, no torch). This is the
 # operating point pinned from the dense 0.3 m sweep (R=2.25 for saucepan, NOT the
