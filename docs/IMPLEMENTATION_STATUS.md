@@ -120,12 +120,31 @@ multi-hour launch.
 >   avoidance is the Lagrangian policy's job (P3). The v1/v2 "31.7%@21.6% knee" was an
 >   artifact of the broken collection (policy never got close). Pinned **R=2.25**
 >   (light backstop) in `snapshots.py`; `_v3` checkpoint now resolves.
-> - **Next**: E4.1 rows 1/4 (`run_e4_1_headline.sh`) — measures the filter on the
->   **velocity axis** (`ep_ssm_violation_actual_rate`, robot velocity) + success,
->   not just proximity. Then rows 3/5 (hybrid: Lagrangian + filter) once E3.1/E3.2
->   land. Optional levers for a stronger filter proximity story (capped by the 42%
->   exogenous): a **retreat fallback** (Phase-4 stub in `fallback.py`, not built),
->   or re-confirm R on the row-3 Lagrangian policy.
+> - **✅ E4.1 rows 1/4 ran; fallback sub-study COMPLETE — reactive filtering hits a
+>   freeze-vs-flee dilemma on the baseline policy.** Three operating points fully
+>   bracket it (all on the valid v3 critic, `mean_q`≈3, sweep==benchmark confirmed):
+>   - **zero_velocity** (R=2.25, 15% interv): proximity ~unchanged (robot *dwells*
+>     near the approaching human), mean robot vel ↓ ~8%, success ~baseline. ISO-SSM
+>     **velocity backstop** only — no geometric-proximity reduction.
+>   - **retreat aggressive** (R=2.5, step 0.10, 14% interv): proximity 0.296→0.095
+>     (−68%) BUT success **0.85→0.18** and mean robot vel **0.29→1.70 (6×)** →
+>     `ep_ssm_violation_actual_rate` 0.147→0.180 (WORSE). The robot *flees*: buys
+>     separation by abandoning the task and speeding up (itself an ISO hazard).
+>   - **retreat gentle** (R=2.25, step 0.04, 2% interv): proximity 0.296→0.290
+>     (~0%), success 0.85→0.75, vel still up. Does nothing useful.
+>   **Conclusion**: no reactive setting cuts geometric proximity at acceptable
+>   success+velocity. Against an *approaching* human, reducing proximity needs
+>   sustained robot movement → task abandonment + velocity spike. The filter is a
+>   reactive backstop with an inherent freeze(dwell)-vs-flee(abandon) tradeoff;
+>   **proactive proximity avoidance must come from the Lagrangian policy.** This is
+>   a clean, well-evidenced thesis result (the `RetreatFallback` + `FALLBACK`/
+>   `SVF_RETREAT_STEP` knobs + `tests/test_retreat_fallback.py` are landed).
+> - **Next = the hybrid (rows 3/5), the actual architecture**: finish E3.1/E3.2 →
+>   `analyze_e3` → cost form + `d_knee` → set `ROW3` → full `run_e4_1_headline.sh`.
+>   The policy avoids proactively (reducing proximity *without* the flee-cost); the
+>   filter (zero_velocity, the velocity backstop) catches the residual. Re-confirm
+>   the filter R on the row-3 policy there. `snapshots.py` stays at `_v3` + R=2.25 +
+>   default zero_velocity (the honest baseline backstop).
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---
