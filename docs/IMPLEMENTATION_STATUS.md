@@ -139,6 +139,10 @@ multi-hour launch.
 >   **proactive proximity avoidance must come from the Lagrangian policy.** This is
 >   a clean, well-evidenced thesis result (the `RetreatFallback` + `FALLBACK`/
 >   `SVF_RETREAT_STEP` knobs + `tests/test_retreat_fallback.py` are landed).
+>   **Full write-up + the coworker-aggressiveness framing decision (keep the
+>   adversarial finding as the headline; use realism only to build a spectrum, not
+>   to flatter the filter; the policy is the decisive test):
+>   [docs/filter_fallback_findings.md](filter_fallback_findings.md).**
 > - **Next = the hybrid (rows 3/5), the actual architecture**: finish E3.1/E3.2 →
 >   `analyze_e3` → cost form + `d_knee` → set `ROW3` → full `run_e4_1_headline.sh`.
 >   The policy avoids proactively (reducing proximity *without* the flee-cost); the
