@@ -92,11 +92,22 @@ if has_stage preflight; then
   fi
 fi
 
-# --- COLLECT: random + snapshot, coworker_train, noisy, tau=0.3 ----------------
+# --- COLLECT: snapshot (+ optional random), coworker_train, noisy, tau=0.3 -----
+# SOURCES default = "snapshot" only. At the correct 20 Hz control rate the RANDOM
+# source flails violently into the close (0.6 m) coworker -> MuJoCo contact-solver
+# overload (~1-2 physics steps/sec, effectively hangs) + frequent NaN instability.
+# The snapshot source (sensible robot, aggressive coworker) is fast + stable + is
+# the deployment-matched distribution, and with the tightened coworker it still
+# visits proximity<tau (unsafe) states. Add random back with
+# SOURCES="snapshot random" only if svf_train_critic reports too few violations
+# (it logs the unsafe fraction) — but expect random to be slow.
 if has_stage collect; then
-  echo "== collect -> ${DATASET} =="
+  SOURCES="${SOURCES:-snapshot}"
+  SRC_ARGS=()
+  for _s in ${SOURCES}; do SRC_ARGS+=(--source "${_s}"); done
+  echo "== collect (sources: ${SOURCES}) -> ${DATASET} =="
   python scripts/svf_collect_dataset.py \
-    --source random --source snapshot \
+    "${SRC_ARGS[@]}" \
     --tasks "${TASK}" --disruption-space coworker_train --bodyslam-mode noisy \
     --human-model g1 --proximity-threshold "${PROX}" \
     --episodes-per-cell "${EPISODES_PER_CELL:-100}" --max-steps "${MAX_STEPS:-1000}" \
