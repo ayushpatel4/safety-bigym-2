@@ -40,24 +40,33 @@ OVR=(--snapshot-override "${TASK}=${STAGE2}")
 has_stage() { [[ ",${STAGES}," == *",$1,"* ]]; }
 
 # --- PREFLIGHT: prove the de-norm fix engages (else abort before wasting compute)
+# NOT `--smoke`: CollectionPlan.smoke() hardcodes source=random task=dishwasher_close
+# bodyslam=oracle and never loads a snapshot policy, so it can't exercise the
+# de-norm path. Run a tiny REAL snapshot collection (1 ep) that reaches
+# _load_cqn_as_snapshot_policy, which logs DEMO-derived (PASS) or FALLS BACK / no
+# num_demos (FAIL). Cleanup runs on every exit path.
 if has_stage preflight; then
-  echo "== preflight: smoke-collect snapshot source; check de-norm uses DEMO stats =="
+  echo "== preflight: 1-episode snapshot collection; check de-norm uses DEMO stats =="
   PRE="$(mktemp)"
-  python scripts/svf_collect_dataset.py --smoke --source snapshot \
+  PRE_OUT="/tmp/svf_preflight_$$"
+  python scripts/svf_collect_dataset.py --source snapshot \
     --tasks "${TASK}" --disruption-space coworker_train --bodyslam-mode noisy \
     --human-model g1 --proximity-threshold "${PROX}" \
-    --output-dir "/tmp/svf_preflight_$$" "${OVR[@]}" 2>&1 | tee "${PRE}"
+    --episodes-per-cell 1 --max-steps "${PREFLIGHT_STEPS:-8}" \
+    --output-dir "${PRE_OUT}" "${OVR[@]}" 2>&1 | tee "${PRE}"
   if grep -q "DEMO-derived action stats" "${PRE}"; then
     echo "== preflight PASS: snapshot policy de-normalises with demo stats. =="
-  elif grep -q "FALLS BACK to env.action_space" "${PRE}"; then
-    echo "== preflight FAIL: de-norm FELL BACK to env.action_space (the bug). ==" >&2
+    rm -f "${PRE}"; rm -rf "${PRE_OUT}"
+  elif grep -qE "FALLS BACK to env.action_space|cfg has no num_demos" "${PRE}"; then
+    echo "== preflight FAIL: de-norm fell back to env.action_space (the bug). ==" >&2
     echo "   Likely AMASS_DATA_DIR / demos not available. Fix before collecting." >&2
-    rm -f "${PRE}"; exit 2
+    rm -f "${PRE}"; rm -rf "${PRE_OUT}"; exit 2
   else
-    echo "== preflight INCONCLUSIVE: no de-norm log line found; inspect ${PRE}. ==" >&2
-    exit 2
+    echo "== preflight INCONCLUSIVE: snapshot policy never logged a de-norm line. ==" >&2
+    echo "   Did the snapshot source load? (Check for a 'skip'/None snapshot, or a" >&2
+    echo "   crash before policy build.) Inspect ${PRE}." >&2
+    rm -rf "${PRE_OUT}"; exit 2
   fi
-  rm -f "${PRE}"; rm -rf "/tmp/svf_preflight_$$"
 fi
 
 # --- COLLECT: random + snapshot, coworker_train, noisy, tau=0.3 ----------------
