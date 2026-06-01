@@ -439,6 +439,23 @@ def rollout_episode(
         obs, _reward, terminated, truncated, info = env.step(action)
         nxt = _filter_obs(obs, obs_keys)
 
+        # Physics instability (e.g. random actions colliding with the close
+        # coworker at the 20 Hz control rate can blow up MuJoCo: NaN/Inf QACC ->
+        # BiGym's EnvHealth truncates). Drop the bad step WITHOUT storing it, so
+        # the SVF dataset stays finite; the prior good transitions in this
+        # episode are kept and the outer loop resets for the next episode.
+        _finite = all(
+            bool(np.all(np.isfinite(np.asarray(nxt[k], dtype=np.float32))))
+            for k in obs_keys
+        ) and bool(np.all(np.isfinite(np.asarray(action, dtype=np.float32))))
+        if not _finite:
+            logger.warning(
+                "Non-finite obs/action at step %d (physics instability); "
+                "truncating episode without storing this step.",
+                len(actions),
+            )
+            break
+
         if "safety" not in info:
             continue
 

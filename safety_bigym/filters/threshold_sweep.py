@@ -94,6 +94,14 @@ def evaluate_threshold(
             # ``ep_proximity_violation_rate`` (mean of the per-step flag).
             if safety.get("proximity_violation"):
                 total_proximity_violations += 1
+            # Physics instability -> non-finite obs. Stop the episode before the
+            # NaN propagates into the next q_value (this step's metrics were
+            # computed on the prior finite obs and are kept).
+            if isinstance(obs, dict) and not all(
+                bool(np.all(np.isfinite(np.asarray(v, dtype=np.float32))))
+                for v in obs.values()
+            ):
+                break
             if terminated or truncated:
                 break
 
