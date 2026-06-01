@@ -106,7 +106,8 @@ run_row() {   # label  snapshot  obs-mode  filter|nofilter
   local filt=()
   if [[ "${mode}" == "filter" ]]; then
     [[ -f "${SVF_FILTER}" ]] || { echo "ERROR: ${label} needs SVF_FILTER=${SVF_FILTER} (not found)" >&2; SKIPPED+=("${label}"); return; }
-    filt=(--filter-snapshot "${SVF_FILTER}" --filter-threshold "${FILTER_R}")
+    # FALLBACK: zero_velocity (default) | retreat (move base away from human).
+    filt=(--filter-snapshot "${SVF_FILTER}" --filter-threshold "${FILTER_R}" --fallback "${FALLBACK:-zero_velocity}")
   fi
   echo "== ${label}: snapshot=${snap} obs=${obs} ${mode} =="
   python scripts/benchmark_policy.py \

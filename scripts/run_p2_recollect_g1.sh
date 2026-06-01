@@ -131,6 +131,7 @@ if has_stage sweep; then
     python scripts/svf_threshold_sweep.py \
       --critic-path "${CKPT}" --task "${TASK}" --disruption coworker_train \
       --human-model g1 --bodyslam-mode noisy --policy snapshot "${OVR[@]}" \
+      --fallback "${FALLBACK:-zero_velocity}" \
       --thresholds 0 1 1.5 2 2.25 2.5 2.75 3 3.5 4 \
       --episodes-per-R "${EPISODES_PER_R:-12}" --max-steps "${MAX_STEPS:-1000}" \
       --seed "${SEED}" --output-csv "${SWEEP_DIR}/sweep_dense_seed${SEED}.csv"
