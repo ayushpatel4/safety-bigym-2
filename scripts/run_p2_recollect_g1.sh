@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# P2 RE-DO (2026-06-01): re-collect → retrain → re-sweep the G1 SVF after the
-# action de-normalisation fix. The old `svf_coworker_train_g1_0p3.pt` was
-# collected with `_CQNASSnapshotPolicy` de-normalising via env.action_space
-# instead of the agent's demo-derived stats, so the critic saw a mis-scaled
-# policy and over-vetoes at runtime (benchmark_policy mean_q~0.02 → ~100%
-# intervention). The fix makes the snapshot policy de-normalise like deployment;
-# this rebuilds the dataset/critic/operating-point on the CORRECT policy.
+# P2 RE-DO (2026-06-01, v3): re-collect → retrain → re-sweep the G1 SVF after the
+# TWO snapshot-policy fixes that align collection with deployment:
+#   1. action de-normalisation — de-normalise via the agent's DEMO-derived stats,
+#      not env.action_space (v2 fixed this: benchmark mean_q 0.02 → 0.97).
+#   2. action-execution mode — execute open-loop action_sequence chunks +
+#      temporal-ensemble blend (mirroring benchmark CQNASRunner), NOT receding-
+#      horizon chunk[0]. v2 still had this bug: with action_sequence=16 +
+#      temporal_ensemble=true the policy deploys BLENDED actions, but the v2
+#      critic trained on raw chunk[0] -> ~89% spurious veto, success 0.
+# v3 rebuilds the dataset/critic/operating-point on a snapshot policy that runs
+# EXACTLY what deployment runs, so the sweep finally predicts the benchmark.
 #
-# Output: datasets/svf_coworker_train_g1_0p3_v2/, checkpoints/svf_coworker_train_g1_0p3_v2.pt,
-#         results/svf_sweep_g1_0p3_v2/sweep_dense_seed{0,1,2}.csv
+# Output: datasets/svf_coworker_train_g1_0p3_v3/, checkpoints/svf_coworker_train_g1_0p3_v3.pt,
+#         results/svf_sweep_g1_0p3_v3/sweep_dense_seed{0,1,2}.csv
 #
 # NOT launched from inside the agent — a human runs this on the GPU box.
 # ~6 GPU-h (collect ~3h + train ~1h + sweep ~1h + preflight).
@@ -20,9 +24,16 @@
 #   export STAGE2=.../stage2_full/snapshot_28203.pt
 #
 # Usage:
-#   STAGE2=$STAGE2 bash scripts/run_p2_recollect_g1.sh
-#   STAGES=preflight bash scripts/run_p2_recollect_g1.sh        # just validate the fix
+#   STAGE2=$STAGE2 bash scripts/run_p2_recollect_g1.sh                 # full v3 re-do
+#   STAGES=preflight STAGE2=$STAGE2 bash scripts/run_p2_recollect_g1.sh   # validate the fix only
 #   STAGES=collect,train,sweep STAGE2=$STAGE2 bash scripts/run_p2_recollect_g1.sh
+#
+# Optional ~1-GPU-h pre-check — confirm the execution-mode fix makes the sweep
+# match the benchmark on the EXISTING v2 critic (expect the v2 sweep to now
+# COLLAPSE like the benchmark: high intervention, mean_q~1, validating the
+# diagnosis before spending the full re-collect):
+#   STAGES=sweep VER=v2 SWEEP_DIR=results/svf_sweep_g1_0p3_v2_ensemblecheck \
+#     STAGE2=$STAGE2 bash scripts/run_p2_recollect_g1.sh
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,9 +41,12 @@ cd "${REPO_ROOT}"
 
 : "${STAGE2:?Set STAGE2 to the P1 stage-2 G1 snapshot (.pt)}"
 TASK="${TASK:-saucepan_to_hob}"
-DATASET="${DATASET:-datasets/svf_coworker_train_g1_0p3_v2}"
-CKPT="${CKPT:-checkpoints/svf_coworker_train_g1_0p3_v2.pt}"
-SWEEP_DIR="${SWEEP_DIR:-results/svf_sweep_g1_0p3_v2}"
+# Version tag for dataset/critic/sweep. v3 = execution-mode fix (open-loop +
+# ensemble). v2 = de-norm-only (SUPERSEDED: trained on receding-horizon chunk[0]).
+VER="${VER:-v3}"
+DATASET="${DATASET:-datasets/svf_coworker_train_g1_0p3_${VER}}"
+CKPT="${CKPT:-checkpoints/svf_coworker_train_g1_0p3_${VER}.pt}"
+SWEEP_DIR="${SWEEP_DIR:-results/svf_sweep_g1_0p3_${VER}}"
 STAGES="${STAGES:-preflight,collect,train,sweep}"
 PROX="${PROX:-0.3}"
 OVR=(--snapshot-override "${TASK}=${STAGE2}")

@@ -173,7 +173,10 @@ def run_sweep(args: argparse.Namespace) -> List[ThresholdEvalResult]:
     if args.policy == "random":
         policy = random_policy(env, rng)
     elif args.policy == "snapshot":
-        policy = load_snapshot_policy(snapshot_path, env)
+        # rollout_max_steps sizes the CQN-AS temporal-ensemble history to the
+        # sweep's rollout cap so the snapshot policy executes (and the critic
+        # is scored on) the SAME ensemble-blended actions deployment uses.
+        policy = load_snapshot_policy(snapshot_path, env, rollout_max_steps=args.max_steps)
     else:
         raise ValueError(f"Unknown policy {args.policy!r}")
 

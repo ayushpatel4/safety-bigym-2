@@ -793,7 +793,9 @@ def _synthesize_snapshot_obs_space(
     return spaces.Dict(out)
 
 
-def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
+def load_snapshot_policy(
+    snapshot_path: Path, env, *, rollout_max_steps: Optional[int] = None
+) -> _SnapshotPolicy:
     """Load a RoboBase snapshot and return a policy callable.
 
     Builds the agent via ``hydra.utils.instantiate`` from the cfg embedded in
@@ -820,7 +822,9 @@ def load_snapshot_policy(snapshot_path: Path, env) -> _SnapshotPolicy:
     # vendored CQNASAgent whose act() takes split (rgb_obs, low_dim_obs) args —
     # incompatible with the RoboBase instantiate path below. Dispatch early.
     if "agent_state" in payload:
-        return _load_cqn_as_snapshot_policy(payload, env)
+        return _load_cqn_as_snapshot_policy(
+            payload, env, rollout_max_steps=rollout_max_steps
+        )
 
     cfg = payload.get("cfg")
     if cfg is None:
@@ -919,10 +923,17 @@ class _CQNASSnapshotPolicy:
     dataset still records ``human_pos_estimate``). This mirrors the ACT path's
     ``includes_human_pos`` decoupling.
 
-    Following the ACT convention in :class:`_SnapshotPolicy`, the agent is
-    queried every step and the first sub-action of the returned chunk is
-    executed (receding horizon). Frame-stack deques are reset per episode via
-    :meth:`reset`, which :func:`rollout_episode` calls after ``env.reset()``.
+    Action execution **mirrors the deployment runner** (benchmark
+    ``CQNASRunner.step``): re-plan every ``action_sequence`` steps and execute
+    the open-loop sub-actions, or — when the snapshot's cfg sets
+    ``temporal_ensemble`` — query every step and execute the exp-weighted
+    ensemble blend. This is load-bearing: training the SVF on receding-horizon
+    ``chunk[0]`` actions while deploying ensemble/open-loop actions makes every
+    deployed action OOD for the critic (the 2026-06-01 ~89%-spurious-veto bug:
+    `action_sequence=16`, `temporal_ensemble=true`, so raw `chunk[0]` ≠ the
+    blended action executed at deploy). Frame-stack deques + chunk/ensemble
+    state are reset per episode via :meth:`reset`, which
+    :func:`rollout_episode` calls after ``env.reset()``.
     """
 
     def __init__(
@@ -937,6 +948,7 @@ class _CQNASSnapshotPolicy:
         action_low: np.ndarray,
         action_high: np.ndarray,
         rgb_placeholder_shape: Optional[Sequence[int]] = None,
+        temporal_ensemble: Any = None,
     ):
         self.agent = agent
         self._state_keys = tuple(state_keys)
@@ -944,6 +956,8 @@ class _CQNASSnapshotPolicy:
         self._camera_keys = tuple(camera_keys)
         self._frame_stack = int(frame_stack)
         self._action_sequence = int(action_sequence)
+        # Mirror the deployment runner's execution mode (see class docstring).
+        self._temporal_ensemble = temporal_ensemble
         self._action_low = np.asarray(action_low, dtype=np.float32)
         self._action_high = np.asarray(action_high, dtype=np.float32)
         self._rgb_placeholder_shape = (
@@ -962,6 +976,11 @@ class _CQNASSnapshotPolicy:
         self._rgb_frames = {
             cam: deque(maxlen=self._frame_stack) for cam in self._camera_keys
         }
+        # Per-episode action-execution state (mirrors CQNASRunner.reset).
+        self._action_chunk = None
+        self._episode_step = 0
+        if self._temporal_ensemble is not None:
+            self._temporal_ensemble.reset()
 
     def _stack_into(self, dq, frame: np.ndarray) -> None:
         # Match the adapter: prime the deque by repeating the first frame so a
@@ -1013,12 +1032,31 @@ class _CQNASSnapshotPolicy:
 
         low_dim_obs = self._build_low_dim(gym_obs)
         rgb_obs = self._build_rgb(gym_obs)
-        with torch.no_grad():
-            # step is irrelevant under eval_mode (it only gates the stddev
-            # schedule / exploration, both bypassed when eval_mode=True).
-            raw = self.agent.act(rgb_obs, low_dim_obs, step=10**9, eval_mode=True)
-        chunk = np.asarray(raw, dtype=np.float32).reshape(self._action_sequence, -1)
-        norm_action = chunk[0]  # receding horizon: execute the first sub-action
+        # Mirror benchmark CQNASRunner.step EXACTLY so the collected action
+        # distribution == the deployed one: re-plan every action_sequence steps
+        # (or every step under temporal ensemble), then execute the ensemble
+        # blend or the open-loop sub-action.
+        if self._temporal_ensemble is not None or (
+            self._episode_step % self._action_sequence == 0
+        ):
+            with torch.no_grad():
+                # step is irrelevant under eval_mode (it only gates the stddev
+                # schedule / exploration, both bypassed when eval_mode=True).
+                raw = self.agent.act(rgb_obs, low_dim_obs, step=10**9, eval_mode=True)
+            self._action_chunk = np.asarray(raw, dtype=np.float32).reshape(
+                self._action_sequence, -1
+            )
+            if self._temporal_ensemble is not None:
+                self._temporal_ensemble.register_action_sequence(self._action_chunk)
+        if self._temporal_ensemble is not None:
+            norm_action = np.asarray(
+                self._temporal_ensemble.get_action(), dtype=np.float32
+            )
+        else:
+            norm_action = self._action_chunk[
+                self._episode_step % self._action_sequence
+            ]
+        self._episode_step += 1
         # [-1, 1] → raw env range (mirror adapter._convert_action_to_raw).
         scaled = (norm_action + 1.0) / 2.0
         raw_action = scaled * (self._action_high - self._action_low + 1e-8)
@@ -1026,7 +1064,15 @@ class _CQNASSnapshotPolicy:
         return raw_action.astype(np.float32, copy=False)
 
 
-def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshotPolicy:
+# Cap the temporal-ensemble history when the rollout length is unknown, so a
+# long-horizon env's episode_length never triggers a multi-GB allocation. The
+# blend is local (±action_sequence), so any size >= rollout length is exact.
+_SAFE_ENS_CAP = 2048
+
+
+def _load_cqn_as_snapshot_policy(
+    payload: Dict[str, Any], env, *, rollout_max_steps: Optional[int] = None
+) -> _CQNASSnapshotPolicy:
     """Build a CQN-AS policy from a ``train_cqn_as.py`` snapshot payload.
 
     The agent's input shapes (``rgb_obs_shape`` / ``low_dim_obs_shape`` /
@@ -1119,6 +1165,45 @@ def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshot
             "(may mismatch deployment — see the 2026-06-01 de-norm fix)."
         )
 
+    # Match the deployment runner's action-execution mode (open-loop chunks +
+    # optional temporal ensemble) so collected actions == deployed actions.
+    # Without this, the SVF trains on receding-horizon chunk[0] but deploys
+    # ensemble/open-loop actions -> OOD -> ~100% spurious veto (2026-06-01 bug).
+    temporal_ensemble = None
+    if bool(cfg.get("temporal_ensemble", False)):
+        from dm_env import specs as _specs
+
+        from safety_bigym.agents.cqn_as import utils as _cqn_utils
+
+        _act_dim = int(np.asarray(action_low).shape[0])
+        _seq = int(cfg.get("action_sequence", 1))
+        _ep_len = int(cfg.env.get("episode_length")) if "env" in cfg else None
+        if _ep_len is None:
+            raise KeyError(
+                "temporal_ensemble=true but cfg.env.episode_length is missing — "
+                "cannot size TemporalEnsembleControl to match deployment."
+            )
+        # The ensemble blend at step t only reads the last `action_sequence`
+        # chunks (rows t-seq+1..t at column t), so the result is INDEPENDENT of
+        # the history's total length. Size to the actual rollout cap, not
+        # episode_length: on long-horizon envs (saucepan episode_length=25000)
+        # the full [L, L+seq, dim] array is ~40 GB and would OOM, while the
+        # blended actions are byte-identical at any size >= rollout length.
+        if rollout_max_steps is not None:
+            _ens_len = min(_ep_len, int(rollout_max_steps) + _seq + 2)
+        else:
+            _ens_len = min(_ep_len, _SAFE_ENS_CAP)
+        _ens_len = max(_ens_len, _seq + 2)
+        _act_spec = _specs.BoundedArray(
+            shape=(_act_dim,), dtype=np.float32, minimum=-1.0, maximum=1.0
+        )
+        temporal_ensemble = _cqn_utils.TemporalEnsembleControl(_ens_len, _act_spec, _seq)
+        logger.info(
+            "Snapshot policy uses TemporalEnsembleControl (history_len=%d for "
+            "rollout_max_steps=%s, action_sequence=%d) to match deployment.",
+            _ens_len, rollout_max_steps, _seq,
+        )
+
     return _CQNASSnapshotPolicy(
         agent=agent,
         state_keys=_DEFAULT_STATE_KEYS,
@@ -1129,6 +1214,7 @@ def _load_cqn_as_snapshot_policy(payload: Dict[str, Any], env) -> _CQNASSnapshot
         action_low=action_low,
         action_high=action_high,
         rgb_placeholder_shape=tuple(agent_cfg.get("rgb_obs_shape")),
+        temporal_ensemble=temporal_ensemble,
     )
 
 
@@ -1218,7 +1304,11 @@ def _collect_live_env_source(
             if source == "random":
                 policy = random_policy(env, rng)
             elif source == "snapshot":
-                policy = load_snapshot_policy(snapshot_path, env)
+                # rollout_max_steps sizes the CQN-AS temporal-ensemble history to
+                # the rollout cap (not episode_length) — see _load_cqn_as_snapshot_policy.
+                policy = load_snapshot_policy(
+                    snapshot_path, env, rollout_max_steps=plan.max_steps
+                )
             else:
                 raise ValueError(f"_collect_live_env_source got source={source!r}")
 
