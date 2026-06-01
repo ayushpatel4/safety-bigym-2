@@ -92,6 +92,8 @@ if has_stage sweep; then
       --episodes-per-R "${EPISODES_PER_R:-20}" --max-steps "${MAX_STEPS:-250}" \
       --seed "${SEED}" --output-csv "${SWEEP_DIR}/sweep_dense_seed${SEED}.csv"
   done
-  echo "== sweep done. Find the new knee, update snapshots.py::SVF_FILTERS + "
-  echo "   SVF_FILTER_THRESHOLD_R to ${CKPT##*/} + the new R, then re-run E4.1 rows 4/5. =="
+  echo "== sweep done. Picking the knee (seed-averaged, P2 acceptance bar): =="
+  python scripts/analyze_svf_sweep.py --sweep-dir "${SWEEP_DIR}" || true
+  echo "== Then set snapshots.py::SVF_FILTERS['${TASK}']='checkpoints/${CKPT##*/}' + "
+  echo "   SVF_FILTER_THRESHOLD_R['${TASK}']=<knee R above>, commit, and re-run E4.1 rows 1/4. =="
 fi
