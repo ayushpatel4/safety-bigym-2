@@ -90,18 +90,33 @@ multi-hour launch.
 >   the task env yaml); propagates to collection AND the sweep. The earlier
 >   `max_steps 250→1000` change was necessary (deployment uses 1000 control steps
 >   ≈ 50 s) but inert without this.
-> - **Pre-check (Step 1) CONFIRMED Bug 2**: re-sweeping the v2 critic with the
->   ensemble-fixed policy collapsed it (R=2.5: **70% intervention, mean_q 1.6** vs
->   the buggy `chunk[0]` sweep's 7.9%/3.3) — the sweep moved toward the benchmark.
->   The residual (proximity 0.028→0.296, success 0% vs 85%) was Bug 3.
+> - **Bug 3 fix CONFIRMED** via the diagnostic: with `control_frequency` set, the
+>   collection policy now **completes the task — 100% success, ~310-step episodes,
+>   reward 1.0, sane actions** (was 0% / full-length).
+> - **Bug 4 — coworker scenario param drift** (surfaced once Bug 3 was fixed):
+>   the policy completed the task but proximity was **0.000** (coworker stayed
+>   0.53–1.07 m away) vs deployment's 0.296. `_build_live_env` built the scenario
+>   via `make_coworker_train_space` → `_COWORKER_TRAIN_RANGES` (Python preset),
+>   which **drifted** from `coworker_train.yaml`: the yaml was tightened
+>   (closest 0.60–0.95, fast reach 1.3–2.2, near_loiter 9–14) but the preset stayed
+>   loose (closest 0.9–1.4, slow reach 4.5–6.5). The deployment factory reads the
+>   yaml (`cfg.env.disruptions`) and never touches the preset. **Fix**:
+>   `_resolve_coworker_overrides` reads the disruption yaml + builds the
+>   ParameterSpace via `_coworker_space`, matching deployment (collection + sweep).
+> - **All four bugs traced to one cause**: `_build_live_env` is a hand-built
+>   replica of the factory `_create_env`, and each replicated piece (de-norm,
+>   execution, control_frequency, scenario) drifted. The de-norm + execution +
+>   control_frequency fixes are validated; the scenario fix is pending validation.
 > - **⚠ v1/R=2.25 + v2/R=2.50 SUPERSEDED.** `snapshots.py::SVF_FILTERS` points at
 >   the not-yet-collected `_v3` so filtered rows fail LOUD; flip R after the re-do.
-> - **Next**: (1) **validate Bug 3 fix** — re-run `diagnose_collection_policy.py`
->   (expect success ~85%, proximity ~0.3, `terminated` firing). (2) Full **v3 re-do**
->   (`run_p2_recollect_g1.sh`, MAX_STEPS=1000) → flip `snapshots.py` to `_v3` + the
->   v3 knee → E4.1 rows 1/4. (3) Only if the diagnostic STILL shows 0% success is a
->   full env-unify warranted (another factory param missing) — but control_frequency
->   is very likely the last one.
+> - **Next**: (1) **validate Bug 4 fix** — re-run `diagnose_collection_policy.py`
+>   (expect proximity **~0.2–0.3** and episodes lengthening toward ~449 as the
+>   closer coworker interferes — i.e. collection now mirrors deployment). (2) Full
+>   **v3 re-do** (`run_p2_recollect_g1.sh`, MAX_STEPS=1000) → the v3 sweep now
+>   predicts the benchmark → flip `snapshots.py` to `_v3` + the v3 knee → E4.1
+>   rows 1/4. (3) If proximity is still ~0, the remaining divergence isn't a known
+>   replicated param → escalate to the full env-unify (build collection via
+>   `_create_env`).
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---
