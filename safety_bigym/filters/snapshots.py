@@ -50,47 +50,39 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 # Each task maps to (trained SVF critic checkpoint, recommended veto threshold
 # R). SafetyFilterWrapper vetoes the proposed action when Q_safe(s, a) < R.
 #
-# G1 coworker — v2 (2026-06-01): RE-COLLECTED after the action de-normalisation
-# fix (the snapshot-collection policy now de-normalises actions with the agent's
-# demo-derived stats, like deployment, instead of env.action_space). Same recipe
-# as v1: `coworker_train` + `bodyslam=noisy`, proximity label tau=0.3 m, 3-MLP
-# [256,256,256], alpha_CQL=5.0, tau=0.005, 200k steps ->
-# checkpoints/svf_coworker_train_g1_0p3_v2.pt. DENSE sweep on the stage-2 G1
-# baseline policy (results/svf_sweep_g1_0p3_v2/sweep_dense_seed{0,1,2}.csv, 3
-# seeds x 20 ep, proximity tau=0.3 m), seed-averaged:
+# G1 coworker — v3 PENDING (2026-06-01). The SVF critic had TWO bugs where the
+# collection policy (`_CQNASSnapshotPolicy`) didn't match the deployed policy, so
+# the critic trained on actions deployment never executes and over-vetoes:
+#   1. action de-normalisation via env.action_space, not the agent's demo-derived
+#      stats (fixed `41fd93b`; the v2 re-collect addressed this).
+#   2. action-execution mode: collection ran RECEDING-HORIZON (raw chunk[0]) while
+#      deployment runs an action_sequence=16 + temporal_ensemble=true BLEND.
+#      The v2 critic (trained on chunk[0]) thus vetoed ~89% of deployed actions
+#      (E4.1 row-4: 89.5% intervention, mean_q 0.97, success 0). Fixed: the
+#      snapshot policy now mirrors benchmark CQNASRunner.step (open-loop chunks +
+#      the SAME TemporalEnsembleControl) — tests/test_snapshot_policy_execution.py.
 #
-#     R       intervention   proximity(tau=0.3)   reduction vs R=0
-#     0.00       0.0%           0.0109             baseline
-#     2.25       6.0%           0.0081             25.2%
-#     2.50       7.9%           0.0074             31.9% <- OPERATING POINT
-#     2.75      18.0%           0.0072             33.7%
-#     3.00      15.9%           0.0072             33.7%
-#     3.50      67.7%           0.0000            100%   (hard gate: robot frozen)
+# The path below points at the v3 target (NOT yet collected) so filtered E4.1/E4.3
+# rows fail LOUD rather than silently re-running the superseded v2 critic. Produce
+# it with `scripts/run_p2_recollect_g1.sh` (VER=v3, the default), then update R
+# below from `analyze_svf_sweep.py --sweep-dir results/svf_sweep_g1_0p3_v3`.
 #
-# R = 2.50 meets the P2 acceptance bar (>=30% reduction at <=25% intervention:
-# 31.9% @ 7.9%) and — unlike v1's marginal R=2.25 — is ROBUST: post-filter
-# proximity is 0.0074 on ALL THREE seeds (per-seed intervention 6.4/6.2/11.1%).
-# The proximity floor (~0.0072) is reached by R=2.75 and held until the R>=3.5
-# cliff drives the robot to a frozen 100%-intervention state; R=2.50 sits just
-# below that floor at light-touch intervention. This makes the hybrid argument
-# concrete: the correctly-de-normalised policy is already safe at baseline
-# (0.0109 — ~4x safer than the v1 mis-scaled policy's 0.0435), and the filter is
-# a cheap edge-case backstop, not a hard gate. mean_q ~3.3 across the grid
-# (healthy); the sweep and benchmark now share the demo-stats de-norm, so the
-# benchmark mean_q should match (NOT the ~0.02 collapse the bug produced) — this
-# is the E4.1 rows-1/4 go/no-go.
-#
-# SUPERSEDED: v1 (svf_coworker_train_g1_0p3.pt, R=2.25) and its sweep CSVs
-# (results/svf_sweep_g1_v1/) were collected on the mis-de-normalised policy.
-# See the 2026-06-01 de-norm fix in svf_collect_dataset.py +
-# agents/cqn_as/env_adapter.py (action_stats_from_actions).
+# SUPERSEDED, do NOT use for deployment:
+#   - v2 (svf_coworker_train_g1_0p3_v2.pt, R=2.50; sweep results/svf_sweep_g1_0p3_v2/):
+#     de-norm-fixed but trained on receding-horizon chunk[0]. Its sweep looked good
+#     (31.9% reduction @ 7.9%) ONLY because the sweep reuses the collection path
+#     (in-distribution); the benchmark exposed the gap. Bug 2 above.
+#   - v1 (svf_coworker_train_g1_0p3.pt, R=2.25; results/svf_sweep_g1_v1/): mis-de-
+#     normalised policy. Bug 1 above.
 SVF_FILTERS: Dict[str, Optional[str]] = {
-    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3_v2.pt",
+    # v3 target — fails loud until run_p2_recollect_g1.sh produces it.
+    "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3_v3.pt",
 }
 
-# Recommended veto threshold R per task. R=2.50 = the P2 acceptance knee on the
-# de-norm-fixed v2 G1 critic (see note above): 31.9% proximity reduction at 7.9%
-# intervention, robust across 3 seeds.
+# Recommended veto threshold R per task. PLACEHOLDER (2.50 carried from the
+# superseded v2 knee) — RE-PICK from the v3 sweep via analyze_svf_sweep.py once
+# the v3 re-collect lands. Unused until the v3 checkpoint exists (resolve_svf_filter
+# FileNotFoundErrors on the missing path first).
 SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
     "saucepan_to_hob": 2.50,
 }

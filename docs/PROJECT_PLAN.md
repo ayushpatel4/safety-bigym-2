@@ -29,7 +29,7 @@ guarantees needed for ISO 15066 compliance.
 | Phase 1 wrapper | **COMPLETE** | `BodySLAMWrapper` with off / oracle / noisy modes, calibrated against BodySLAM++ characteristics |
 | Phase 1 E1.1 | **COMPLETE (negative)** | BC obs-ablation: oracle doesn't help under pure BC |
 | Phase 2 (SMPL-H) | **COMPLETE** | SVF α_CQL=5.0, R=4.0 — **did not transfer to G1** |
-| Phase 2 (G1) | ✅ **CLOSED (2026-06-01)** — de-norm bug fixed, re-done | Re-collected with the demo-stats de-norm fix (`41fd93b`) → `svf_coworker_train_g1_0p3_v2.pt`. New operating point **R=2.50**: 31.9% proximity reduction @ 7.9% intervention, robust across 3 seeds (post-filter proximity 0.0074 on all). Corrected policy ~4× safer at baseline. v1/R=2.25 superseded. `phase2_results.md` §0 |
+| Phase 2 (G1) | ⚠ **RE-DO v3 (2026-06-01)** — 2 train/deploy bugs fixed | Bug1 action de-norm (`41fd93b`) + Bug2 execution-mode (collection ran receding-horizon `chunk[0]`; deploy runs `action_sequence=16`+`temporal_ensemble` blend → v2 critic 89.5% intervention at E4.1 row-4, success 0). Both fixed in `_CQNASSnapshotPolicy`. **v1/R=2.25 + v2/R=2.50 superseded**; v3 re-collect pending (`run_p2_recollect_g1.sh`). `phase2_results.md` §0 |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
 | G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |

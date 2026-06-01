@@ -56,24 +56,32 @@ multi-hour launch.
 >   `aggregate_e5_1.py` (E5.1). All on `origin/phase3`.
 > - **Open**: P9 (WCSAC) not built; row-2 decision (4-row table vs no-shaping retrain).
 
-> **2026-06-01 update — ✅ P2 RE-DO DONE (action de-norm bug fixed & validated).**
-> - **Bug** (now fixed): `svf_collect`'s `_CQNASSnapshotPolicy` de-normalised the
->   agent action via `env.action_space` instead of the agent's **demo-derived**
->   stats (how it deploys), so the SVF critic was trained on a mis-de-normalised
->   policy → `benchmark_policy` (correct de-norm) fed it OOD actions → `mean_q≈0.02`,
->   ~100% intervention on BOTH oracle and noisy (disproving the earlier
->   "oracle-collapse" read). **Fix**: shared `env_adapter.action_stats_from_actions`
->   + snapshot policy de-normalises with demo stats (commit `41fd93b`;
->   `tests/test_action_stats.py`).
-> - **Re-done** via `scripts/run_p2_recollect_g1.sh` → `svf_coworker_train_g1_0p3_v2.pt`.
->   De-norm-fixed dense sweep (`results/svf_sweep_g1_0p3_v2/`, 3 seeds × 20 ep):
->   **new operating point R=2.50 — 31.9% proximity reduction @ 7.9% intervention,
->   ROBUST** (post-filter proximity 0.0074 on all 3 seeds; not v1's seed-fragile
->   R=2.25). The corrected policy is ~4× safer at baseline (filterless proximity
->   0.0109 vs v1's 0.0435) and `mean_q≈3.3` (healthy). **Pinned in `snapshots.py`
->   (`_v2`, R=2.50); `phase2_results.md §0` updated.**
-> - **Next**: E4.1 rows 1/4 (go/no-go — row-4 intervention should now be ~8%, not
->   100%), then the full headline once E3.1/E3.2 land `d_knee`.
+> **2026-06-01 update — ⚠ P2 RE-DO AGAIN (v3): two coupled train/deploy mismatches.**
+> The SVF filter had **two** bugs where the collection policy didn't match the
+> deployed policy, so the critic trained on actions deployment never executes →
+> over-veto. Both now fixed in `_CQNASSnapshotPolicy`; a **v3 re-collect is
+> pending** (`run_p2_recollect_g1.sh`, VER=v3).
+> - **Bug 1 — action de-norm** (fixed, commit `41fd93b`): de-normalised via
+>   `env.action_space` not the agent's **demo-derived** stats. Symptom: benchmark
+>   `mean_q≈0.02`, ~100% intervention. The v2 re-collect fixed this and the v2
+>   *sweep* looked great (R=2.50, 31.9% reduction @ 7.9% intervention). But the
+>   **sweep reuses the collection path**, so it was over-optimistic / in-distribution.
+> - **Bug 2 — action-execution mode** (fixed, commit on `phase3`): CQN-AS deploys
+>   with `action_sequence=16` + `temporal_ensemble=true` → the runner executes an
+>   exp-weighted **ensemble blend** of overlapping chunks, but `_CQNASSnapshotPolicy`
+>   collected data **receding-horizon (raw `chunk[0]`)**. So the v2 critic trained
+>   on `chunk[0]` but deployment runs blended actions → **E4.1 rows 1/4 (noisy):
+>   row-4 = 89.5% intervention, `mean_q` 0.97, success 0** (vs sweep's 7.9%/3.3).
+>   15/16 open-loop fraction ≈ the 89.5% observed. **Fix**: the snapshot policy now
+>   reuses the SAME `TemporalEnsembleControl` and mirrors `CQNASRunner.step`
+>   (`tests/test_snapshot_policy_execution.py`).
+> - **⚠ v2 / R=2.50 is SUPERSEDED** — trained on `chunk[0]`, unusable at deploy.
+>   `snapshots.py` still lists `_v2` only so scripts resolve; flip to `_v3` + the
+>   new R after the re-do.
+> - **Next**: (1) optional ~1h pre-check — re-sweep the v2 critic with the fixed
+>   (ensemble) policy; expect it to now COLLAPSE like the benchmark, confirming the
+>   fix aligns sweep↔deploy. (2) Full **v3 re-do** → flip `snapshots.py` to `_v3` +
+>   new R → re-run E4.1 rows 1/4 (row-4 should land ~8%/`mean_q`~3, success>0).
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---
@@ -106,7 +114,7 @@ multi-hour launch.
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
-| Phase 2 (G1) | ✅ **CLOSED (2026-06-01)** — de-norm bug fixed, re-done | `svf_coworker_train_g1_0p3_v2.pt`; **R=2.50** (`snapshots.py`): 31.9% proximity reduction @ 7.9% intervention, robust across 3 seeds. v1/R=2.25 superseded (action de-norm bug, `41fd93b`). `phase2_results.md` §0 |
+| Phase 2 (G1) | ⚠ **RE-DO v3 (2026-06-01)** — 2 train/deploy bugs fixed | Bug1 action de-norm (`41fd93b`) + Bug2 execution-mode (snapshot policy ran receding-horizon `chunk[0]`, deploy runs ensemble blend → E4.1 row-4 89.5% intervention). Both fixed in `_CQNASSnapshotPolicy`; **v2/R=2.50 superseded**, v3 re-collect pending (`run_p2_recollect_g1.sh`). See status-delta |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
@@ -149,17 +157,19 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~20 h
 - **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ CLOSED (2026-06-01: re-done after de-norm fix)
-> **2026-06-01:** the original work (below) ran on a critic trained against a
-> snapshot policy that de-normalised actions via `env.action_space` instead of
-> the agent's demo-derived stats → over-veto at deploy (~100% intervention on
-> oracle AND noisy; `mean_q≈0.02`). **Fixed** (commit `41fd93b`: shared
-> `action_stats_from_actions`, snapshot policy now uses demo stats) and **re-done**
-> via `run_p2_recollect_g1.sh` → `svf_coworker_train_g1_0p3_v2.pt`. New operating
-> point **R=2.50** (31.9% proximity reduction @ 7.9% intervention, robust across
-> 3 seeds; corrected policy ~4× safer at baseline, `mean_q≈3.3`), pinned in
-> `snapshots.py`. **R=2.25 and the §0 sweep numbers below are superseded** — kept
-> for method/provenance only.
+### P2. Phase 2 SVF re-eval + retrain under G1 — ⚠ RE-DO v3 (2026-06-01: two train/deploy bugs)
+> **2026-06-01:** the SVF critic had **two** bugs where collection didn't match
+> deployment (see the dated status-delta at the top for the full narrative):
+> **(1) action de-norm** — `env.action_space` instead of demo stats (fixed
+> `41fd93b`, v2 re-collect); **(2) action-execution mode** — `_CQNASSnapshotPolicy`
+> collected receding-horizon `chunk[0]` while deployment runs an `action_sequence=16`
+> + `temporal_ensemble=true` blend, so the v2 critic over-vetoed at deploy (E4.1
+> row-4: 89.5% intervention, `mean_q` 0.97, success 0, vs the v2 sweep's 7.9%/3.3
+> — the sweep was over-optimistic because it reuses the collection path). Bug 2 is
+> now fixed (snapshot policy mirrors `CQNASRunner.step`, reuses the same
+> `TemporalEnsembleControl`; `tests/test_snapshot_policy_execution.py`). **v2/R=2.50
+> and the §0 v2 numbers are SUPERSEDED**; a v3 re-collect is pending. Everything
+> below is kept for method/provenance only.
 - **Done (on the buggy critic — provenance only)**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
   (2) recollected on `coworker_train`, `bodyslam=noisy` (random + snapshot,
   105k transitions); (3) retrained at **τ=0.3 m** → `svf_coworker_train_g1_0p3.pt`

@@ -34,7 +34,23 @@ Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_
 
 ---
 
-## 0. G1 coworker re-eval — ✅ RESOLVED 2026-06-01 (v2 critic, R=2.50)
+## 0. G1 coworker re-eval — ⚠ v2 SUPERSEDED (2026-06-01: execution-mode bug → v3 pending)
+
+> **⚠ Bug 2 (action-execution mode) supersedes the v2 result below.** E4.1 rows
+> 1/4 (noisy) on the v2 critic showed **row-4 = 89.5% intervention, mean_q 0.97,
+> success 0** — NOT the v2 sweep's 7.9%/3.3. Cause: CQN-AS deploys with
+> `action_sequence=16` + `temporal_ensemble=true` (an exp-weighted blend of
+> overlapping chunks), but `_CQNASSnapshotPolicy` collected data receding-horizon
+> (raw `chunk[0]`). The v2 critic trained on `chunk[0]` → vetoes the blended
+> deployment actions as OOD (15/16 open-loop fraction ≈ the 89.5% observed). The
+> v2 *sweep* looked good only because it **reuses the collection path** (it scores
+> the critic in-distribution); the benchmark is the real deployment path. **Fixed**:
+> the snapshot policy now reuses the same `TemporalEnsembleControl` and mirrors
+> `benchmark.runners.CQNASRunner.step` (`tests/test_snapshot_policy_execution.py`).
+> **A v3 re-collect is pending** (`run_p2_recollect_g1.sh`, VER=v3) — then re-pick R
+> from the v3 sweep. The whole §0 below (v2, R=2.50) is kept for provenance only.
+
+### 0(v2, superseded). G1 coworker re-eval — de-norm fix (R=2.50)
 
 > **✅ The de-norm bug is fixed and P2 has been re-done.** The original §0 below
 > (R=2.25) ran on a MIS-DE-NORMALISED policy: `svf_collect`'s
