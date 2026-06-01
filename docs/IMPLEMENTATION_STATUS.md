@@ -102,7 +102,7 @@ multi-hour launch.
 | Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
 | Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
 | Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
-| Phase 2 (G1) | ✅ **CLOSED** — recollect (`noisy`) + retrain (τ=0.3 m) + dense sweep | `svf_coworker_train_g1_0p3.pt`; **R=2.25** (`snapshots.py`): meets bar 31.7%@21.6%, marginal/seed-fragile. Write-up `phase2_results.md` §0 |
+| Phase 2 (G1) | ⚠ **RE-DO (2026-06-01)** — action de-norm bug | `g1_0p3` critic trained on a mis-de-normalised snapshot policy → **R=2.25 superseded**, ~100% intervention at deploy on BOTH oracle & noisy. Fix landed (`41fd93b`); re-collect via `run_p2_recollect_g1.sh` → `_v2` critic + new R. See status-delta at top + `phase2_results.md` §0 |
 | Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
 | Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
 | G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
@@ -145,8 +145,17 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~20 h
 - **Perception mode**: train + eval `oracle` (the baseline is the methodological reference; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P2. Phase 2 SVF re-eval + retrain under G1 — ✅ CLOSED (2026-05-30)
-- **Done**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
+### P2. Phase 2 SVF re-eval + retrain under G1 — ⚠ RE-OPENED (2026-06-01: action de-norm bug)
+> **2026-06-01:** the work below ran on a critic trained against a snapshot
+> policy that de-normalised actions via `env.action_space` instead of the
+> agent's demo-derived stats, so the critic saw a mis-scaled policy and
+> over-vetoes at deploy (~100% intervention on oracle AND noisy; `mean_q≈0.02`).
+> **R=2.25 and the §0 sweep numbers are superseded.** Fix landed (commit
+> `41fd93b`: shared `action_stats_from_actions`, snapshot policy now uses demo
+> stats). Re-collect/retrain/re-sweep via `run_p2_recollect_g1.sh` → `_v2`
+> critic + new R, then update `snapshots.py`. Everything below is kept for
+> method/provenance only.
+- **Done (on the buggy critic — provenance only)**: (1) confirmed the old `svf_coworker_train_v1.pt` over-fires on G1;
   (2) recollected on `coworker_train`, `bodyslam=noisy` (random + snapshot,
   105k transitions); (3) retrained at **τ=0.3 m** → `svf_coworker_train_g1_0p3.pt`
   (3-MLP [256,256,256], α_CQL=5.0, τ_polyak=5e-3, 200k steps); (4) ran the
@@ -253,12 +262,18 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   `SVF_FILTER`→`svf_coworker_train_g1_0p3.pt`, `FILTER_R`→read from
   `snapshots.py` (R=2.25). `RENDER=1` (`RENDER_EPISODES=N`) writes per-row
   rollout mp4(s) to `<OUTDIR>/<label>_videos/`.
-- **⚠ Finding (2026-05-30, drove the noisy switch)**: the SVF filter on `oracle`
-  collapses — `mean_q ≈ 0.016 ≪ R=2.25` → **100% intervention, robot frozen,
-  success 0.78 → 0.0** (results/e4_1/..._190001). The filter trains on `noisy`;
-  oracle obs is OOD for the critic. So E4.1 runs on **noisy** (filter
-  in-distribution, apples-to-apples). The oracle filter result is itself a
-  reportable result (train/deploy distribution match is load-bearing).
+- **⚠ Finding (2026-05-30 → re-diagnosed 2026-06-01)**: the filtered rows showed
+  `mean_q ≈ 0.02 ≪ R=2.25` → **~100% intervention, robot frozen, success → 0.0**.
+  First read as "oracle-collapse" (filter OOD on oracle) and the table moved to
+  **noisy** — but the **noisy** re-run (results/e4_1/..._221340) showed the SAME
+  100% collapse, **disproving** that diagnosis. Real cause: the SVF
+  snapshot-collection policy de-normalised actions via `env.action_space`, so the
+  critic was trained against a mis-scaled policy and over-vetoes at deploy
+  regardless of perception mode (de-norm bug, fixed `41fd93b`; see status-delta).
+  **Filtered rows (4, 5) are blocked on the P2 re-do.** E4.1 still evals on
+  **noisy** — but for the original correct reason (the filter is noisy-trained, so
+  noisy = its deployment distribution), not "oracle-collapse." Rows 1–3
+  (policy-only) are unaffected by the bug.
 - **Acceptance**: row 5 dominates each of rows 1–4 on
   `ep_proximity_violation_rate` with non-overlapping CIs. If row 5
   ties row 3, the filter is redundant on a well-trained policy —

@@ -29,7 +29,7 @@ guarantees needed for ISO 15066 compliance.
 | Phase 1 wrapper | **COMPLETE** | `BodySLAMWrapper` with off / oracle / noisy modes, calibrated against BodySLAM++ characteristics |
 | Phase 1 E1.1 | **COMPLETE (negative)** | BC obs-ablation: oracle doesn't help under pure BC |
 | Phase 2 (SMPL-H) | **COMPLETE** | SVF α_CQL=5.0, R=4.0 — **did not transfer to G1** |
-| Phase 2 (G1) | **✅ P2 CLOSED (2026-05-30)** | `svf_coworker_train_g1_0p3.pt` on `noisy`+G1, proximity τ=0.3 m. Dense sweep (R=0 baseline + knee) done → **R=2.25** (`snapshots.py`): meets acceptance (31.7% proximity reduction @ 21.6% intervention), marginal/seed-fragile, provisional pending P5. Write-up: `phase2_results.md` §0 |
+| Phase 2 (G1) | ⚠ **RE-DO (2026-06-01)** — action de-norm bug | `g1_0p3` critic was trained against a snapshot policy de-normalising via `env.action_space` (not the agent's demo stats), so it over-vetoes at deploy → ~100% intervention on BOTH oracle & noisy; **R=2.25 superseded**. Fix landed (`41fd93b`); re-collect via `run_p2_recollect_g1.sh` → `_v2` critic + new R → update `snapshots.py`. `phase2_results.md` §0 banner |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
 | G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
@@ -82,20 +82,25 @@ experiment is testing, so we adopt this per-experiment policy
 **by design** — the filter is a runtime safety guarantee, so its
 training distribution must match its deployment distribution.
 
-² **P5 eval moved to `noisy` (2026-05-30, empirically forced).** The
-original plan evaluated the headline on `oracle` + a single `noisy`
-diagnostic. But running the SVF filter on `oracle` makes its
-Q-values collapse (`mean_q ≈ 0.016 ≪ R=2.25`) → **100% intervention,
-robot frozen, success 0.78 → 0.0** (results/e4_1/..._190001). The
-filter is trained on `noisy`; oracle obs is out-of-distribution for
-the critic, exactly the CQL-pessimism-on-OOD-observations failure
-this policy warns about. So the **entire E4.1 table is now evaluated
-on `noisy`** (`OBS_MODE=noisy`, the driver default): the filter
-operates in-distribution and the comparison stays apples-to-apples
-(the policy's `oracle`→`noisy` degradation is identical across rows,
-so it cancels). `OBS_MODE=oracle` is retained as a policy-only
-clean-perception reference (rows 1–3); the filter rows are
-meaningless there and that fact is itself a reportable result.
+² **P5 headline evaluated on `noisy`.** The filter is *trained* on
+`noisy` (the SVF dataset is collected with `bodyslam=noisy`), so
+`noisy` is its deployment distribution — the only condition where the
+critic is in-distribution. The **entire E4.1 table is evaluated on
+`noisy`** (`OBS_MODE=noisy`, the driver default) so the comparison
+stays apples-to-apples (the policy's `oracle`→`noisy` degradation is
+identical across rows, so it cancels). `OBS_MODE=oracle` is retained
+as a policy-only clean-perception reference for rows 1–3.
+> **History / correction (2026-06-01).** This switch was *first*
+> justified by an "oracle-collapse" observation — the filter showed
+> `mean_q ≈ 0.02 ≪ R=2.25` → 100% intervention on `oracle`
+> (results/e4_1/..._190001). That diagnosis was **wrong**: the `noisy`
+> re-run (..._221340) collapsed identically. The true cause was the
+> **action de-normalisation bug** (snapshot policy de-normalised via
+> `env.action_space`, not demo stats → critic trained on a mis-scaled
+> policy; fixed `41fd93b`). The de-norm bug, not perception mode,
+> froze the filtered rows — those rows (4, 5) are blocked on the **P2
+> re-do**. The `noisy` eval choice itself still holds, for the
+> correct reason above (filter is noisy-trained).
 
 **Rationale.** The policy still *trains* on `oracle` to isolate the
 architecture comparison (no "noisy training regularises" confound).
@@ -811,7 +816,7 @@ python scripts/benchmark_policy.py \
   --filter-threshold 2.25 \             # optional — only used if --filter-snapshot given
   --task saucepan_to_hob \
   --disruption coworker_eval \         # or coworker_train; or any other ParameterSpace key
-  --obs-mode noisy \                   # noisy = E4.1 headline (filter is noisy-native; oracle collapses it); oracle = policy-only reference — see Perception Mode Policy above
+  --obs-mode noisy \                   # noisy = E4.1 headline (filter is noisy-trained → its deployment distribution); oracle = policy-only reference — see Perception Mode Policy above
   --seeds 0,1,2 \
   --episodes 20 \
   --out results/cell.csv \
@@ -1051,9 +1056,11 @@ The filter intervention rate falls as the policy is Lagrangian-trained.
 in-training passive hook (`filter_passive.snapshot=...`, still in
 `train_cqn_as.py`, harmless and off by default) logging
 `eval/filter_intervention_rate` each eval cycle. But P3/P4 train on `oracle`, so
-those eval cycles run on oracle — where the SVF filter's Q collapses (the same
-finding that moved E4.1 to noisy, footnote ²). A FILTER_PASSIVE curve logged
-during oracle training is a **flat ~100%** line, not the internalisation signal.
+those eval cycles run on oracle — where the noisy-trained filter is OOD on the
+perception channel (genuine train/deploy mismatch). On top of that, until the
+**P2 re-do** the `g1_0p3` critic over-vetoes everywhere (action de-norm bug,
+footnote ²). Either way a FILTER_PASSIVE curve logged during oracle training is
+a **flat ~100%** line, not the internalisation signal.
 
 **Real path: `scripts/run_e4_3_internalisation.sh` — post-hoc, on `noisy`.**
 For each saved `snapshot_<N>.pt` in a P3/P4 training cell, it evaluates the
@@ -1067,9 +1074,11 @@ RUN_DIR=exp_local/e3_2_cost_budget/<run>/d0pXX_seed0 \
 #    (frame, filter_intervention_rate, success_rate, ep_proximity_violation_rate)
 ```
 
-On noisy the filter is in-distribution, so the rate is meaningful and should
-fall as the frame grows. **Not free** (~few min/snapshot, ~30 min/run) — the
-oracle-collapse turned this from a logging side-product into a post-hoc eval.
+On noisy, with the corrected `_v2` critic (post P2 re-do), the filter is
+in-distribution, so the rate is meaningful and should fall as the frame grows.
+**Not free** (~few min/snapshot, ~30 min/run) — the oracle eval-cycle mismatch
+turned this from a logging side-product into a post-hoc eval. **Blocked on the
+P2 re-do** (needs the de-norm-fixed critic to produce a non-degenerate curve).
 
 #### Acceptance criteria
 
