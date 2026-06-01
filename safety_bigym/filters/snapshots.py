@@ -50,41 +50,45 @@ SNAPSHOTS: Dict[str, Optional[str]] = {
 # Each task maps to (trained SVF critic checkpoint, recommended veto threshold
 # R). SafetyFilterWrapper vetoes the proposed action when Q_safe(s, a) < R.
 #
-# G1 coworker — v3 PENDING (2026-06-01). The SVF critic had TWO bugs where the
-# collection policy (`_CQNASSnapshotPolicy`) didn't match the deployed policy, so
-# the critic trained on actions deployment never executes and over-vetoes:
-#   1. action de-normalisation via env.action_space, not the agent's demo-derived
-#      stats (fixed `41fd93b`; the v2 re-collect addressed this).
-#   2. action-execution mode: collection ran RECEDING-HORIZON (raw chunk[0]) while
-#      deployment runs an action_sequence=16 + temporal_ensemble=true BLEND.
-#      The v2 critic (trained on chunk[0]) thus vetoed ~89% of deployed actions
-#      (E4.1 row-4: 89.5% intervention, mean_q 0.97, success 0). Fixed: the
-#      snapshot policy now mirrors benchmark CQNASRunner.step (open-loop chunks +
-#      the SAME TemporalEnsembleControl) — tests/test_snapshot_policy_execution.py.
+# G1 coworker — v3 (2026-06-01). VALID critic: collection finally matches
+# deployment after four collection-vs-deployment fixes in svf_collect (de-norm,
+# execution mode, control_frequency, coworker scenario). The v3 dense sweep on the
+# stage-2 baseline policy (results/svf_sweep_g1_0p3_v3/, 3 seeds x 12 ep, tau=0.3):
 #
-# The path below points at the v3 target (NOT yet collected) so filtered E4.1/E4.3
-# rows fail LOUD rather than silently re-running the superseded v2 critic. Produce
-# it with `scripts/run_p2_recollect_g1.sh` (VER=v3, the default), then update R
-# below from `analyze_svf_sweep.py --sweep-dir results/svf_sweep_g1_0p3_v3`.
+#     R       intervention   proximity(tau=0.3)   reduction vs R=0   mean_q
+#     0.00       0.0%           0.2860             baseline           3.22
+#     2.25      14.8%           0.2622             8.3%   <- light backstop (pinned)
+#     2.50      50.3%           0.2657             7.1%   (intervention spikes, no gain)
+#     3.00      67.2%           0.1903            33.5%   (hard gate)
+#     4.00     100.0%           0.1205            57.9%   (robot frozen)
 #
-# SUPERSEDED, do NOT use for deployment:
-#   - v2 (svf_coworker_train_g1_0p3_v2.pt, R=2.50; sweep results/svf_sweep_g1_0p3_v2/):
-#     de-norm-fixed but trained on receding-horizon chunk[0]. Its sweep looked good
-#     (31.9% reduction @ 7.9%) ONLY because the sweep reuses the collection path
-#     (in-distribution); the benchmark exposed the gap. Bug 2 above.
-#   - v1 (svf_coworker_train_g1_0p3.pt, R=2.25; results/svf_sweep_g1_v1/): mis-de-
-#     normalised policy. Bug 1 above.
+# >>> R=0 proximity 0.286 == benchmark row-1 0.296: the sweep now PREDICTS the
+# benchmark (validates the 4 fixes). But there is NO knee meeting the P2 bar
+# (>=30% reduction @ <=25% intervention). KEY FINDING: even 100% intervention
+# (robot frozen) only cuts proximity 58% — the other 42% is the coworker walking
+# up to the stationary robot (exogenous, human-driven). A reactive veto->zero-
+# velocity filter CANNOT cheaply prevent human-initiated proximity. So the SVF
+# filter is an ISO-SSM **velocity backstop** (it slows the robot near the human),
+# NOT a geometric-proximity reducer; proactive proximity avoidance is the
+# Lagrangian policy's job (P3). E4.1 quantifies the filter on the velocity axis
+# (ep_ssm_violation_actual_rate + robot velocity) and the hybrid (row 5).
+#
+# R = 2.25 is pinned as a LIGHT backstop (largest R with <=25% intervention;
+# above it intervention spikes to 50% for no extra reduction). Provisional —
+# re-confirm against the Lagrangian (row-3) policy in P5, where the filter sees a
+# proactively-avoiding policy and may behave differently.
+#
+# SUPERSEDED (collection-vs-deployment bugs; their "good knees" were artifacts of
+# the broken collection): v2 (R=2.50, receding-horizon chunk[0]), v1 (R=2.25,
+# mis-de-normalised). See git history + docs/phase2_results.md.
 SVF_FILTERS: Dict[str, Optional[str]] = {
-    # v3 target — fails loud until run_p2_recollect_g1.sh produces it.
     "saucepan_to_hob": "checkpoints/svf_coworker_train_g1_0p3_v3.pt",
 }
 
-# Recommended veto threshold R per task. PLACEHOLDER (2.50 carried from the
-# superseded v2 knee) — RE-PICK from the v3 sweep via analyze_svf_sweep.py once
-# the v3 re-collect lands. Unused until the v3 checkpoint exists (resolve_svf_filter
-# FileNotFoundErrors on the missing path first).
+# Light-backstop veto threshold (see the v3 sweep note above). NOT a P2-bar-passing
+# knee — none exists on the valid critic; the filter's win is the velocity axis.
 SVF_FILTER_THRESHOLD_R: Dict[str, float] = {
-    "saucepan_to_hob": 2.50,
+    "saucepan_to_hob": 2.25,
 }
 
 

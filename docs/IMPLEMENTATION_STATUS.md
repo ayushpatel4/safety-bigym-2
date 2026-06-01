@@ -105,18 +105,27 @@ multi-hour launch.
 >   ParameterSpace via `_coworker_space`, matching deployment (collection + sweep).
 > - **All four bugs traced to one cause**: `_build_live_env` is a hand-built
 >   replica of the factory `_create_env`, and each replicated piece (de-norm,
->   execution, control_frequency, scenario) drifted. The de-norm + execution +
->   control_frequency fixes are validated; the scenario fix is pending validation.
-> - **⚠ v1/R=2.25 + v2/R=2.50 SUPERSEDED.** `snapshots.py::SVF_FILTERS` points at
->   the not-yet-collected `_v3` so filtered rows fail LOUD; flip R after the re-do.
-> - **Next**: (1) **validate Bug 4 fix** — re-run `diagnose_collection_policy.py`
->   (expect proximity **~0.2–0.3** and episodes lengthening toward ~449 as the
->   closer coworker interferes — i.e. collection now mirrors deployment). (2) Full
->   **v3 re-do** (`run_p2_recollect_g1.sh`, MAX_STEPS=1000) → the v3 sweep now
->   predicts the benchmark → flip `snapshots.py` to `_v3` + the v3 knee → E4.1
->   rows 1/4. (3) If proximity is still ~0, the remaining divergence isn't a known
->   replicated param → escalate to the full env-unify (build collection via
->   `_create_env`).
+>   execution, control_frequency, scenario) drifted. All four fixed in svf_collect.
+> - **✅ P2 v3 DONE — critic VALID, but the filter is a velocity backstop, not a
+>   proximity reducer.** Collection at 20 Hz: random source is too slow/unstable
+>   (contact thrash) so collection is **snapshot-only** (`SOURCES=snapshot`, default;
+>   fast + stable + 16.8% unsafe = good class balance). v3 dense sweep
+>   (`results/svf_sweep_g1_0p3_v3/`): **R=0 proximity 0.286 == benchmark row-1 0.296**
+>   — the sweep finally PREDICTS the benchmark (validates all four fixes). BUT **no
+>   knee meets the P2 bar** (≥30%@≤25%): best is 8%@15% (R=2.25); 33%@67% (R=3.0);
+>   and even 100% intervention only cuts proximity 58% — the other **42% is the
+>   coworker walking up to the stationary robot** (exogenous). A reactive
+>   veto→zero-velocity filter **can't cheaply prevent human-initiated proximity**.
+>   → The filter is reframed as an **ISO-SSM velocity backstop**; proactive proximity
+>   avoidance is the Lagrangian policy's job (P3). The v1/v2 "31.7%@21.6% knee" was an
+>   artifact of the broken collection (policy never got close). Pinned **R=2.25**
+>   (light backstop) in `snapshots.py`; `_v3` checkpoint now resolves.
+> - **Next**: E4.1 rows 1/4 (`run_e4_1_headline.sh`) — measures the filter on the
+>   **velocity axis** (`ep_ssm_violation_actual_rate`, robot velocity) + success,
+>   not just proximity. Then rows 3/5 (hybrid: Lagrangian + filter) once E3.1/E3.2
+>   land. Optional levers for a stronger filter proximity story (capped by the 42%
+>   exogenous): a **retreat fallback** (Phase-4 stub in `fallback.py`, not built),
+>   or re-confirm R on the row-3 Lagrangian policy.
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
 
 ---
