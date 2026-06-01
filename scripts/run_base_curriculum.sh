@@ -110,6 +110,25 @@ else
   WANDB=(wandb.use=true)
 fi
 
+# Workspace reward shaping (lever 1). ON by default — the bounded penalty +
+# widened critic support is what fixed the 2026-05-20 degenerate baseline. Set
+# WORKSPACE_PENALTY=0 to train a clean NO-shaping baseline: the proper E4.1
+# row-1 (row 2 then ADDS shaping as the incremental feature). Critic support
+# stays widened either way so both baselines share an architecture and their
+# snapshots remain comparable.
+WORKSPACE_PENALTY="${WORKSPACE_PENALTY:-1}"
+if [[ "${WORKSPACE_PENALTY}" == "1" ]]; then
+  WS_ARGS=(
+    env.safety.add_workspace_penalty=true
+    env.safety.workspace_beta=0.05
+    env.safety.workspace_excess_cap=1.0
+  )
+  WS_TAG=""
+else
+  WS_ARGS=(env.safety.add_workspace_penalty=false)
+  WS_TAG="_nows"   # no workspace shaping — keeps run dirs / W&B names distinct
+fi
+
 # Auto RUN_TAG encodes human variant + stage budgets + launch stamp so exp_local/
 # and W&B names are grep-friendly and unique per invocation.
 _RUN_STAMP="$(date +%Y%m%d_%H%M%S)"
@@ -132,7 +151,7 @@ if [[ -z "${RUN_TAG:-}" ]]; then
   else
     _frames_tag="$(( STAGE0_FRAMES / 1000 ))k_$(( STAGE1_FRAMES / 1000 ))k_$(( STAGE2_FRAMES / 1000 ))k"
   fi
-  RUN_TAG="base_${_human_tag}_${_task_tag}_${_frames_tag}_${_RUN_STAMP}"
+  RUN_TAG="base_${_human_tag}_${_task_tag}${WS_TAG}_${_frames_tag}_${_RUN_STAMP}"
 elif [[ ! "${RUN_TAG}" =~ _[0-9]{8}_[0-9]{6}$ ]]; then
   RUN_TAG="${RUN_TAG}_${_RUN_STAMP}"
 fi
@@ -147,9 +166,7 @@ COMMON=(
   "env.smplh_motion=${SMPLH_MOTION}"
   bodyslam=oracle
   "num_demos=${NUM_DEMOS}"
-  env.safety.add_workspace_penalty=true
-  env.safety.workspace_beta=0.05
-  env.safety.workspace_excess_cap=1.0
+  "${WS_ARGS[@]}"
   agent.v_min=-6.0
   agent.v_max=2.0
   agent.atoms=101
