@@ -8,8 +8,15 @@
 #      horizon chunk[0]. v2 still had this bug: with action_sequence=16 +
 #      temporal_ensemble=true the policy deploys BLENDED actions, but the v2
 #      critic trained on raw chunk[0] -> ~89% spurious veto, success 0.
+#   3. episode length — collect/sweep at the DEPLOYMENT horizon (MAX_STEPS=1000 =
+#      episode_length//demo_down_sample_rate = 25000/25), NOT 250. At 250 control
+#      steps (~12.5s) the rollout truncates before the coworker's 12-18s near-
+#      dwell, so the v2 dataset under-sampled the close-proximity phase that
+#      dominates deployment (filterless proximity 0.028 @250 vs 0.296 @1000).
+#      Episodes are now ~2-4x longer, so EPISODES_PER_CELL defaults to 150 (was 210).
 # v3 rebuilds the dataset/critic/operating-point on a snapshot policy that runs
-# EXACTLY what deployment runs, so the sweep finally predicts the benchmark.
+# EXACTLY what deployment runs (execution mode + horizon), so the sweep finally
+# predicts the benchmark.
 #
 # Output: datasets/svf_coworker_train_g1_0p3_v3/, checkpoints/svf_coworker_train_g1_0p3_v3.pt,
 #         results/svf_sweep_g1_0p3_v3/sweep_dense_seed{0,1,2}.csv
@@ -90,7 +97,7 @@ if has_stage collect; then
     --source random --source snapshot \
     --tasks "${TASK}" --disruption-space coworker_train --bodyslam-mode noisy \
     --human-model g1 --proximity-threshold "${PROX}" \
-    --episodes-per-cell "${EPISODES_PER_CELL:-210}" --max-steps "${MAX_STEPS:-250}" \
+    --episodes-per-cell "${EPISODES_PER_CELL:-150}" --max-steps "${MAX_STEPS:-1000}" \
     --seed "${SEED:-0}" --output-dir "${DATASET}" "${OVR[@]}"
 fi
 
@@ -112,7 +119,7 @@ if has_stage sweep; then
       --critic-path "${CKPT}" --task "${TASK}" --disruption coworker_train \
       --human-model g1 --bodyslam-mode noisy --policy snapshot "${OVR[@]}" \
       --thresholds 0 1 1.5 2 2.25 2.5 2.75 3 3.5 4 \
-      --episodes-per-R "${EPISODES_PER_R:-20}" --max-steps "${MAX_STEPS:-250}" \
+      --episodes-per-R "${EPISODES_PER_R:-20}" --max-steps "${MAX_STEPS:-1000}" \
       --seed "${SEED}" --output-csv "${SWEEP_DIR}/sweep_dense_seed${SEED}.csv"
   done
   echo "== sweep done. Picking the knee (seed-averaged, P2 acceptance bar): =="
