@@ -154,6 +154,31 @@ def _import_task(task_key: str):
     return getattr(importlib.import_module(module_path), cls_name)
 
 
+def _resolve_demo_down_sample_rate(task_key: str, default: int = 20) -> int:
+    """Read ``demo_down_sample_rate`` for a task from its env config yaml.
+
+    The collection/sweep env MUST run at the SAME control rate as deployment
+    (the RoboBase factory ``_create_env`` sets ``control_frequency =
+    CONTROL_FREQUENCY_MAX // demo_down_sample_rate``). The base
+    ``cfgs/env/safety_bigym.yaml`` defaults the rate; the per-task yaml
+    (e.g. ``saucepan_to_hob.yaml`` -> 25) overrides it.
+    """
+    from omegaconf import OmegaConf
+
+    rate = default
+    base = REPO_ROOT / "cfgs" / "env" / "safety_bigym.yaml"
+    task = REPO_ROOT / "cfgs" / "env" / "safety_bigym" / f"{task_key}.yaml"
+    for p in (base, task):
+        try:
+            if p.is_file():
+                r = OmegaConf.select(OmegaConf.load(p), "env.demo_down_sample_rate")
+                if r is not None:
+                    rate = int(r)
+        except Exception:  # noqa: BLE001 — fall back to the running default
+            pass
+    return rate
+
+
 def _build_live_env(
     task_key: str,
     disruption: str,
@@ -163,6 +188,7 @@ def _build_live_env(
     cameras: Sequence[str] = (),
     camera_resolution: Tuple[int, int] = (84, 84),
     human_model: str = "g1",
+    demo_down_sample_rate: Optional[int] = None,
 ):
     """Construct ``[BodySLAMWrapper(]SafetyBiGymEnv[)]`` — used by random/snapshot.
 
@@ -205,6 +231,7 @@ def _build_live_env(
         make_coworker_eval_space,
     )
     from bigym.action_modes import JointPositionActionMode, PelvisDof
+    from bigym.bigym_env import CONTROL_FREQUENCY_MAX
     from bigym.utils.observation_config import CameraConfig, ObservationConfig
 
     task_cls = _import_task(task_key)
@@ -251,6 +278,26 @@ def _build_live_env(
     # snapshots were trained under (action_dim=16, qpos=66). The bare-BiGym
     # default of 3 dofs (X, Y, RZ) gives action_dim=15 and silent
     # state_dict shape mismatches at snapshot load. See B1.4 / B2.3 debug.
+    # Match the DEPLOYMENT env's control rate. The RoboBase factory builds the
+    # env with control_frequency = CONTROL_FREQUENCY_MAX // demo_down_sample_rate
+    # (safety_bigym_factory._create_env). Omitting it left the collection env at
+    # the full 500 Hz (1 physics substep/step, action_scale=1) vs deployment's
+    # downsampled rate (e.g. 20 Hz / 25 substeps / action_scale=25 for saucepan).
+    # That single mismatch moved the robot ~25x less per step (policy never
+    # completed the task: 0% success vs deployment's 85%) and made 1000 steps
+    # cover ~1/25 the wall-time (coworker barely approached: proximity 0.05 vs
+    # 0.30) — the collection<->deployment divergence diagnosed 2026-06-01.
+    _ds_rate = (
+        int(demo_down_sample_rate)
+        if demo_down_sample_rate is not None
+        else _resolve_demo_down_sample_rate(task_key)
+    )
+    _control_freq = max(1, CONTROL_FREQUENCY_MAX // _ds_rate)
+    logger.info(
+        "Collection env control_frequency=%d Hz (demo_down_sample_rate=%d) — "
+        "matches deployment factory._create_env.",
+        _control_freq, _ds_rate,
+    )
     env = make_safety_env(
         task_cls=task_cls,
         action_mode=JointPositionActionMode(
@@ -271,6 +318,7 @@ def _build_live_env(
         human_config=human_config,
         scenario_sampler=sampler,
         inject_human=True,
+        control_frequency=_control_freq,
         **make_env_kwargs,
     )
     if mode == "off":
