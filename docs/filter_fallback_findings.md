@@ -171,6 +171,38 @@ freeze-vs-flee result a deliberate part of the analysis rather than a weakness.
 
 ---
 
+## 5. Policy-side preliminary (E3, training-eval — to be benchmark-confirmed)
+
+⚠ Training-eval numbers, some cells in-flight; confirm with `benchmark_policy`
+before locking. But the pattern is informative and complements §1–2:
+
+**E3.1 cost form (at the default tight budget d=0.01):**
+
+| cell | success | proximity | note |
+|---|---|---|---|
+| binary Lagrangian | 0.00 | 0.024 | safe by *abandoning the task* |
+| continuous Lagrangian | 0.00 | 0.013 | safe by *abandoning the task* |
+| **fixed** (CQN-AS + reward penalty β=0.05) | **0.80** | **0.242** | **graceful: −18% proximity @ −6% success** |
+
+**E3.2 budget sweep (continuous Lagrangian):** d=0.001→0.05→0.1 → success
+0.00→0.00→0.13. Every tested budget ≤0.1 collapses to ~0 success.
+
+**Reading:**
+- **Proactive avoidance beats reactive filtering (the thesis result).** The
+  `fixed` policy cuts proximity 18% at ~6% success cost — a graceful net-positive
+  the reactive filter never achieved (0% at acceptable cost). Modest, because it
+  is still bounded by the ~42% exogenous floor (§2).
+- **The hard Lagrangian over-constrains at every tested budget because the budgets
+  are too tight.** Per-step cost ∈ [0,1] and the *task itself* incurs ~0.2–0.3
+  average cost (baseline proximity ≈0.30), so budgets d≤0.1 are *below the task's
+  inherent cost* → the only feasible policy is to not do the task. The graceful
+  Lagrangian regime (d≈0.2–0.3, near baseline cost) was not swept; extend it
+  (`COST_BUDGETS="0.2 0.3 0.5"`).
+- **ROW3 candidate:** `fixed` (the one graceful policy so far); a loose-budget
+  Lagrangian may match or beat it once trained. Benchmark-confirm before locking.
+
+---
+
 ## TL;DR
 
 - The v3 SVF pipeline is **valid** (sweep predicts benchmark); the four-bug fix is a
