@@ -237,6 +237,22 @@ before locking. But the pattern is informative and complements §1–2:
   **Framing:** characterize the latency sensitivity (the curve is the result); don't
   dial latency down to win. 0.15 s is high-but-plausible for a visual tracker; 0.05 s
   also defensible — report the sensitivity, pick a justified point.
+- **UPDATE (oracle headline, `..._162708/`): the lag confound is DISPROVEN for the
+  fixed policy.** On `oracle` (lag+noise = 0) the fixed policy proximity is **0.296**
+  vs baseline **0.285** — i.e. *no* reduction, same as noisy (0.302). So the
+  noisy↔oracle gap doesn't exist; clean perception didn't rescue it. The training-eval
+  0.242 held up at neither oracle nor noisy (optimistic — benchmark-confirm always).
+  **Caveat:** `fixed` (β=0.05 reward penalty) is a *gentle* constraint that barely
+  avoids, so latency was never going to bite it — the lag question is only meaningful
+  for a policy that actually avoids (the **Lagrangian**), tested oracle-vs-noisy at the
+  scan's graceful budget. The oracle run *does* sharpen the filter's velocity-axis role
+  (clean perception → 0.31 intervention vs 0.15, harder velocity/ssm-actual cut, still
+  no proximity reduction, bigger success cost).
+- **Emerging picture:** filter (reactive), fixed policy (gentle), and tight Lagrangian
+  (freezes) all fail to reduce proximity gracefully — the **~42% exogenous floor** is
+  the dominant constraint. The decisive remaining run is the **graceful Lagrangian
+  (d≈0.2–0.3) benchmarked on oracle AND noisy**: graceful reduction + lag check, or
+  exogenous-floor-dominated → realism-spectrum pivot.
   - Policy reduces proximity on oracle but not noisy → *proactive avoidance is
     perception-bottlenecked* (interesting, on-theme with BodySLAM).
   - No reduction even on oracle → aggressive scenario unwinnable for all methods →
