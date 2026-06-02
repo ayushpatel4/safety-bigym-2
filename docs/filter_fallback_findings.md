@@ -218,11 +218,25 @@ before locking. But the pattern is informative and complements §1–2:
   *training-eval* −18% (proximity 0.242) **did not transfer** to noisy deployment
   (0.302). Only effect: the filter trims mean velocity ~8% (rows 4/5), at a success
   cost (hybrid worst, 0.68).
-- **Likely cause — perception confound (testable):** policies *train on `oracle`*
-  (clean human-pos, per the plan's footnote ²) but the headline *evals on `noisy`*.
-  The training-eval 0.242 was oracle; the benchmark 0.302 is noisy. So noisy
-  human-tracking probably degrades the proactive avoidance. **Diagnostic:** re-run
-  the headline with `OBS_MODE=oracle` and compare row3-vs-row1 proximity.
+- **Likely cause — perception LATENCY confound (quantified, testable):** policies
+  *train on `oracle`* (clean, lag-free human-pos, per the plan's footnote ²) but the
+  headline *evals on `noisy`*. The noisy BodySLAM (`noisy.yaml`) lags the human
+  estimate by **`latency_steps=3`**. At the now-correct **20 Hz** control rate that
+  is **0.15 s**, and at the coworker's 1.0–1.4 m/s walk speed the estimate is
+  **~0.18 m stale** (+~0.05 m OU noise) → **~0.2 m error against a 0.3 m threshold.**
+  The oracle-trained policy never saw lag, then meets a ~0.18 m stale estimate at
+  deploy (training-eval 0.242 → benchmark 0.302). **The control_frequency fix
+  amplified this 25×:** at the old buggy 500 Hz, 3 steps = 0.006 s (~7 mm,
+  negligible); at the correct 20 Hz it's 0.15 s (~0.18 m, decisive). So
+  `latency_steps=3` (a Phase-1 value) became dominant only once the rate was fixed —
+  likely unintended.
+  **Diagnostics:** (a) `OBS_MODE=oracle` headline (lag+noise=0 vs full noisy) brackets
+  it — row3-vs-row1 proximity; (b) a `latency_steps` 0/1/2/3 sweep at noisy isolates
+  the lag (needs a benchmark `--latency-steps` override); (c) the fair test is to
+  *train the policy on noisy* so it can learn to anticipate the lag.
+  **Framing:** characterize the latency sensitivity (the curve is the result); don't
+  dial latency down to win. 0.15 s is high-but-plausible for a visual tracker; 0.05 s
+  also defensible — report the sensitivity, pick a justified point.
   - Policy reduces proximity on oracle but not noisy → *proactive avoidance is
     perception-bottlenecked* (interesting, on-theme with BodySLAM).
   - No reduction even on oracle → aggressive scenario unwinnable for all methods →
