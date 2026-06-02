@@ -203,6 +203,36 @@ before locking. But the pattern is informative and complements §1–2:
 
 ---
 
+## 6. First full headline (ROW3 = fixed-penalty policy, noisy eval) — NULL on proximity; perception confound
+
+⚠ 1-seed ROW3 (fixed policy), noisy eval. `results/e4_1/..._134241/`:
+
+| metric | row1 base | row3 fixed-pol | row4 base+filter | row5 hybrid |
+|---|---|---|---|---|
+| success | 0.85 | 0.78 | 0.78 | 0.68 |
+| proximity (τ=0.3) | 0.296 | 0.302 | 0.303 | 0.302 |
+| ssm-actual | 0.147 | 0.149 | 0.148 | 0.143 |
+| mean robot vel | 0.289 | 0.290 | 0.266 | 0.265 |
+
+- **No row reduces geometric proximity** (all ~0.30). The fixed policy's
+  *training-eval* −18% (proximity 0.242) **did not transfer** to noisy deployment
+  (0.302). Only effect: the filter trims mean velocity ~8% (rows 4/5), at a success
+  cost (hybrid worst, 0.68).
+- **Likely cause — perception confound (testable):** policies *train on `oracle`*
+  (clean human-pos, per the plan's footnote ²) but the headline *evals on `noisy`*.
+  The training-eval 0.242 was oracle; the benchmark 0.302 is noisy. So noisy
+  human-tracking probably degrades the proactive avoidance. **Diagnostic:** re-run
+  the headline with `OBS_MODE=oracle` and compare row3-vs-row1 proximity.
+  - Policy reduces proximity on oracle but not noisy → *proactive avoidance is
+    perception-bottlenecked* (interesting, on-theme with BodySLAM).
+  - No reduction even on oracle → aggressive scenario unwinnable for all methods →
+    realism-spectrum pivot (well-evidenced).
+- **Caveats:** ROW3 = fixed-penalty policy at 1 seed; the **Lagrangian** (the thesis
+  method) is not deployment-tested yet (budget scan in flight). Re-run the headline
+  with the scan-chosen Lagrangian budget, on both `noisy` and `oracle`.
+
+---
+
 ## TL;DR
 
 - The v3 SVF pipeline is **valid** (sweep predicts benchmark); the four-bug fix is a
