@@ -39,12 +39,21 @@ fi
 # Remaining de-duped pool ("kind:param:seed"). d0.01 is ABSENT (== continuous).
 # binary:0 and d0.001:2 may be in-flight (orphaned) — the done/running guards skip
 # them automatically; if either died, it gets launched normally.
+#
+# 2026-06-02: added the LOOSER budgets (0.2/0.3/0.5). The original sweep (<=0.1)
+# sits BELOW the task's inherent per-step cost (~0.2-0.3, baseline proximity ~0.30),
+# so every tested cell collapsed to ~0 task success (safety by task-abandonment).
+# 0.2-0.3 is the graceful Lagrangian regime; 0.5 is the near-unconstrained anchor.
+# The done-guard skips any already-finished cell, so re-running is safe.
 QUEUE=(
   e31:binary:0 e31:binary:1 e31:binary:2
   e31:continuous:0 e31:continuous:1 e31:continuous:2
   e32:0.05:0 e32:0.05:1 e32:0.05:2
   e32:0.1:0 e32:0.1:1 e32:0.1:2
   e32:0.001:2
+  e32:0.2:0 e32:0.2:1 e32:0.2:2
+  e32:0.3:0 e32:0.3:1 e32:0.3:2
+  e32:0.5:0 e32:0.5:1 e32:0.5:2
 )
 declare -A ATTEMPTS PID_ON CELL_ON
 
