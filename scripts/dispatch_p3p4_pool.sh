@@ -14,8 +14,18 @@
 # Run this under tmux/nohup so it survives your shell. Cells are nohup'd so they
 # survive the dispatcher too.
 #
+# Strategy (2026-06-02): the full 3-seed × all-budgets sweep is overkill for
+# finding the ROW3 operating point — and the dominant cost is seeds × budgets, not
+# frames. So:
+#   * SCAN (default): 1 seed per budget. Seed 0 tracked the 3-seed mean in every
+#     prior sweep, so 1 seed is enough to LOCATE the graceful Lagrangian budget.
+#   * CONFIRM=<d>: that single budget at 3 seeds -> the final ROW3 number.
+# (Keep FRAMES=60000 — that's the λ-PID convergence budget, the riskier thing to
+#  cut; the cheap saving is seeds, which SCAN already does.)
+#
 # Usage:
-#     bash scripts/dispatch_p3p4_pool.sh
+#     bash scripts/dispatch_p3p4_pool.sh                  # 1-seed budget SCAN (default)
+#     CONFIRM=0.2 bash scripts/dispatch_p3p4_pool.sh      # 3-seed CONFIRM of d=0.2
 #     GPUS="0 3 4 5" POLL=30 bash scripts/dispatch_p3p4_pool.sh
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$REPO_ROOT"
@@ -36,25 +46,26 @@ if pgrep -f 'run_e3_1_cost_signal.sh|run_e3_2_cost_budget.sh' >/dev/null 2>&1; t
   echo "      d0.01/continuous behind my back:  pkill -f run_e3_1_cost_signal.sh ; pkill -f run_e3_2_cost_budget.sh" >&2
 fi
 
-# Remaining de-duped pool ("kind:param:seed"). d0.01 is ABSENT (== continuous).
-# binary:0 and d0.001:2 may be in-flight (orphaned) — the done/running guards skip
-# them automatically; if either died, it gets launched normally.
+# Cells ("kind:param:seed"). The done-guard skips finished cells and the running-
+# guard skips in-flight ones, so both modes are safe to re-run.
 #
-# 2026-06-02: added the LOOSER budgets (0.2/0.3/0.5). The original sweep (<=0.1)
-# sits BELOW the task's inherent per-step cost (~0.2-0.3, baseline proximity ~0.30),
-# so every tested cell collapsed to ~0 task success (safety by task-abandonment).
-# 0.2-0.3 is the graceful Lagrangian regime; 0.5 is the near-unconstrained anchor.
-# The done-guard skips any already-finished cell, so re-running is safe.
-QUEUE=(
-  e31:binary:0 e31:binary:1 e31:binary:2
-  e31:continuous:0 e31:continuous:1 e31:continuous:2
-  e32:0.05:0 e32:0.05:1 e32:0.05:2
-  e32:0.1:0 e32:0.1:1 e32:0.1:2
-  e32:0.001:2
-  e32:0.2:0 e32:0.2:1 e32:0.2:2
-  e32:0.3:0 e32:0.3:1 e32:0.3:2
-  e32:0.5:0 e32:0.5:1 e32:0.5:2
-)
+# Why the budget grid: the tight end (d<=0.1) collapses to ~0 task success — those
+# budgets sit BELOW the task's inherent per-step cost (~0.2-0.3, baseline proximity
+# ~0.30), so the only feasible policy abandons the task. 0.2-0.3 is the graceful
+# Lagrangian regime (the operating-point search); 0.5 is the near-unconstrained
+# anchor. (E3.1 cost-form cells are complete; the de-dup step below still exposes
+# the done `continuous` run as the d=0.01 Pareto point.)
+if [[ -n "${CONFIRM:-}" ]]; then
+  # CONFIRM mode: the chosen knee budget at 3 seeds -> the final ROW3 number.
+  QUEUE=( "e32:${CONFIRM}:0" "e32:${CONFIRM}:1" "e32:${CONFIRM}:2" )
+  echo "== CONFIRM mode: d=${CONFIRM} at 3 seeds =="
+else
+  # SCAN mode (default): 1 seed per budget — locate the graceful budget cheaply.
+  QUEUE=(
+    e32:0.001:0 e32:0.05:0 e32:0.1:0
+    e32:0.2:0   e32:0.3:0  e32:0.5:0
+  )
+fi
 declare -A ATTEMPTS PID_ON CELL_ON
 
 cell_dir() { if [[ "$1" == e31 ]]; then echo "$E31/${2}_seed${3}"; else echo "$E32/d${2//./p}_seed${3}"; fi; }
