@@ -1,8 +1,19 @@
 # Post-CONFIRM runbook — lock ROW3 (graceful Lagrangian) + hybrid
 
-**Prereq:** the 3-seed CONFIRM (`CONFIRM=0.3 bash scripts/dispatch_p3p4_pool.sh`,
-seeds 1/2; seed 0 already done) has finished — i.e. `d0p3_seed1/` and
-`d0p3_seed2/` under `$E32` each have `final_metrics.json`.
+> **⚠ 2026-06-03 — DON'T naively pool the d=0.3 CONFIRM seeds.** The 3-seed CONFIRM
+> showed d=0.3 is PID seed-unstable (λ landed at 0.000 / 0.267 / 3.855 → unconstrained
+> / graceful / windup-collapse), so the three seeds are heterogeneous and pooling them
+> averages graceful + unconstrained + collapsed into mush. The **sweep → pick → pool →
+> hybrid mechanics below are correct**, but run them on the **fixed-λ** stage dirs
+> (`exp_local/fixed_lambda/fixlam0p27/lam0p27_seed{0,1,2}`, from `run_fixed_lambda.sh` /
+> `dispatch_fixed_lambda.sh`), where λ is pinned at 0.27 and all three seeds should be
+> graceful & poolable — NOT the d=0.3 `d0p3_seed*` dirs. See `IMPLEMENTATION_STATUS.md`
+> (2026-06-03) + `filter_fallback_findings.md` §7. The headline robustness figure is
+> `plot_basin_multiseed.py` over the three fixed-λ basin sweeps.
+
+**Prereq:** the fixed-λ run (`dispatch_fixed_lambda.sh`, seeds 0/1/2) has finished —
+i.e. `lam0p27_seed{0,1,2}/` under `exp_local/fixed_lambda/fixlam0p27/` each have
+`final_metrics.json`. (The original d=0.3 `CONFIRM` is superseded per the note above.)
 
 **What this confirms.** Seed-0 showed a graceful **proximity-avoidance basin**:
 mid-training checkpoints (≈20k–33k) cut deployment proximity ~21% (0.296→0.23)

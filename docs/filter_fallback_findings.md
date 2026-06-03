@@ -263,6 +263,54 @@ before locking. But the pattern is informative and complements §1–2:
 
 ---
 
+## 7. The proactive policy (E3, benchmark-confirmed): graceful avoidance is real and constraint-driven, but the PID-Lagrangian is seed-unstable
+
+The decisive test — the constrained-RL **policy**, not the filter — was run to
+deployment. The result has two parts.
+
+**(a) The Lagrangian DOES reduce proximity, gracefully — but only at a mid-training
+checkpoint.** At budget d=0.3 (the only viable budget: d≤0.2 collapse to 0% success,
+d=0.5 leaves λ=0 = unconstrained), the deployment-faithful benchmark shows a
+**proximity-avoidance basin** — checkpoints around 20k–35k steps cut proximity from
+**0.296 to ~0.21–0.23 (−21% to −28%) at success 0.72–0.80**, *unshortened* episodes,
+with `ssm-actual` *improved*. That is graceful proactive avoidance the reactive
+filter never achieved (§1: it could only freeze or flee). Crucially, `snapshot_best`
+(peak success) and the *final* checkpoint both deploy ≈ baseline (0.30) — peak-success
+selection picks *against* the cost constraint, which produced two false-null headline
+waves before the basin was found. The operating point must be chosen by a
+**safety-aware** rule (`pick_best_snapshot.py --by safety`, or robustly the deployment
+basin sweep `run_basin_sweep.sh` → `analyze_row3.py pick`).
+
+**(b) But it reproduces in only 1/3 seeds — the PID is feasibility-edge unstable.**
+The 3-seed CONFIRM at d=0.3 gave λ = **0.000 / 0.267 / 3.855** across seeds →
+**unconstrained / graceful / windup-collapse** (success → 0). d=0.3 sits at the
+task's inherent per-step cost (~0.25–0.30), so the dual variable is decided by each
+seed's stochastic cost trajectory rather than by design. Figure:
+`results/figs/d0p3_3seed_lambda_regimes.png`.
+
+**The avoidance is genuinely constraint-driven, not checkpoint-mining.** seed-1 (λ=0,
+the natural unconstrained control) stays flat at ≈0.30 with only isolated single-
+checkpoint noise dips — *no coherent basin* — whereas seed-0 (λ=0.27) has six
+consecutive sub-0.26 checkpoints. So when λ engages, the constraint does the work;
+when it stays slack (seed-1) or over-winds (seed-2), there is no graceful regime.
+
+**Fix under test: fixed-λ ≈ 0.27.** Freezing λ at seed-0's known-good value (zero PID
+gains; Q_c still trains; `dual_select` uses the constant) removes the unstable PID and
+gives every seed the same constraint weight. Running now (`run_fixed_lambda.sh` /
+`dispatch_fixed_lambda.sh`, 3 seeds). It tests robust reproduction **and** decouples λ
+from the seed (definitive constraint-causality). Outcomes: all-3 reproduce → robust
+headline ROW3 (proactive policy resolves the filter's limitation); mixed → fixed-λ
+helps with residual variance; none → instability is fundamental → realism-spectrum
+pivot (§3 / E5). Post-fix pipeline (sweep → pick → pool → hybrid):
+`docs/POST_CONFIRM_ROW3_RUNBOOK.md`.
+
+**Supersedes §5's tentative reading and §6's `fixed`-policy null:** the `fixed`
+β=0.05 reward penalty was too gentle to avoid (a genuine null); the *Lagrangian* at a
+properly-selected checkpoint does avoid. The lag/perception confound is moot here — the
+basin appears on **both** noisy and oracle.
+
+---
+
 ## TL;DR
 
 - The v3 SVF pipeline is **valid** (sweep predicts benchmark); the four-bug fix is a
@@ -274,3 +322,11 @@ before locking. But the pattern is informative and complements §1–2:
   result** than a softened-human "filter works" result; the realism point is best
   used to build a **spectrum**, with the **proactive policy (rows 3/5)** as the
   decisive test of whether the hard scenario stays the headline.
+- **The proactive policy IS that decisive test, and it works — conditionally (§7).**
+  The constrained-RL Lagrangian cuts proximity **~21% (constraint-driven, both
+  perception modes)** at a mid-training basin checkpoint — graceful avoidance the
+  reactive filter never managed. **Caveat:** the PID is seed-unstable at the only
+  viable budget (d=0.3 → λ 0/0.27/3.86 = unconstrained/graceful/collapse), so the
+  basin reproduces in 1/3 seeds. **Fixed-λ≈0.27 is the fix under test.** If it
+  reproduces across seeds, the headline is *"reactive ISO-SSM filtering is
+  fundamentally limited; proactive constrained-RL resolves it."*

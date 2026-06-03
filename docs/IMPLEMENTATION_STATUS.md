@@ -1,6 +1,6 @@
 # IMPLEMENTATION_STATUS.md
 ### Coding-agent brief — `safety_bigym` MEng project
-### Updated: 2026-05-31 (round 3 — P1/P2 done, P3/P4 launching, E4.1→noisy, full toolchain)
+### Updated: 2026-06-03 (round 4 — E3/CONFIRM done; graceful avoidance is real but d=0.3 PID-unstable; fixed-λ fix in flight)
 
 This document is the **single source of truth for what needs running**.
 It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
@@ -150,6 +150,44 @@ multi-hour launch.
 >   the filter R on the row-3 policy there. `snapshots.py` stays at `_v3` + R=2.25 +
 >   default zero_velocity (the honest baseline backstop).
 > - **Unaffected throughout**: E4.1 rows 1–3 (policy-only) and the e3_1/e3_2 training runs.
+
+> **2026-06-03 update — E3.1/E3.2 + 3-seed CONFIRM done; the policy question is
+> ANSWERED with a twist.** The proactive Lagrangian is the decisive test, and:
+> - **It DOES reduce proximity ~21% (deployment-confirmed, constraint-driven) —
+>   but it was hidden by checkpoint selection.** At d=0.3 (the only viable budget:
+>   d≤0.2 collapse to 0% success, d=0.5 leaves λ=0 = unconstrained), `snapshot_best`
+>   (peak success) AND the final checkpoint deploy ≈ baseline (0.30); the avoidance
+>   lives in a **mid-training basin** (~20k–35k steps: 6 consecutive checkpoints at
+>   0.21–0.25, succ 0.72–0.80, ssm-actual *improved*). **`pick_best_snapshot.py`
+>   picks peak success → WRONG for a Lagrangian** (selects against the constraint);
+>   it caused two false-null E4.1 waves. Use **`--by safety`** or pick from the
+>   deployment basin sweep.
+> - **3-seed CONFIRM (d=0.3) → the PID-Lagrangian is SEED-UNSTABLE.** λ landed at
+>   **0.000 / 0.267 / 3.855** across seeds → **unconstrained / graceful-basin /
+>   windup-collapse** (succ→0). d=0.3 sits at the task's inherent cost (~0.25–0.30),
+>   so the dual variable is set by each seed's stochastic cost trajectory; the
+>   graceful basin reproduces in **only 1/3 seeds**.
+> - **The basin IS constraint-driven, NOT checkpoint-mining** — verified against the
+>   natural control: seed-1 (λ=0) stays flat ≈0.30 with only isolated noise dips (no
+>   coherent basin); seed-0 (λ=0.27) has 6 consecutive sub-0.26 checkpoints. Figure:
+>   `results/figs/d0p3_3seed_lambda_regimes.png`.
+> - **FIX IN FLIGHT: fixed-λ≈0.27** (zero PID gains → λ pinned; Q_c still trains;
+>   `dual_select` uses the constant) via `scripts/run_fixed_lambda.sh` +
+>   `scripts/dispatch_fixed_lambda.sh` — retrain 3 seeds (~6–8h/cell) to test robust
+>   reproduction and decouple λ from seed (definitive causality). Outcomes: all-3
+>   basin → robust ROW3 (proactive policy resolves the filter's limitation); mixed →
+>   residual variance; none → realism-spectrum pivot (E5).
+> - **Filter side unchanged/banked:** reactive SVF is an ISO-SSM velocity backstop
+>   with a freeze-vs-flee dilemma; ~42% of proximity is exogenous. Report-feeding
+>   write-up (now incl. the policy result): [docs/filter_fallback_findings.md](filter_fallback_findings.md)
+>   §7. Post-fix pipeline (sweep→pick→pool→hybrid):
+>   [docs/POST_CONFIRM_ROW3_RUNBOOK.md](POST_CONFIRM_ROW3_RUNBOOK.md).
+> - **New tooling (all on `phase3`):** `pick_best_snapshot.py --by safety` (e41f1dc);
+>   `analyze_row3.py pick|aggregate` + `run_basin_sweep.sh` + `plot_proximity_basin.py`
+>   (7e9d118); `run_fixed_lambda.sh` (f39e910/9dac154); `dispatch_fixed_lambda.sh`
+>   (1dd132d); `plot_basin_multiseed.py` (ece0821). Tests: `test_pick_safe_snapshot.py`,
+>   `test_analyze_row3.py`. Figures: `results/figs/d0p3_basin_seed0.png`,
+>   `d0p3_3seed_lambda_regimes.png`.
 
 ---
 
