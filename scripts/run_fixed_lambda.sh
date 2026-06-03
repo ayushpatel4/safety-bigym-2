@@ -37,7 +37,14 @@ else
   FRAMES="${FRAMES:-40000}"   # the CONFIRM budget; the seed-0 basin formed within ~40k
   WANDB=(wandb.use=true)
   : "${WARMSTART:?Set WARMSTART to the P1 stage-1 snapshot (.pt)}"
-  [[ -f "${WARMSTART}" ]] || { echo "ERROR: WARMSTART=${WARMSTART} not found" >&2; exit 1; }
+fi
+
+# Normalize WARMSTART to an ABSOLUTE path: train_cqn_as runs under Hydra, which
+# chdir's into hydra.run.dir, so a RELATIVE +snapshot_path breaks at load time
+# (FileNotFoundError). Existence is checked here from the launcher CWD.
+if [[ -n "${WARMSTART:-}" ]]; then
+  [[ -f "${WARMSTART}" ]] || { echo "ERROR: WARMSTART=${WARMSTART} not found (cwd $(pwd))" >&2; exit 1; }
+  WARMSTART="$(cd "$(dirname "${WARMSTART}")" && pwd)/$(basename "${WARMSTART}")"
 fi
 
 _STAMP="$(date +%Y%m%d_%H%M%S)"
