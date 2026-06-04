@@ -1,0 +1,153 @@
+2026-06-04 08:31:31,382 OpenGL.acceleratesupport INFO No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-06-04 08:31:31,977 absl INFO MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+2026-06-04 08:31:31,984 absl INFO MuJoCo library version is: 3.1.5
+2026-06-04 08:31:34,421 benchmark_policy INFO Policy kind=cqn_as (snapshot=exp_local/fixed_lambda/fixlam0p27/lam0p27_seed1/snapshot_18165.pt) max_steps=1000
+2026-06-04 08:31:35,563 safety_bigym.envs.safety_bigym_factory INFO Forcing disruption_type=COWORKER for every episode.
+2026-06-04 08:31:35,563 safety_bigym.envs.safety_bigym_factory INFO Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+2026-06-04 08:31:41,164 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-04 08:31:41,165 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-04 08:31:41,166 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-04 08:31:41,166 safety_bigym.envs.safety_env INFO G1 human controller initialized
+2026-06-04 08:31:41,166 safety_bigym.envs.safety_bigym_factory INFO Inserting BodySLAMWrapper(mode=noisy, occlusion=none).
+2026-06-04 08:31:41,170 root INFO Loading demos via raw BiGym env (for DemoStore compatibility).
+2026-06-04 08:31:44,470 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-04 08:31:44,471 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-04 08:31:44,471 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-04 08:31:46,028 root INFO Loaded 36 demos.
+2026-06-04 08:31:50,454 safety_bigym.agents.cqn_as.env_adapter INFO Converted 36 demos (29 successful) for CQN-AS.
+2026-06-04 08:34:02,275 benchmark_policy INFO seed=0 ep=0: reward=-38.709 success=False prox_rate=0.020
+2026-06-04 08:34:18,520 benchmark_policy INFO seed=0 ep=1: reward=-36.550 success=False prox_rate=0.169
+2026-06-04 08:34:37,515 benchmark_policy INFO seed=0 ep=2: reward=-29.091 success=False prox_rate=0.015
+2026-06-04 08:34:43,564 benchmark_policy INFO seed=0 ep=3: reward=-2.339 success=True prox_rate=0.065
+2026-06-04 08:34:49,746 benchmark_policy INFO seed=0 ep=4: reward=-2.607 success=True prox_rate=0.049
+2026-06-04 08:34:55,744 benchmark_policy INFO seed=0 ep=5: reward=-1.905 success=True prox_rate=0.244
+2026-06-04 08:35:01,894 benchmark_policy INFO seed=0 ep=6: reward=-2.568 success=True prox_rate=0.031
+2026-06-04 08:35:07,747 benchmark_policy INFO seed=0 ep=7: reward=-2.024 success=True prox_rate=0.000
+2026-06-04 08:35:15,835 benchmark_policy INFO seed=0 ep=8: reward=-2.679 success=True prox_rate=0.494
+2026-06-04 08:35:33,239 benchmark_policy INFO seed=0 ep=9: reward=-38.108 success=False prox_rate=0.085
+2026-06-04 08:35:54,505 benchmark_policy INFO seed=0 ep=10: reward=-40.864 success=False prox_rate=0.151
+2026-06-04 08:36:13,231 benchmark_policy INFO seed=0 ep=11: reward=-39.604 success=False prox_rate=0.032
+2026-06-04 08:36:32,785 benchmark_policy INFO seed=0 ep=12: reward=-29.132 success=False prox_rate=0.211
+2026-06-04 08:36:46,776 benchmark_policy INFO seed=0 ep=13: reward=-34.387 success=False prox_rate=0.000
+2026-06-04 08:37:05,609 benchmark_policy INFO seed=0 ep=14: reward=-38.543 success=False prox_rate=0.126
+2026-06-04 08:37:27,559 benchmark_policy INFO seed=0 ep=15: reward=-39.677 success=False prox_rate=0.167
+2026-06-04 08:37:34,860 benchmark_policy INFO seed=0 ep=16: reward=-2.339 success=True prox_rate=0.443
+2026-06-04 08:37:40,830 benchmark_policy INFO seed=0 ep=17: reward=-1.958 success=True prox_rate=0.048
+2026-06-04 08:37:59,834 benchmark_policy INFO seed=0 ep=18: reward=-39.522 success=False prox_rate=0.152
+2026-06-04 08:38:21,215 benchmark_policy INFO seed=0 ep=19: reward=-25.559 success=False prox_rate=0.034
+2026-06-04 08:38:37,333 benchmark_policy INFO seed=1 ep=0: reward=-34.925 success=False prox_rate=0.046
+2026-06-04 08:38:44,308 benchmark_policy INFO seed=1 ep=1: reward=-1.899 success=True prox_rate=0.543
+2026-06-04 08:39:07,550 benchmark_policy INFO seed=1 ep=2: reward=-31.367 success=False prox_rate=0.335
+2026-06-04 08:39:13,190 benchmark_policy INFO seed=1 ep=3: reward=-1.895 success=True prox_rate=0.000
+2026-06-04 08:39:18,913 benchmark_policy INFO seed=1 ep=4: reward=-2.108 success=True prox_rate=0.000
+2026-06-04 08:39:24,915 benchmark_policy INFO seed=1 ep=5: reward=-2.247 success=True prox_rate=0.000
+2026-06-04 08:39:43,325 benchmark_policy INFO seed=1 ep=6: reward=-37.343 success=False prox_rate=0.009
+2026-06-04 08:39:49,501 benchmark_policy INFO seed=1 ep=7: reward=-2.481 success=True prox_rate=0.048
+2026-06-04 08:40:06,167 benchmark_policy INFO seed=1 ep=8: reward=-38.626 success=False prox_rate=0.075
+2026-06-04 08:40:24,337 benchmark_policy INFO seed=1 ep=9: reward=-33.469 success=False prox_rate=0.169
+2026-06-04 08:40:30,344 benchmark_policy INFO seed=1 ep=10: reward=-2.058 success=True prox_rate=0.000
+2026-06-04 08:40:52,185 benchmark_policy INFO seed=1 ep=11: reward=-35.294 success=False prox_rate=0.186
+2026-06-04 08:40:58,124 benchmark_policy INFO seed=1 ep=12: reward=-2.180 success=True prox_rate=0.000
+2026-06-04 08:41:18,569 benchmark_policy INFO seed=1 ep=13: reward=-38.077 success=False prox_rate=0.177
+2026-06-04 08:41:24,557 benchmark_policy INFO seed=1 ep=14: reward=-2.198 success=True prox_rate=0.468
+2026-06-04 08:41:36,941 benchmark_policy INFO seed=1 ep=15: reward=-2.669 success=True prox_rate=0.887
+2026-06-04 08:41:55,542 benchmark_policy INFO seed=1 ep=16: reward=-40.499 success=False prox_rate=0.169
+2026-06-04 08:42:04,865 benchmark_policy INFO seed=1 ep=17: reward=-1.918 success=True prox_rate=0.268
+2026-06-04 08:42:28,636 benchmark_policy INFO seed=1 ep=18: reward=-32.242 success=False prox_rate=0.299
+2026-06-04 08:42:46,508 benchmark_policy INFO seed=1 ep=19: reward=-37.117 success=False prox_rate=0.051
+2026-06-04 08:42:57,682 benchmark_policy INFO seed=2 ep=0: reward=-2.387 success=True prox_rate=0.528
+2026-06-04 08:43:18,867 benchmark_policy INFO seed=2 ep=1: reward=-34.950 success=False prox_rate=0.186
+2026-06-04 08:43:36,708 benchmark_policy INFO seed=2 ep=2: reward=-37.799 success=False prox_rate=0.038
+2026-06-04 08:43:51,881 benchmark_policy INFO seed=2 ep=3: reward=-35.990 success=False prox_rate=0.050
+2026-06-04 08:43:57,885 benchmark_policy INFO seed=2 ep=4: reward=-2.382 success=True prox_rate=0.347
+2026-06-04 08:44:16,340 benchmark_policy INFO seed=2 ep=5: reward=-35.799 success=False prox_rate=0.013
+2026-06-04 08:44:32,070 benchmark_policy INFO seed=2 ep=6: reward=-38.206 success=False prox_rate=0.000
+2026-06-04 08:44:51,835 benchmark_policy INFO seed=2 ep=7: reward=-39.342 success=False prox_rate=0.217
+2026-06-04 08:45:19,916 benchmark_policy INFO seed=2 ep=8: reward=-30.648 success=False prox_rate=0.321
+2026-06-04 08:45:44,267 benchmark_policy INFO seed=2 ep=9: reward=-38.440 success=False prox_rate=0.213
+2026-06-04 08:45:59,597 benchmark_policy INFO seed=2 ep=10: reward=-37.635 success=False prox_rate=0.019
+2026-06-04 08:46:10,382 benchmark_policy INFO seed=2 ep=11: reward=-2.512 success=True prox_rate=0.614
+2026-06-04 08:46:18,529 benchmark_policy INFO seed=2 ep=12: reward=-2.712 success=True prox_rate=0.336
+2026-06-04 08:46:40,174 benchmark_policy INFO seed=2 ep=13: reward=-13.418 success=False prox_rate=0.011
+2026-06-04 08:47:01,057 benchmark_policy INFO seed=2 ep=14: reward=-34.327 success=False prox_rate=0.060
+2026-06-04 08:47:10,772 benchmark_policy INFO seed=2 ep=15: reward=-2.786 success=True prox_rate=0.320
+2026-06-04 08:47:37,418 benchmark_policy INFO seed=2 ep=16: reward=-30.205 success=False prox_rate=0.271
+2026-06-04 08:47:58,071 benchmark_policy INFO seed=2 ep=17: reward=-38.701 success=False prox_rate=0.143
+2026-06-04 08:48:22,207 benchmark_policy INFO seed=2 ep=18: reward=-42.213 success=False prox_rate=0.139
+2026-06-04 08:48:29,668 benchmark_policy INFO seed=2 ep=19: reward=-1.887 success=True prox_rate=0.000
+2026-06-04 08:48:29,894 benchmark_policy INFO Wrote 1 cell row to /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p27_seed1_noisy/s18165.csv (60 episodes) + raw rolls to /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p27_seed1_noisy/s18165.raw_episodes.parquet
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+success_rate=0.4 ep_proximity_violation_rate=0.16821917870509792 ep_min_separation=0.11322869325962545
