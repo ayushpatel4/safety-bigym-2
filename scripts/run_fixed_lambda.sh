@@ -27,7 +27,15 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "${REPO_ROOT}"
 
 HUMAN_MODEL="${HUMAN_MODEL:-g1}"; TASK="${TASK:-saucepan_to_hob}"
-NUM_DEMOS="${NUM_DEMOS:-36}"
+if [[ ! -f "${REPO_ROOT}/cfgs/env/safety_bigym/${TASK}.yaml" ]]; then
+  echo "ERROR: TASK=${TASK} — no cfgs/env/safety_bigym/${TASK}.yaml" >&2; exit 1
+fi
+case "${TASK}" in   # task-aware demo count (matches run_e3_2 / run_base_curriculum)
+  saucepan_to_hob)  NUM_DEMOS="${NUM_DEMOS:-36}" ;;
+  drawers_open_all) NUM_DEMOS="${NUM_DEMOS:-50}" ;;
+  dishwasher_close) NUM_DEMOS="${NUM_DEMOS:-50}" ;;
+  *) NUM_DEMOS="${NUM_DEMOS:-36}"; echo "WARNING: TASK=${TASK} NUM_DEMOS=${NUM_DEMOS} (set NUM_DEMOS= to override)" >&2 ;;
+esac
 
 if [[ "${SMOKE:-0}" == "1" ]]; then
   LAMBDAS="${LAMBDAS:-0.27}"; SEEDS="${SEEDS:-0}"; FRAMES="${FRAMES:-2000}"

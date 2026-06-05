@@ -21,6 +21,7 @@ MAX_RETRY="${MAX_RETRY:-1}"
 LAMBDAS="${LAMBDAS:-0.27}"
 SEEDS="${SEEDS:-0 1 2}"
 RUN_TAG="${RUN_TAG:-fixlam}"
+TASK="${TASK:-saucepan_to_hob}"   # forwarded to run_fixed_lambda (drawers_open_all etc.)
 : "${WARMSTART:?Set WARMSTART to the P1 stage-1 snapshot (.pt)}"
 [[ -f "$WARMSTART" ]] || { echo "FATAL: WARMSTART=$WARMSTART not found (cwd $(pwd))" >&2; exit 1; }
 WARMSTART="$(cd "$(dirname "$WARMSTART")" && pwd)/$(basename "$WARMSTART")"   # absolute (Hydra chdir-safe)
@@ -38,7 +39,7 @@ cell_running() { pgrep -f "hydra.run.dir=$(cell_dir "$1") " >/dev/null 2>&1; }
 gpu_busy()     { local o; o="$(nvidia-smi --query-compute-apps=pid --format=csv,noheader -i "$1" 2>/dev/null)"; [[ -n "${o//[$' \t\n']/}" ]]; }
 
 launch_cell() { local g="$1" c="$2"; local L="${c%%:*}" s="${c##*:}"
-  CUDA_VISIBLE_DEVICES="$g" LAMBDAS="$L" SEEDS="$s" FRAMES="$FRAMES" \
+  CUDA_VISIBLE_DEVICES="$g" TASK="$TASK" LAMBDAS="$L" SEEDS="$s" FRAMES="$FRAMES" \
     WARMSTART="$WARMSTART" OUTDIR="$OUTDIR" RUN_TAG="$RUN_TAG" \
     nohup bash scripts/run_fixed_lambda.sh >"$LOGDIR/lam${L//./p}_seed${s}.log" 2>&1 &
   echo "$!"; }
