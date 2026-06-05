@@ -1,0 +1,17 @@
+2026-06-05 20:58:42,067 OpenGL.acceleratesupport INFO No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-06-05 20:58:42,883 absl INFO MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+2026-06-05 20:58:42,890 absl INFO MuJoCo library version is: 3.1.5
+2026-06-05 20:58:45,292 benchmark_policy INFO Policy kind=cqn_as (snapshot=exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed0/snapshot_7711.pt) max_steps=1000
+2026-06-05 20:58:47,171 safety_bigym.envs.safety_bigym_factory INFO Forcing disruption_type=COWORKER for every episode.
+2026-06-05 20:58:47,171 safety_bigym.envs.safety_bigym_factory INFO Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+2026-06-05 20:58:53,313 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-05 20:58:53,314 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-05 20:58:53,314 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-05 20:58:53,314 safety_bigym.envs.safety_env INFO G1 human controller initialized
+2026-06-05 20:58:53,315 safety_bigym.envs.safety_bigym_factory INFO Inserting BodySLAMWrapper(mode=noisy, occlusion=none).
+2026-06-05 20:58:53,318 root INFO Loading demos via raw BiGym env (for DemoStore compatibility).
+2026-06-05 20:58:56,473 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-05 20:58:56,474 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-05 20:58:56,474 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-05 20:58:58,024 root INFO Loaded 36 demos.
+2026-06-05 20:59:02,340 safety_bigym.agents.cqn_as.env_adapter INFO Converted 36 demos (29 successful) for CQN-AS.
