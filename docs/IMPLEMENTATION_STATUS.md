@@ -200,8 +200,29 @@ multi-hour launch.
 > limited; the proactive constrained-RL policy resolves it, reproducibly.** Figure
 > `results/figs/fixlam0p1_3seed.png`. ROW3 snapshots `exp_local/fixed_lambda/fixlam_0p1/
 > lam0p1_seed{0,1,2}` @ steps 30546/8225/32696. Launchers `run_fixed_lambda.sh` /
-> `dispatch_fixed_lambda.sh`. **Remaining: (optional, eval-only) hybrid rows 4/5 →
-> full E4.1 table; write-up.** This is the last training experiment.
+> `dispatch_fixed_lambda.sh`. (Saucepan training is done; E5.3 below adds cross-task training.)
+
+> **E5 — generalization & robustness (2026-06-05).**
+> - **E5.1 tail risk — DONE.** Worst-case separation is exogenous-floor-bound: ROW3
+>   improves *mean* separation (baseline 0.132 → 0.140 m) but the **tail is unchanged**
+>   across baseline / no-shaping / ROW3 (CVaR₅ ≈ 0.005, worst ≈ 0.002 m) — the human's
+>   closest lunge is human-driven. Reinforces the thesis: the policy controls the
+>   *frequency / dwell / mean* of proximity, not the single worst-case approach. Computed
+>   from the benchmark `ep_min_separation` episode data; `aggregate_e5_1.py` formalises it.
+> - **E5.2 OOD (coworker generalization) — running.** Whole E4.1 table re-evaluated on the
+>   held-out `coworker_eval` disruption (broader/gentler: closest 0.6–1.8, reach 3–9 s,
+>   walk 0.6–2.2 vs train's 0.6–0.95 / 1.3–2.2 / 1.0–1.4). Tests whether ROW3's proximity
+>   reduction survives an unseen coworker. `run_e4_1_headline.sh DISRUPTION=coworker_eval`.
+> - **E5.3 cross-task generalization — running.** Replicate the full policy pipeline (base
+>   curriculum → fixed-λ=0.1 Lagrangian → eval) on **`drawers_open_all`** and
+>   **`dishwasher_close`**, producing baseline-vs-Lagrangian proximity rows per task. Tests
+>   whether the proactive-avoidance result holds **across manipulation tasks**, not just
+>   `saucepan_to_hob`. Launched via `dispatch_task_pipeline.sh` (one GPU lane per task,
+>   `TASK=drawers_open_all GPUS="0 1 2"` / `TASK=dishwasher_close GPUS="3 4 5"`); auto-runs
+>   `run_task_eval.sh` → `results/figs/<task>_lam0p1_3seed.png` + pooled ROW3. **Caveat:**
+>   λ=0.1 is the saucepan operating point; if a task's eval shows it over/under-constrains
+>   (success <0.75 or no proximity cut), re-run Phase 2 with `LAMBDA=0.05`/`0.15`. ~1.5–2
+>   days/task. Tooling task-aware as of `e95ea8b`.
 
 ---
 
