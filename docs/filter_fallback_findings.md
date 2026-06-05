@@ -310,6 +310,16 @@ fixed λ at the right value is the fix — a clean methodological point.) Figure
 `results/figs/fixlam0p1_3seed.png`. ROW3 snapshots: `fixlam_0p1/lam0p1_seed{0,1,2}` @
 steps 30546 / 8225 / 32696. Pipeline: `docs/POST_CONFIRM_ROW3_RUNBOOK.md`.
 
+**Workspace-shaping ablation (controls the "inflated baseline" objection).** The
+unconstrained baseline carries a mild workspace-distance reward (β=0.05) that anchors
+the EE in the task workspace. Ablating it: **no-shaping baseline = 0.75 success / 0.258
+proximity** vs **shaping baseline = 0.85 / 0.296**. So shaping is a *task-success aid
+that incidentally raises proximity* (it keeps the robot where the coworker reaches), not
+a safety term. Crucially, **the Lagrangian (0.228 @ 0.76) sits below the no-shaping
+baseline too** — −12% proximity at matched success — so the −22.8% (vs the matched-recipe
+baseline) is not an artifact of an inflated reference. Report both: −23% (isolated
+constraint effect, shaping held fixed) and −12% (confound-controlled, vs vanilla baseline).
+
 **Supersedes §5's tentative reading and §6's `fixed`-policy null:** the `fixed`
 β=0.05 reward penalty was too gentle to avoid (a genuine null); the *Lagrangian* at a
 properly-selected checkpoint does avoid. The lag/perception confound is moot here — the
