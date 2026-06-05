@@ -294,15 +294,21 @@ checkpoint noise dips — *no coherent basin* — whereas seed-0 (λ=0.27) has s
 consecutive sub-0.26 checkpoints. So when λ engages, the constraint does the work;
 when it stays slack (seed-1) or over-winds (seed-2), there is no graceful regime.
 
-**Fix under test: fixed-λ ≈ 0.27.** Freezing λ at seed-0's known-good value (zero PID
-gains; Q_c still trains; `dual_select` uses the constant) removes the unstable PID and
-gives every seed the same constraint weight. Running now (`run_fixed_lambda.sh` /
-`dispatch_fixed_lambda.sh`, 3 seeds). It tests robust reproduction **and** decouples λ
-from the seed (definitive constraint-causality). Outcomes: all-3 reproduce → robust
-headline ROW3 (proactive policy resolves the filter's limitation); mixed → fixed-λ
-helps with residual variance; none → instability is fundamental → realism-spectrum
-pivot (§3 / E5). Post-fix pipeline (sweep → pick → pool → hybrid):
-`docs/POST_CONFIRM_ROW3_RUNBOOK.md`.
+**Fix CONFIRMED (2026-06-05): fixed-λ resolves the instability; λ=0.1 is the robust
+ROW3.** Freezing λ (zero PID gains; Q_c still trains; `dual_select` uses the constant)
+removes the unstable PID — all three seeds then behave consistently. λ is a clean
+proximity–success **Pareto knob**: λ=0 → (succ 0.85, prox 0.296); λ=0.27 →
+over-constrains (succ ~0.6, prox ~0.17, all seeds); **λ=0.1 → the graceful operating
+point: proximity 0.228 [0.194, 0.264] (−22.8%) at success 0.76, robust across 3 seeds
+(180 ep)**, ssm-actual improved (−23%), velocity benign (+8%). Each seed's operating
+point is below baseline. The magnitude is **bounded by the ~42% exogenous floor (§2)**
+— it captures ~40% of the *reducible* (robot-driven) proximity; modest, but the
+reactive filter captured ~0% at acceptable cost. **This is the thesis result: reactive
+ISO-SSM filtering is fundamentally limited; the proactive constrained-RL policy
+resolves it, reproducibly.** (The PID's *auto-tuning* of λ was the unstable part; a
+fixed λ at the right value is the fix — a clean methodological point.) Figure:
+`results/figs/fixlam0p1_3seed.png`. ROW3 snapshots: `fixlam_0p1/lam0p1_seed{0,1,2}` @
+steps 30546 / 8225 / 32696. Pipeline: `docs/POST_CONFIRM_ROW3_RUNBOOK.md`.
 
 **Supersedes §5's tentative reading and §6's `fixed`-policy null:** the `fixed`
 β=0.05 reward penalty was too gentle to avoid (a genuine null); the *Lagrangian* at a

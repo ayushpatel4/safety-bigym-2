@@ -1,6 +1,6 @@
 # IMPLEMENTATION_STATUS.md
 ### Coding-agent brief — `safety_bigym` MEng project
-### Updated: 2026-06-03 (round 4 — E3/CONFIRM done; graceful avoidance is real but d=0.3 PID-unstable; fixed-λ fix in flight)
+### Updated: 2026-06-05 (round 4 — RESULT LOCKED: fixed-λ=0.1 is the robust graceful ROW3, −22.8% proximity @ succ 0.76 across 3 seeds)
 
 This document is the **single source of truth for what needs running**.
 It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
@@ -188,6 +188,20 @@ multi-hour launch.
 >   (1dd132d); `plot_basin_multiseed.py` (ece0821). Tests: `test_pick_safe_snapshot.py`,
 >   `test_analyze_row3.py`. Figures: `results/figs/d0p3_basin_seed0.png`,
 >   `d0p3_3seed_lambda_regimes.png`.
+
+> **2026-06-05 — RESULT LOCKED: fixed-λ=0.1 is the robust graceful ROW3.** Fixed-λ
+> worked as a *stabilizer* (all 3 seeds consistent — the 0/0.27/3.86 chaos gone), and
+> λ is a clean proximity–success **Pareto knob**: λ=0.27 over-constrains (succ ~0.6),
+> **λ=0.1 hits the graceful point — proximity 0.228 [0.194, 0.264] (−22.8%) at success
+> 0.76, robust across 3 seeds (180 ep)**, ssm-actual −23%, velocity +8%. Each seed's
+> operating point is below baseline; magnitude is bounded by the ~42% exogenous floor
+> (captures ~40% of the reducible proximity) — modest, but the reactive filter cut ~0%
+> at acceptable cost. **Thesis headline: reactive ISO-SSM filtering is fundamentally
+> limited; the proactive constrained-RL policy resolves it, reproducibly.** Figure
+> `results/figs/fixlam0p1_3seed.png`. ROW3 snapshots `exp_local/fixed_lambda/fixlam_0p1/
+> lam0p1_seed{0,1,2}` @ steps 30546/8225/32696. Launchers `run_fixed_lambda.sh` /
+> `dispatch_fixed_lambda.sh`. **Remaining: (optional, eval-only) hybrid rows 4/5 →
+> full E4.1 table; write-up.** This is the last training experiment.
 
 ---
 
