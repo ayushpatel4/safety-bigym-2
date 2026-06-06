@@ -144,12 +144,15 @@ class CQNASRunner:
     in-loop (the gym filter wrapper can't sit inside the adapter)."""
 
     def __init__(self, adapter, agent, *, action_sequence, temporal_ensemble=None,
-                 filter_state=None, global_step=0):
+                 filter_state=None, cbf_filter=None, global_step=0):
         self.adapter = adapter  # SafetyBiGymCQNAdapter (its _env may be ObsCacheWrapper)
         self.agent = agent
         self.action_sequence = int(action_sequence)
         self.temporal_ensemble = temporal_ensemble
         self.filter_state = filter_state  # (critic, fallback, threshold_R) or None
+        # Geometric CBF directional-dodge filter (always-on, base-XY only). Mutually
+        # exclusive with the SVF veto path above; only one is set at a time.
+        self.cbf_filter = cbf_filter  # CBFDodgeFilter or None
         self.global_step = int(global_step)
         self._ts = None
         self._episode_step = 0
@@ -204,6 +207,17 @@ class CQNASRunner:
             self.filter_step_count += 1
             if filter_info["intervened"]:
                 self.intervention_count += 1
+        elif self.cbf_filter is not None:
+            # Always-on geometric dodge: de-normalise, correct base-XY, re-normalise.
+            obs_dict = self.adapter._env.last_obs  # ObsCacheWrapper cache (raw gym obs)
+            raw_proposed = self.adapter._convert_action_to_raw(sub_action)
+            raw_corrected, filter_info = self.cbf_filter.apply(obs_dict, raw_proposed)
+            sub_action = np.asarray(
+                self.adapter._convert_action_from_raw(raw_corrected), dtype=np.float32
+            )
+            self.filter_step_count += 1
+            if filter_info["intervened"]:
+                self.intervention_count += 1
 
         nts = self.adapter.step(sub_action)
         self._ts = nts
@@ -244,14 +258,26 @@ def build_cell_runner(
     filter_threshold: float = 4.0,
     fallback_name: str = "zero_velocity",
     num_demos_for_stats: int = 5,
+    cbf_config=None,
 ):
     """Build ``(runner, renderable_env)`` for one cell, branching on ``meta.kind``.
 
     Gym paths (random / ACT) build via :func:`env_build.build_g1_gym_env` and attach the
     filter as an outer wrapper. The CQN-AS path builds its own adapter from the snapshot's
     config and applies the veto in-loop.
+
+    Exactly one of the safety filters may be active per cell:
+      - ``filter_critic`` (+ ``filter_threshold`` / ``fallback_name``) -> learned SVF veto.
+      - ``cbf_config`` (a dict of CBFDodgeFilter kwargs) -> geometric directional dodge.
+    The CBF path is CQN-AS-only and needs no critic, so it skips
+    :func:`filter_attach.assert_critic_covers_obs`.
     """
     from safety_bigym.benchmark import env_build, filter_attach
+
+    if filter_critic is not None and cbf_config is not None:
+        raise ValueError(
+            "build_cell_runner: pass only one of filter_critic (SVF) or cbf_config (CBF)."
+        )
 
     if meta.kind in ("random", "act"):
         env = env_build.build_g1_gym_env(
@@ -283,6 +309,7 @@ def build_cell_runner(
         agent = env_build.make_cqn_agent(cfg, wrapped, payload)
 
         filter_state = None
+        cbf_filter = None
         if filter_critic is not None:
             raw_env = adapter._env
             keys = raw_env.observation_space.spaces.keys() if hasattr(raw_env.observation_space, "spaces") else ()
@@ -292,6 +319,13 @@ def build_cell_runner(
             adapter._env = filter_attach.ObsCacheWrapper(adapter._env)
             fb = FallbackRegistry.build(fallback_name, adapter._env.action_space)
             filter_state = (filter_critic, fb, filter_threshold)
+        elif cbf_config is not None:
+            # Geometric CBF: no critic, so no assert_critic_covers_obs. Still needs the
+            # raw obs cache so the in-loop dodge can read human_pos_estimate / base XY.
+            from safety_bigym.filters.cbf_filter import CBFDodgeFilter
+
+            adapter._env = filter_attach.ObsCacheWrapper(adapter._env)
+            cbf_filter = CBFDodgeFilter(adapter._env.action_space, **dict(cbf_config))
 
         temporal_ensemble = None
         if bool(cfg.get("temporal_ensemble", False)):
@@ -303,6 +337,7 @@ def build_cell_runner(
         runner = CQNASRunner(
             adapter, agent, action_sequence=int(cfg.action_sequence),
             temporal_ensemble=temporal_ensemble, filter_state=filter_state,
+            cbf_filter=cbf_filter,
         )
         return runner, adapter
 
