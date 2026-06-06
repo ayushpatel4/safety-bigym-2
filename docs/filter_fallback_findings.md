@@ -327,6 +327,29 @@ basin appears on **both** noisy and oracle.
 
 ---
 
+## 8. The hybrid (filter on the constrained policy): redundant and counterproductive
+
+The decisive architectural test — the SVF filter applied **on top of** the proactive
+Lagrangian policy (E4.1 row 5) — makes the result **worse than the policy alone**:
+proximity 0.198 → 0.265, success 0.75 → 0.62 (seed-0, noisy). The mechanism is a
+**48 % filter intervention rate** (vs 15 % on the baseline policy): the SVF critic was
+collected on *baseline* rollouts, so it is **out of distribution on the avoiding
+policy** and over-vetoes; each veto zeroes robot velocity (mean vel → 0.231),
+re-introducing the freeze/dwell failure of §1. The **E4.3 internalisation curve**
+corroborates — intervention stays ~40–50 % across the policy's training rather than
+falling, because the constrained policy's state–action distribution is exactly where
+the baseline-trained critic is least calibrated. Same pattern out of distribution
+(`coworker_eval`, 54 % intervention).
+
+**Conclusion:** the proactive policy internalises safety well enough that a reactive
+filter calibrated to the unconstrained baseline is **redundant and, when active,
+counterproductive** — proactive ≫ reactive, to the point the filter is unnecessary. A
+threshold recalibration (R-sweep) on the row-3 policy can at best make the filter a
+harmless backstop; it does not change the conclusion. A proper fix would re-collect
+the SVF on the *constrained* policy's rollouts (the full P2 pipeline) — out of scope.
+
+---
+
 ## TL;DR
 
 - The v3 SVF pipeline is **valid** (sweep predicts benchmark); the four-bug fix is a

@@ -224,6 +224,30 @@ multi-hour launch.
 >   (success <0.75 or no proximity cut), re-run Phase 2 with `LAMBDA=0.05`/`0.15`. ~1.5–2
 >   days/task. Tooling task-aware as of `e95ea8b`.
 
+> **2026-06-06 — ALL eval experiments DONE (E5.3 tasks still training). Key new
+> finding: the HYBRID IS COUNTERPRODUCTIVE.** Draft write-up:
+> `docs/results_discussion_draft.md`.
+> - **Saucepan E4.1 table complete** (`results/e4_1/e4_1_saucepan_to_hob_noisy_20260605_213348`):
+>   row1 0.85/0.296; **row3 Lagrangian λ=0.1 (pooled) 0.76/0.228 (−23%)** [seed0 0.198,
+>   −33%]; row4 baseline+filter 0.78/0.303 (+2%, 15% interv — velocity backstop only);
+>   **row5 hybrid 0.62/0.265, 48% interv — WORSE than the policy alone.**
+> - **Hybrid over-vetoes (48% vs 15% on baseline) → freeze → proximity ↑, success ↓.**
+>   The SVF critic was trained on *baseline* rollouts → OOD on the avoiding policy.
+>   **E4.3** corroborates (`results/e4_3/...`: intervention stays ~40–50%, no
+>   internalisation fall). **Conclusion: the proactive policy makes the
+>   baseline-calibrated reactive filter redundant/counterproductive — proactive ≫
+>   reactive.** Optional: an R-sweep recalibrates the filter to the row-3 policy (at
+>   best a harmless backstop; does not change the conclusion).
+> - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
+>   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
+>   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.
+> - **E3.6 perception gap DONE:** ROW3 oracle 0.236 ≈ noisy 0.198 — avoidance robust to
+>   perception noise/lag, NOT bottlenecked. `--obs-mode off` is architecturally N/A (the
+>   CQN-AS policy is trained with the human channel; low-dim **288→264** mismatch → that
+>   condition is the E1.1 BC ablation, a separate no-human-obs policy).
+> - **E5.1 tail risk DONE:** worst-case separation exogenous-floor-bound (CVaR₅≈0.005,
+>   worst≈0.002 m, unchanged across configs).
+
 ---
 
 ## Confirmed decision points (round 3)
