@@ -239,8 +239,16 @@ multi-hour launch.
 >   reactive.** **R-sweep DONE** (`results/e4_1/hybrid_Rsweep`): the filter is harmful
 >   at EVERY threshold — R∈[1.0,2.25] gives 39–48% interv and prox 0.27–0.28 (vs policy
 >   0.198); lowering R barely changes interv → the baseline critic is OOD-miscalibrated
->   on the avoiding policy, not mis-thresholded. Not tunable; only an SVF re-collect on
->   the constrained policy could fix it (out of scope). Conclusion firmer.
+>   on the avoiding policy, not mis-thresholded. **On-policy SVF re-collect DONE
+>   (`VER=v3_onpolicy`) — it does NOT salvage the filter either:** the deployment-faithful
+>   sweep still has NO graceful knee (≤25% interv every R raises proximity — R=1.0
+>   7.8%→0.264 vs policy 0.189; reduction only at 65–100% interv, robot frozen). So
+>   *both* baseline-trained AND on-policy critics fail at every threshold → the limit is
+>   the **reactive paradigm** (stop=freeze/dwell, retreat=flee/abandon), not the critic.
+>   **Strongest result: no reactive learned filter, however calibrated, gracefully cuts
+>   proximity vs an approaching coworker; proactive constrained-RL is necessary.** Do NOT
+>   pin v3_onpolicy in snapshots.py (no operating point) — report as a definitive negative.
+>   Sweep `results/svf_sweep_g1_0p3_v3_onpolicy/`. Draft §3.1.
 > - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
 >   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
 >   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.

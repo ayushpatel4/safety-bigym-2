@@ -90,29 +90,35 @@ baseline-trained critic is **miscalibrated (out-of-distribution) on the avoiding
 policy**, not mis-thresholded — re-thresholding cannot recover it; only re-collecting
 the SVF on the constrained policy's own rollouts (the full P2 pipeline) could.
 
-### 3.1 What a *working* filter looks like: on-policy calibration  [PENDING on-policy run]
+### 3.1 The filter is not salvageable by calibration — the limit is the reactive paradigm
 
-To confirm the failure is distribution shift — not the filter concept — we re-collect
-the SVF critic on the **constrained policy's own rollouts** (instead of the baseline's)
-and re-evaluate the hybrid. **[Results pending `hybrid_onpolicy`:** the on-policy critic
-intervenes ~__ % (vs 48 %), and the hybrid recovers to proximity __ / success __ — ≈ the
-policy alone, confirming the baseline critic's harm was OOD miscalibration, fixable by
-on-policy calibration.] This yields a clean design rule and the contrast that names what
-works:
+A natural hypothesis is that the hybrid's failure is mere distribution shift (the critic
+was trained on the *baseline* policy). To test it, we re-collected the SVF critic on the
+**constrained policy's own rollouts** (on-policy), removing the OOD miscalibration, and
+re-swept the veto threshold (deployment-faithful sweep, 3 seeds). The result is decisive:
+**there is still no graceful operating point.** At every intervention rate ≤ 25 % the
+filter *increases* proximity (R=1.0: 7.8 % intervention, proximity 0.189 → 0.264; R=2.25:
+4.8 %, → 0.292) — the zero-velocity fallback freezes the robot into dwelling even when
+vetoes are sparse and well-calibrated — and proximity falls only at 65–100 % intervention,
+where the robot is essentially frozen (R=3.0: 71 %, 0.127). No threshold meets the
+≥ 30 %-reduction-at-≤ 25 %-intervention bar.
 
-> **A runtime safety filter must be calibrated on the distribution of the policy it
-> guards.** A filter trained on a *different* (here, unconstrained-baseline) policy is
-> not merely suboptimal but **actively harmful at every threshold**; the *same* filter
-> family, re-collected *on-policy*, becomes a harmless low-intervention backstop.
+Because **both** the baseline-trained critic (§3) **and** the on-policy critic fail at
+*every* threshold, the cause is not the critic but the **reactive paradigm itself**:
+against an *approaching* human the only available fallback actions are *stop*
+(freeze → dwell → proximity rises) or *retreat* (flee → abandon the task), and no critic —
+however well calibrated, however thresholded — changes which fallback exists or makes
+"stop" the right response to an oncoming person. This is the strongest form of the result:
 
-We expect the on-policy filter to be **benign** (low intervention, proximity ≈ the
-policy) rather than a large additional safety win — the residual proximity is the
-exogenous floor (§5.1), which no robot-side filter can remove. So the proactive policy
-remains the load-bearing safety mechanism, with the filter a *calibrated* backstop for
-the controllable (robot-driven) cases. *(A model-based filter — CBF-QP / HJ-reachability
-/ predictive — is the alternative that avoids policy-specific data entirely and offers
-formal guarantees, but does not fit a high-DoF, contact-rich, exogenous-human scene
-without substantial approximation; we note it as future work, §5.)*
+> **No reactive learned safety filter gracefully reduces proximity against an approaching
+> coworker.** The limitation is intrinsic to reactive veto-and-fallback control, not to
+> the safety critic's calibration — proactive constrained-RL is *necessary*, not merely
+> preferable.
+
+A model-based filter with formal guarantees (CBF-QP / HJ-reachability / predictive) is the
+one remaining theoretical alternative, but does not fit a high-DoF, contact-rich,
+exogenous-human scene without substantial approximation (§5, future work). Within the
+learned-filter paradigm, the reactive route is empirically exhausted here.
 
 ## 4. Generalisation and robustness
 

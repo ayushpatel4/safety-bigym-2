@@ -352,6 +352,20 @@ mis-thresholded. Re-thresholding cannot recover it — only re-collecting the SV
 the constrained policy's own rollouts (the full P2 pipeline) could. (Sweep:
 `results/e4_1/hybrid_Rsweep/`.)
 
+**UPDATE (on-policy re-collection DONE — it does NOT salvage the filter).** We
+re-collected the SVF on the constrained policy's own rollouts (`VER=v3_onpolicy`,
+fixing the OOD calibration) and re-swept (deployment-faithful, 3 seeds): **still no
+graceful knee.** At ≤ 25 % intervention every threshold *increases* proximity
+(R=1.0: 7.8 % → 0.264 vs the policy's 0.189; R=2.25: 4.8 % → 0.292); proximity drops
+only at 65–100 % intervention (robot frozen; R=3.0: 71 % → 0.127). So OOD calibration
+is **not** the whole story — *both* the baseline-trained and on-policy critics fail at
+every threshold → the limitation is the **reactive paradigm** (zero-velocity / retreat
+fallback against an approaching human), not the critic. The strongest conclusion: **no
+reactive learned filter, however calibrated, gracefully reduces proximity here;
+proactive constrained-RL is necessary.** Sweep: `results/svf_sweep_g1_0p3_v3_onpolicy/`.
+Do **not** pin this critic in `snapshots.py` (no useful operating point) — it is
+reported as a definitive negative.
+
 ---
 
 ## TL;DR
