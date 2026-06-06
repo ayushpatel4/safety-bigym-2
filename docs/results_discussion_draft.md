@@ -90,6 +90,30 @@ baseline-trained critic is **miscalibrated (out-of-distribution) on the avoiding
 policy**, not mis-thresholded — re-thresholding cannot recover it; only re-collecting
 the SVF on the constrained policy's own rollouts (the full P2 pipeline) could.
 
+### 3.1 What a *working* filter looks like: on-policy calibration  [PENDING on-policy run]
+
+To confirm the failure is distribution shift — not the filter concept — we re-collect
+the SVF critic on the **constrained policy's own rollouts** (instead of the baseline's)
+and re-evaluate the hybrid. **[Results pending `hybrid_onpolicy`:** the on-policy critic
+intervenes ~__ % (vs 48 %), and the hybrid recovers to proximity __ / success __ — ≈ the
+policy alone, confirming the baseline critic's harm was OOD miscalibration, fixable by
+on-policy calibration.] This yields a clean design rule and the contrast that names what
+works:
+
+> **A runtime safety filter must be calibrated on the distribution of the policy it
+> guards.** A filter trained on a *different* (here, unconstrained-baseline) policy is
+> not merely suboptimal but **actively harmful at every threshold**; the *same* filter
+> family, re-collected *on-policy*, becomes a harmless low-intervention backstop.
+
+We expect the on-policy filter to be **benign** (low intervention, proximity ≈ the
+policy) rather than a large additional safety win — the residual proximity is the
+exogenous floor (§5.1), which no robot-side filter can remove. So the proactive policy
+remains the load-bearing safety mechanism, with the filter a *calibrated* backstop for
+the controllable (robot-driven) cases. *(A model-based filter — CBF-QP / HJ-reachability
+/ predictive — is the alternative that avoids policy-specific data entirely and offers
+formal guarantees, but does not fit a high-DoF, contact-rich, exogenous-human scene
+without substantial approximation; we note it as future work, §5.)*
+
 ## 4. Generalisation and robustness
 
 - **Unseen coworker (E5.2).** Re-evaluated on a held-out coworker distribution
