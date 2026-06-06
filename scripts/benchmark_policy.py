@@ -58,17 +58,27 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p.add_argument("--filter-snapshot", type=Path, default=None, help="SVF critic checkpoint to wrap the policy.")
     p.add_argument("--filter-threshold", type=float, default=2.25, help="SVF Q-value threshold R (filter triggers q<R). 2.25 = G1 dense-0.3m-sweep operating point (snapshots.py).")
     p.add_argument("--fallback", default="zero_velocity")
-    # CBF directional-dodge knobs (only used when --safety-filter cbf).
+    # CBF knobs (only used when --safety-filter cbf).
+    p.add_argument("--cbf-mode", choices=("base", "ee"), default="base",
+                   help="CBF correction target. 'base' = push the floating base X,Y away "
+                        "from the human (CBFDodgeFilter; flees the workspace). 'ee' = "
+                        "retract the ARM end-effector along the away-direction via the EE "
+                        "Jacobian, base stays planted (CBFRetractFilter; 'flinch').")
     p.add_argument("--cbf-d-target", type=float, default=0.45,
-                   help="CBF barrier offset (m): keep robot-base<->human separation >= this. "
-                        "Default 0.45 (margin above the 0.30 m violation threshold).")
+                   help="CBF barrier offset (m): keep separation >= this. base-mode is "
+                        "base<->human; ee-mode is EE<->closest-human. Default 0.45 "
+                        "(margin above the 0.30 m violation threshold).")
     p.add_argument("--cbf-gain", type=float, default=1.0, help="CBF correction gain on (d_target - sep).")
-    p.add_argument("--cbf-max-push", type=float, default=0.15, help="CBF per-step base-target offset cap (m).")
-    p.add_argument("--cbf-beta", type=float, default=0.1, help="CBF approach-velocity term weight (with --cbf-use-velocity).")
+    p.add_argument("--cbf-max-push", type=float, default=0.15,
+                   help="CBF per-step offset cap (m): base-target step (base) or Cartesian "
+                        "EE retract (ee).")
+    p.add_argument("--cbf-beta", type=float, default=0.1, help="CBF approach-velocity term weight (base-mode only, with --cbf-use-velocity).")
     p.add_argument("--cbf-use-velocity", dest="cbf_use_velocity", action="store_true", default=True,
-                   help="Add an approach-velocity term to the CBF push (default on).")
+                   help="Add an approach-velocity term to the CBF push (base-mode only; default on).")
     p.add_argument("--cbf-no-velocity", dest="cbf_use_velocity", action="store_false",
-                   help="Disable the CBF approach-velocity term (geometric-only dodge).")
+                   help="Disable the CBF approach-velocity term (base-mode geometric-only dodge).")
+    p.add_argument("--cbf-damping", type=float, default=0.05,
+                   help="ee-mode only: damped-least-squares lambda for the EE Jacobian pseudo-inverse.")
     p.add_argument("--task", default="saucepan_to_hob")
     p.add_argument("--disruption", default="coworker_train")
     p.add_argument("--obs-mode", choices=("off", "oracle", "noisy"), default="noisy")
@@ -220,14 +230,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     cbf_config = None
     if use_cbf:
-        cbf_config = dict(
-            d_target=args.cbf_d_target,
-            gain=args.cbf_gain,
-            max_push=args.cbf_max_push,
-            use_velocity=bool(args.cbf_use_velocity),
-            beta=args.cbf_beta,
-        )
-        logger.info("CBF dodge config: %s", cbf_config)
+        if args.cbf_mode == "ee":
+            # CBFRetractFilter kwargs (no velocity term; has Jacobian damping).
+            cbf_config = dict(
+                d_target=args.cbf_d_target,
+                gain=args.cbf_gain,
+                max_push=args.cbf_max_push,
+                damping=args.cbf_damping,
+            )
+        else:
+            cbf_config = dict(
+                d_target=args.cbf_d_target,
+                gain=args.cbf_gain,
+                max_push=args.cbf_max_push,
+                use_velocity=bool(args.cbf_use_velocity),
+                beta=args.cbf_beta,
+            )
+        logger.info("CBF %s config: %s", args.cbf_mode, cbf_config)
 
     runner, renderable = build_cell_runner(
         meta, payload,
@@ -236,7 +255,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         human_model=args.human_model,
         filter_critic=filter_critic, filter_threshold=args.filter_threshold,
         fallback_name=args.fallback, num_demos_for_stats=args.num_demos_for_stats,
-        cbf_config=cbf_config,
+        cbf_config=cbf_config, cbf_mode=args.cbf_mode,
     )
 
     jsonl_path = args.out.with_suffix(".episodes.jsonl")
@@ -272,9 +291,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     runner.close()
 
     if use_cbf:
-        filter_meta = {"fallback": f"cbf_dodge(d_target={args.cbf_d_target},"
-                                   f"gain={args.cbf_gain},max_push={args.cbf_max_push},"
-                                   f"use_vel={bool(args.cbf_use_velocity)},beta={args.cbf_beta})"}
+        if args.cbf_mode == "ee":
+            fb_desc = (f"cbf_ee_retract(d_target={args.cbf_d_target},"
+                       f"gain={args.cbf_gain},max_push={args.cbf_max_push},"
+                       f"damping={args.cbf_damping})")
+        else:
+            fb_desc = (f"cbf_dodge(d_target={args.cbf_d_target},"
+                       f"gain={args.cbf_gain},max_push={args.cbf_max_push},"
+                       f"use_vel={bool(args.cbf_use_velocity)},beta={args.cbf_beta})")
+        filter_meta = {"fallback": fb_desc}
     elif use_svf:
         filter_meta = {"fallback": args.fallback}
     else:
@@ -289,7 +314,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "human_model": args.human_model,
         "policy_kind": meta.kind,
         "snapshot": str(args.snapshot) if args.snapshot else "",
-        "filter_snapshot": ("cbf_dodge" if use_cbf else (str(args.filter_snapshot) if use_svf else "")),
+        "filter_snapshot": ((f"cbf_{args.cbf_mode}") if use_cbf else (str(args.filter_snapshot) if use_svf else "")),
         "filter_threshold": (args.cbf_d_target if use_cbf else (args.filter_threshold if use_svf else "")),
         "seeds": ",".join(str(s) for s in seeds),
         "episodes_per_seed": int(args.episodes),

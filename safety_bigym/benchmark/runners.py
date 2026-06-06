@@ -144,7 +144,8 @@ class CQNASRunner:
     in-loop (the gym filter wrapper can't sit inside the adapter)."""
 
     def __init__(self, adapter, agent, *, action_sequence, temporal_ensemble=None,
-                 filter_state=None, cbf_filter=None, global_step=0):
+                 filter_state=None, cbf_filter=None, ee_retract_filter=None,
+                 global_step=0):
         self.adapter = adapter  # SafetyBiGymCQNAdapter (its _env may be ObsCacheWrapper)
         self.agent = agent
         self.action_sequence = int(action_sequence)
@@ -153,6 +154,9 @@ class CQNASRunner:
         # Geometric CBF directional-dodge filter (always-on, base-XY only). Mutually
         # exclusive with the SVF veto path above; only one is set at a time.
         self.cbf_filter = cbf_filter  # CBFDodgeFilter or None
+        # Geometric CBF EE-retract ("flinch") filter (always-on, arm-only). Also
+        # mutually exclusive with the SVF veto + base-CBF; needs the live env handle.
+        self.ee_retract_filter = ee_retract_filter  # CBFRetractFilter or None
         self.global_step = int(global_step)
         self._ts = None
         self._episode_step = 0
@@ -218,6 +222,21 @@ class CQNASRunner:
             self.filter_step_count += 1
             if filter_info["intervened"]:
                 self.intervention_count += 1
+        elif self.ee_retract_filter is not None:
+            # Always-on geometric EE retract: read EE/human/Jacobian off the LIVE env
+            # (not just the obs), correct the ARM action, re-normalise. Pass-through
+            # when the state can't be resolved.
+            from safety_bigym.filters.cbf_filter import compute_ee_retract_state
+
+            state = compute_ee_retract_state(self.adapter._env)
+            raw_proposed = self.adapter._convert_action_to_raw(sub_action)
+            raw_corrected, filter_info = self.ee_retract_filter.apply(state, raw_proposed)
+            sub_action = np.asarray(
+                self.adapter._convert_action_from_raw(raw_corrected), dtype=np.float32
+            )
+            self.filter_step_count += 1
+            if filter_info["intervened"]:
+                self.intervention_count += 1
 
         nts = self.adapter.step(sub_action)
         self._ts = nts
@@ -259,6 +278,7 @@ def build_cell_runner(
     fallback_name: str = "zero_velocity",
     num_demos_for_stats: int = 5,
     cbf_config=None,
+    cbf_mode: str = "base",
 ):
     """Build ``(runner, renderable_env)`` for one cell, branching on ``meta.kind``.
 
@@ -268,8 +288,10 @@ def build_cell_runner(
 
     Exactly one of the safety filters may be active per cell:
       - ``filter_critic`` (+ ``filter_threshold`` / ``fallback_name``) -> learned SVF veto.
-      - ``cbf_config`` (a dict of CBFDodgeFilter kwargs) -> geometric directional dodge.
-    The CBF path is CQN-AS-only and needs no critic, so it skips
+      - ``cbf_config`` (a dict of CBF kwargs) -> geometric CBF, ``cbf_mode``-selected:
+          * ``base`` (default) = :class:`CBFDodgeFilter` (push the floating base X,Y away).
+          * ``ee``             = :class:`CBFRetractFilter` (retract the arm EE; base stays).
+    The CBF paths are CQN-AS-only and need no critic, so they skip
     :func:`filter_attach.assert_critic_covers_obs`.
     """
     from safety_bigym.benchmark import env_build, filter_attach
@@ -310,6 +332,7 @@ def build_cell_runner(
 
         filter_state = None
         cbf_filter = None
+        ee_retract_filter = None
         if filter_critic is not None:
             raw_env = adapter._env
             keys = raw_env.observation_space.spaces.keys() if hasattr(raw_env.observation_space, "spaces") else ()
@@ -320,12 +343,21 @@ def build_cell_runner(
             fb = FallbackRegistry.build(fallback_name, adapter._env.action_space)
             filter_state = (filter_critic, fb, filter_threshold)
         elif cbf_config is not None:
-            # Geometric CBF: no critic, so no assert_critic_covers_obs. Still needs the
-            # raw obs cache so the in-loop dodge can read human_pos_estimate / base XY.
-            from safety_bigym.filters.cbf_filter import CBFDodgeFilter
-
+            # Geometric CBF: no critic, so no assert_critic_covers_obs. Both modes still
+            # need the raw obs cache (the base dodge reads human_pos_estimate / base XY;
+            # the EE retract reads the live env, but ObsCacheWrapper is a harmless
+            # transparent passthrough that also keeps adapter._env a gym.Wrapper chain).
             adapter._env = filter_attach.ObsCacheWrapper(adapter._env)
-            cbf_filter = CBFDodgeFilter(adapter._env.action_space, **dict(cbf_config))
+            if str(cbf_mode) == "ee":
+                from safety_bigym.filters.cbf_filter import CBFRetractFilter
+
+                ee_retract_filter = CBFRetractFilter(
+                    adapter._env.action_space, **dict(cbf_config)
+                )
+            else:
+                from safety_bigym.filters.cbf_filter import CBFDodgeFilter
+
+                cbf_filter = CBFDodgeFilter(adapter._env.action_space, **dict(cbf_config))
 
         temporal_ensemble = None
         if bool(cfg.get("temporal_ensemble", False)):
@@ -337,7 +369,7 @@ def build_cell_runner(
         runner = CQNASRunner(
             adapter, agent, action_sequence=int(cfg.action_sequence),
             temporal_ensemble=temporal_ensemble, filter_state=filter_state,
-            cbf_filter=cbf_filter,
+            cbf_filter=cbf_filter, ee_retract_filter=ee_retract_filter,
         )
         return runner, adapter
 

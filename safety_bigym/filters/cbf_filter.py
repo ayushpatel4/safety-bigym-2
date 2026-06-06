@@ -47,19 +47,32 @@ Fail-safe behaviour (the filter is never worse than a pass-through):
   - missing/short ``human_pos_estimate`` (obs-mode off) -> return ``a`` unchanged, warn once.
   - degenerate direction (``sep < 1e-3``)               -> return ``a`` unchanged.
   - any non-finite value                                -> return ``a`` unchanged.
+
+EE-retract ("flinch") variant
+-----------------------------
+:class:`CBFRetractFilter` is a sibling mode that keeps the floating base planted and
+instead retracts the ARM end-effector along the away-direction when the human gets
+close to the *hand* (the quantity ``min_separation`` actually measures). The barrier
+is ``h = sep_ee - d_target`` with ``sep_ee = ||ee_pos - human_pos||`` (closest human
+body to the EE); the capped Cartesian retract ``u*push`` is mapped to arm joint
+targets through the EE Jacobian (``dq = dls_pinv(J_ee) @ (u*push)``). It needs the
+env's MuJoCo model+data (EE pose, closest human body, EE Jacobian), supplied by
+:func:`compute_ee_retract_state`; the math half is MuJoCo-free and unit-tested with a
+synthetic Jacobian. Hypothesis: retracting only the arm increases EE-human separation
+at less task-success cost than backing the whole base out of the workspace.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import gymnasium as gym
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CBFDodgeFilter"]
+__all__ = ["CBFDodgeFilter", "CBFRetractFilter", "compute_ee_retract_state"]
 
 
 class CBFDodgeFilter:
@@ -217,3 +230,361 @@ class CBFDodgeFilter:
             "d_target": self.d_target,
         }
         return out, info
+
+
+def _damped_pinv(J: np.ndarray, damping: float) -> np.ndarray:
+    """Damped least-squares (Levenberg-Marquardt) pseudo-inverse of ``J`` (m x n).
+
+    ``J^+ = J^T (J J^T + lambda^2 I_m)^-1`` — the right-pinv form, which is the
+    minimum-norm solver for the under-determined Cartesian->joint map and never
+    blows up near a kinematic singularity (the bare Moore-Penrose pinv does).
+    ``m`` (the task dim) is 3 here, so the inverted matrix is a tiny 3x3.
+    """
+    J = np.asarray(J, dtype=np.float64)
+    m = J.shape[0]
+    lam2 = float(damping) ** 2
+    JJt = J @ J.T + lam2 * np.eye(m)
+    return J.T @ np.linalg.inv(JJt)
+
+
+class CBFRetractFilter:
+    """Geometric CBF *EE-retract ("flinch")* filter — arm-only, base untouched.
+
+    Sibling of :class:`CBFDodgeFilter`. Where the dodge filter pushes the floating
+    **base** X,Y away from the human (which works but *flees* the workspace, costing
+    task success), this filter keeps the base planted and instead **retracts the arm
+    end-effector** in Cartesian space along the away-direction when the human gets
+    too close to the *hand* — the quantity ``min_separation`` actually measures.
+
+    Barrier (we want ``h >= 0``):
+
+        h = sep_ee - d_target,    sep_ee = ||ee_pos - human_pos||
+
+    where ``human_pos`` is the closest tracked human body to the EE. When ``h < 0``
+    we move the EE along the unit away-direction ``u = (ee_pos - human_pos)/sep_ee``
+    by a capped step ``push = clip(gain*(d_target - sep_ee), 0, max_push)`` and map
+    that Cartesian retract to ARM joint targets through the EE Jacobian::
+
+        dq = dls_pinv(J_ee) @ (u * push)          # damped least-squares
+        a_out[arm_idx] = arm_qpos + dq            # absolute joint targets
+
+    Only the arm action indices change; base (X,Y,Z,RZ) and grippers pass through.
+    Because the action mode is *absolute* joint position, ``arm_qpos + dq`` commands
+    the arm to step ``dq`` from its current pose — i.e. the policy's arm command is
+    overridden for the duration of the flinch (it resumes the moment ``h >= 0``).
+
+    This is the *pure-math* half: the EE position, the closest human body position,
+    the EE Jacobian (restricted to the arm DOF columns) and the current arm qpos are
+    all supplied in the ``state`` dict by :func:`compute_ee_retract_state`, so this
+    class needs **no MuJoCo** and is unit-testable with a synthetic Jacobian.
+
+    Fail-safe (never worse than a pass-through): missing/ill-shaped state, a
+    non-finite value, ``sep_ee >= d_target`` (safe), or a degenerate away-direction
+    all return the proposed action unchanged.
+
+    Parameters
+    ----------
+    action_space:
+        The RAW (de-normalised) action :class:`gym.spaces.Box`; ``apply`` clips into it.
+    d_target / gain / max_push:
+        Barrier offset (m), CBF correction gain on the depth, and per-step Cartesian
+        retract cap (m) — same roles as :class:`CBFDodgeFilter`.
+    damping:
+        Damped-least-squares lambda for the Jacobian pseudo-inverse (rad-ish units).
+    state_key:
+        Key under which the env-state dict is looked up when ``apply`` is handed the
+        full obs mapping (the runner passes the state dict directly, so this is mostly
+        for symmetry / debugging).
+    """
+
+    # state-dict fields produced by compute_ee_retract_state.
+    _EE = "ee_pos"
+    _HUMAN = "human_pos"
+    _JARM = "J_arm"
+    _QARM = "arm_qpos"
+    _IDX = "arm_action_idx"
+
+    def __init__(
+        self,
+        action_space: gym.spaces.Box,
+        *,
+        d_target: float = 0.45,
+        gain: float = 1.0,
+        max_push: float = 0.15,
+        damping: float = 0.05,
+        state_key: str = "ee_retract_state",
+    ):
+        if not isinstance(action_space, gym.spaces.Box):
+            raise TypeError(
+                f"CBFRetractFilter expects a Box action_space; got "
+                f"{type(action_space).__name__}"
+            )
+        self._low = action_space.low.astype(np.float32)
+        self._high = action_space.high.astype(np.float32)
+        self._shape = action_space.shape
+        self.d_target = float(d_target)
+        self.gain = float(gain)
+        self.max_push = float(max_push)
+        self.damping = float(damping)
+        self._state_key = state_key
+        self._warned_no_state = False
+
+    def _passthrough(self, proposed: np.ndarray, *, sep: float = float("nan"),
+                     reason: str = "") -> Tuple[np.ndarray, Dict[str, Any]]:
+        out = np.asarray(proposed, dtype=np.float32).copy()
+        info = {
+            "intervened": False,
+            "h": float(sep - self.d_target) if np.isfinite(sep) else float("nan"),
+            "sep": float(sep),
+            "push": 0.0,
+            "d_target": self.d_target,
+            "mode": "ee",
+        }
+        if reason:
+            info["reason"] = reason
+        return out, info
+
+    @staticmethod
+    def _extract_state(obs_or_state: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+        """Return the state dict — the runner hands it directly, but tolerate a
+        nested ``obs['ee_retract_state']`` too."""
+        if obs_or_state is None:
+            return None
+        if hasattr(obs_or_state, "get") and obs_or_state.get("ee_retract_state") is not None:
+            return obs_or_state.get("ee_retract_state")
+        return obs_or_state
+
+    def apply(
+        self,
+        state: Mapping[str, Any],
+        raw_proposed: np.ndarray,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Return ``(raw_corrected, info)`` in the RAW action space.
+
+        ``state`` carries ``ee_pos`` (3,), ``human_pos`` (3,), ``J_arm`` (3,N),
+        ``arm_qpos`` (N,) and ``arm_action_idx`` (N,) — see
+        :func:`compute_ee_retract_state`. ``info`` mirrors :class:`CBFDodgeFilter`'s
+        veto bookkeeping (``intervened`` / ``h`` / ``sep`` / ``push`` / ``d_target``)
+        so the runner counts interventions identically.
+        """
+        proposed = np.asarray(raw_proposed, dtype=np.float32)
+        st = self._extract_state(state)
+
+        required = (self._EE, self._HUMAN, self._JARM, self._QARM, self._IDX)
+        if st is None or any(
+            (st.get(k) if hasattr(st, "get") else None) is None for k in required
+        ):
+            if not self._warned_no_state:
+                logger.warning(
+                    "CBFRetractFilter inactive: env-state is missing one of %r "
+                    "(EE pose / closest human / Jacobian unavailable). Passing "
+                    "actions through unchanged.", list(required),
+                )
+                self._warned_no_state = True
+            return self._passthrough(proposed, reason="missing_state")
+
+        ee = np.asarray(st[self._EE], dtype=np.float64).ravel()
+        human = np.asarray(st[self._HUMAN], dtype=np.float64).ravel()
+        J = np.asarray(st[self._JARM], dtype=np.float64)
+        qarm = np.asarray(st[self._QARM], dtype=np.float64).ravel()
+        idx = np.asarray(st[self._IDX], dtype=int).ravel()
+
+        # Shape / consistency guards -> pass-through (never crash a rollout).
+        n = idx.size
+        if ee.size != 3 or human.size != 3 or J.ndim != 2 or J.shape[0] != 3 \
+                or J.shape[1] != n or qarm.size != n or n == 0:
+            return self._passthrough(proposed, reason="bad_shape")
+        if np.any(idx < 0) or np.any(idx >= proposed.size):
+            return self._passthrough(proposed, reason="bad_idx")
+        if not (np.all(np.isfinite(ee)) and np.all(np.isfinite(human))
+                and np.all(np.isfinite(J)) and np.all(np.isfinite(qarm))):
+            return self._passthrough(proposed, reason="nonfinite")
+
+        away = ee - human
+        sep = float(np.linalg.norm(away))
+        if not np.isfinite(sep):
+            return self._passthrough(proposed, reason="nonfinite")
+
+        h = sep - self.d_target
+        if h >= 0.0:  # safe -> minimal intervention.
+            return self._passthrough(proposed, sep=sep)
+        if sep < 1e-6:  # degenerate: away-direction undefined.
+            return self._passthrough(proposed, sep=sep, reason="degenerate")
+
+        u = away / sep
+        push = float(np.clip(self.gain * (self.d_target - sep), 0.0, self.max_push))
+        if push <= 0.0:
+            return self._passthrough(proposed, sep=sep)
+
+        v = u * push  # desired Cartesian EE displacement (3,)
+        dq = _damped_pinv(J, self.damping) @ v  # (N,)
+        if not np.all(np.isfinite(dq)):
+            return self._passthrough(proposed, sep=sep, reason="nonfinite_dq")
+
+        out = proposed.copy()
+        out[idx] = (qarm + dq).astype(np.float32)
+        out = np.clip(out, self._low, self._high).astype(np.float32)
+
+        info = {
+            "intervened": True,
+            "h": float(h),
+            "sep": float(sep),
+            "push": float(push),
+            "d_target": self.d_target,
+            "dq_norm": float(np.linalg.norm(dq)),
+            "mode": "ee",
+        }
+        return out, info
+
+
+# ---------------------------------------------------------------------------
+# Env-state extraction (MuJoCo) — the "hard part" half of the EE-retract filter.
+# Only exercised on the GPU box (needs MuJoCo + a live SafetyBiGymEnv); the math
+# above is tested independently with a synthetic Jacobian.
+# ---------------------------------------------------------------------------
+
+def _unwrap_safety_env(env):
+    """Walk gym .env / .unwrapped links down to the raw SafetyBiGymEnv.
+
+    The adapter's ``_env`` at filter time is
+    ``ObsCacheWrapper(EpisodeSafetyMetrics(BodySLAMWrapper(SafetyBiGymEnv)))`` (all
+    gym.Wrapper), so ``.unwrapped`` reaches the base env. Returns the first object
+    in the chain exposing ``_get_robot_state`` (the SafetyBiGymEnv), else None.
+    """
+    seen = set()
+    cur = env
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if hasattr(cur, "_get_robot_state") and hasattr(cur, "_human_ssm_state"):
+            return cur
+        nxt = getattr(cur, "env", None)
+        if nxt is None:
+            nxt = getattr(cur, "unwrapped", None)
+            if nxt is cur:
+                nxt = None
+        cur = nxt
+    # last resort: gym's own .unwrapped.
+    base = getattr(env, "unwrapped", None)
+    if base is not None and hasattr(base, "_get_robot_state"):
+        return base
+    return None
+
+
+def _ee_body_id(env, model) -> int:
+    """MuJoCo body id of the robot EE, matching the body whose origin
+    :meth:`SafetyBiGymEnv._get_robot_state` reports as ``link_pos['ee']``.
+
+    Uses the env's own ``_ROBOT_LINK_NAMES['ee']`` candidate list so the EE
+    *position* and the EE *Jacobian* are taken at the same body frame.
+    """
+    import mujoco
+
+    candidates = getattr(type(env), "_ROBOT_LINK_NAMES", {}).get("ee", [])
+    for name in candidates:
+        bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+        if bid >= 0:
+            return bid
+    return -1
+
+
+def _arm_joint_action_map(env, model) -> Tuple[List[int], List[int], List[int]]:
+    """Map the robot's ARM action indices to MuJoCo (dof, qpos) addresses.
+
+    The :class:`JointPositionActionMode` action layout is
+    ``[floating-base dofs] + [limb_actuators...] + [grippers]``. Each limb actuator
+    binds a single hinge joint; the grippers are *not* limb actuators, so iterating
+    ``robot.limb_actuators`` naturally yields exactly the arm joints (10 for H1) and
+    excludes the two gripper channels. The action index of limb-actuator ``i`` is
+    ``base_dof_amount + i``.
+
+    Returns ``(action_idx, dof_idx, qpos_idx)`` aligned lists. Joints that can't be
+    resolved (no ``.joint`` / not found in the compiled model) are skipped, so the
+    filter degrades gracefully rather than mis-indexing.
+    """
+    import mujoco
+
+    robot = getattr(env, "_robot", None)
+    if robot is None:
+        return [], [], []
+    fb = getattr(robot, "floating_base", None)
+    base_n = int(getattr(fb, "dof_amount", 0)) if fb is not None else 0
+
+    action_idx: List[int] = []
+    dof_idx: List[int] = []
+    qpos_idx: List[int] = []
+    for i, actuator in enumerate(robot.limb_actuators):
+        joint = getattr(actuator, "joint", None)
+        if joint is None:
+            continue
+        jname = getattr(joint, "full_identifier", None) or getattr(joint, "name", None)
+        if not jname:
+            continue
+        jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, jname)
+        if jid < 0:
+            continue
+        action_idx.append(base_n + i)
+        dof_idx.append(int(model.jnt_dofadr[jid]))
+        qpos_idx.append(int(model.jnt_qposadr[jid]))
+    return action_idx, dof_idx, qpos_idx
+
+
+def compute_ee_retract_state(env) -> Optional[Dict[str, Any]]:
+    """Extract everything :class:`CBFRetractFilter` needs from a live env.
+
+    Returns a dict with ``ee_pos`` (3,), ``human_pos`` (3,) — the closest tracked
+    human body to the EE, ``J_arm`` (3,N) — the EE translational Jacobian restricted
+    to the arm DOF columns, ``arm_qpos`` (N,), and ``arm_action_idx`` (N,). Returns
+    ``None`` (filter then passes through) when the env handle, EE, human bodies, or
+    arm mapping can't be resolved.
+
+    All quantities are read at the *current* ``data`` (the obs the policy just acted
+    on), so the retract is computed against the same state the agent saw.
+    """
+    import mujoco
+
+    senv = _unwrap_safety_env(env)
+    if senv is None:
+        return None
+    mojo = getattr(senv, "_mojo", None)
+    if mojo is None:
+        return None
+    model, data = mojo.model, mojo.data
+
+    # 1. EE position + body id (same body frame for pos and Jacobian).
+    state = senv._get_robot_state()
+    ee_pos = state.get("ee_pos")
+    if ee_pos is None:
+        ee_pos = (state.get("link_pos") or {}).get("ee")
+    if ee_pos is None:
+        return None
+    ee_pos = np.asarray(ee_pos, dtype=float).reshape(3)
+    ee_bid = _ee_body_id(senv, model)
+    if ee_bid < 0:
+        return None
+
+    # 2. Closest tracked human body to the EE.
+    human_positions, _names, _vel = senv._human_ssm_state()
+    human_positions = np.atleast_2d(np.asarray(human_positions, dtype=float))
+    if human_positions.size == 0 or human_positions.shape[-1] != 3:
+        return None
+    d = np.linalg.norm(human_positions - ee_pos[None, :], axis=1)
+    human_pos = human_positions[int(np.argmin(d))]
+
+    # 3. Arm action <-> (dof, qpos) map.
+    action_idx, dof_idx, qpos_idx = _arm_joint_action_map(senv, model)
+    if not action_idx:
+        return None
+
+    # 4. EE translational Jacobian (3 x nv), then select the arm DOF columns.
+    jacp = np.zeros((3, model.nv), dtype=np.float64)
+    mujoco.mj_jacBody(model, data, jacp, None, ee_bid)
+    J_arm = jacp[:, dof_idx]
+    arm_qpos = np.asarray(data.qpos, dtype=float)[qpos_idx]
+
+    return {
+        "ee_pos": ee_pos,
+        "human_pos": np.asarray(human_pos, dtype=float).reshape(3),
+        "J_arm": J_arm,
+        "arm_qpos": arm_qpos,
+        "arm_action_idx": np.asarray(action_idx, dtype=int),
+    }
