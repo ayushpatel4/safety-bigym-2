@@ -343,10 +343,14 @@ the baseline-trained critic is least calibrated. Same pattern out of distributio
 
 **Conclusion:** the proactive policy internalises safety well enough that a reactive
 filter calibrated to the unconstrained baseline is **redundant and, when active,
-counterproductive** — proactive ≫ reactive, to the point the filter is unnecessary. A
-threshold recalibration (R-sweep) on the row-3 policy can at best make the filter a
-harmless backstop; it does not change the conclusion. A proper fix would re-collect
-the SVF on the *constrained* policy's rollouts (the full P2 pipeline) — out of scope.
+counterproductive** — proactive ≫ reactive, to the point the filter is unnecessary.
+**An R-sweep confirms this is not a tuning artifact:** across R ∈ [1.0, 2.25] the
+filter intervenes 39–48 % and proximity stays 0.27–0.28 (vs the policy's 0.198) at
+*every* threshold; lowering R barely changes the intervention rate, so the
+baseline-trained critic is **miscalibrated (OOD) on the avoiding policy**, not
+mis-thresholded. Re-thresholding cannot recover it — only re-collecting the SVF on
+the constrained policy's own rollouts (the full P2 pipeline) could. (Sweep:
+`results/e4_1/hybrid_Rsweep/`.)
 
 ---
 

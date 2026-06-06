@@ -82,10 +82,13 @@ This is the central architectural finding: **the proactive policy internalises
 safety well enough that a reactive filter calibrated to the unconstrained baseline
 is redundant and, when active, counterproductive.** It is direct evidence that, for
 an approaching collaborator, anticipatory constrained-RL is superior to reactive
-ISO-SSM filtering — to the point the latter is unnecessary. *(A threshold
-recalibration of the filter to the constrained policy is a natural follow-up; at
-best it renders the filter a harmless backstop, which does not change the
-conclusion.)*
+ISO-SSM filtering — to the point the latter is unnecessary. A threshold sweep
+confirms this is not a tuning artifact: across R ∈ [1.0, 2.25] the filter intervenes
+39–48 % and proximity stays 0.27–0.28 (worse than the policy's 0.198) at every
+setting. Because lowering R barely changes the intervention rate, the
+baseline-trained critic is **miscalibrated (out-of-distribution) on the avoiding
+policy**, not mis-thresholded — re-thresholding cannot recover it; only re-collecting
+the SVF on the constrained policy's own rollouts (the full P2 pipeline) could.
 
 ## 4. Generalisation and robustness
 

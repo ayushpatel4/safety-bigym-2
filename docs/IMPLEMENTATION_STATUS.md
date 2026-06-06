@@ -236,8 +236,11 @@ multi-hour launch.
 >   **E4.3** corroborates (`results/e4_3/...`: intervention stays ~40–50%, no
 >   internalisation fall). **Conclusion: the proactive policy makes the
 >   baseline-calibrated reactive filter redundant/counterproductive — proactive ≫
->   reactive.** Optional: an R-sweep recalibrates the filter to the row-3 policy (at
->   best a harmless backstop; does not change the conclusion).
+>   reactive.** **R-sweep DONE** (`results/e4_1/hybrid_Rsweep`): the filter is harmful
+>   at EVERY threshold — R∈[1.0,2.25] gives 39–48% interv and prox 0.27–0.28 (vs policy
+>   0.198); lowering R barely changes interv → the baseline critic is OOD-miscalibrated
+>   on the avoiding policy, not mis-thresholded. Not tunable; only an SVF re-collect on
+>   the constrained policy could fix it (out of scope). Conclusion firmer.
 > - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
 >   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
 >   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.
