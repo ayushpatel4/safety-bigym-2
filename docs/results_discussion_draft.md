@@ -115,10 +115,41 @@ however well calibrated, however thresholded — changes which fallback exists o
 > the safety critic's calibration — proactive constrained-RL is *necessary*, not merely
 > preferable.
 
-A model-based filter with formal guarantees (CBF-QP / HJ-reachability / predictive) is the
-one remaining theoretical alternative, but does not fit a high-DoF, contact-rich,
-exogenous-human scene without substantial approximation (§5, future work). Within the
-learned-filter paradigm, the reactive route is empirically exhausted here.
+### 3.2 A model-based filter *does* reduce proximity — but by fleeing (the freeze-vs-flee taxonomy)
+
+We implemented a geometric control-barrier-function "directional-dodge" filter (no learned
+critic): when human–robot separation drops below `d_target`, it minimally offsets the
+floating-base target away from the human along the robot↔human axis, leaving the arm/task
+action untouched (`safety_bigym/filters/cbf_filter.py`). Unlike the learned SVF veto, it
+**does** reduce proximity — 0.198 → **0.150** (d_target=0.35) at a tiny **1.3 %**
+intervention rate (0.137 at d=0.45 / 0.148 at d=0.55; 2–4 % intervention). So a
+model-based directional filter is the kind of filter that *can* cut proximity, where the
+learned veto-and-freeze filter cannot.
+
+But it cuts proximity only by **fleeing**: the base retreats from the workspace, episodes
+stretch from ~450 to 620–770 steps, and **success falls 0.75 → 0.57 / 0.43 / 0.35** as
+d_target rises. Proximity floors at ~0.14 regardless of d_target — the ~42 % exogenous
+floor (§5.1) — so extra dodging only costs success. And the trade it reaches
+(0.57, 0.150) is the same frontier the proactive policy already spans at a tighter
+multiplier (λ=0.27 ≈ 0.60, 0.17), so it does **not** beat the policy.
+
+This yields a clean three-way **taxonomy of reactive filters**, both bounded by the
+freeze-vs-flee dilemma:
+
+> - **Learned veto + zero-velocity fallback (SVF):** the *freeze* horn — vetoes freeze the
+>   robot into dwelling; proximity does not fall (it rises), at high intervention.
+> - **Model-based directional dodge (CBF):** the *flee* horn — minimal, low-intervention,
+>   and it *does* cut proximity, but by retreating from the task (large success cost).
+> - **Proactive constrained-RL policy:** the only one to reach a *graceful* operating point
+>   (proximity −23 % at acceptable success), because it avoids *anticipatorily* and
+>   *integrated with the task*, rather than reacting once the human is already close.
+
+So the strongest, most complete statement: **reactive filtering — whether learned or
+model-based — cannot reduce proximity against an approaching coworker without paying the
+freeze or flee cost; only proactive constrained-RL achieves the favourable
+success–proximity frontier.** (A *formally-guaranteed* model-based filter — CBF-QP with a
+certified barrier / HJ-reachability — remains future work; our geometric CBF demonstrates
+the behaviour but offers no formal guarantee in this high-DoF, exogenous-human scene.)
 
 ## 4. Generalisation and robustness
 

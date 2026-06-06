@@ -249,6 +249,17 @@ multi-hour launch.
 >   proximity vs an approaching coworker; proactive constrained-RL is necessary.** Do NOT
 >   pin v3_onpolicy in snapshots.py (no operating point) — report as a definitive negative.
 >   Sweep `results/svf_sweep_g1_0p3_v3_onpolicy/`. Draft §3.1.
+> - **Model-based CBF filter (`--safety-filter cbf`, commit `78b36c3`, 18 unit tests pass)
+>   DONE — it WORKS but FLEES.** A geometric directional-dodge filter (no critic; pushes
+>   the floating-base target away from the human when sep<d_target, base-XY only) reduces
+>   proximity 0.198→**0.150** (d_target=0.35) at just **1.3% intervention** — where the
+>   learned SVF veto failed (48%, harmful). BUT it cuts proximity by *retreating from the
+>   task*: success 0.75→0.57/0.43/0.35 as d_target=0.35/0.45/0.55; proximity floors ~0.14
+>   (exogenous). Same frontier as a tighter-λ policy (λ=0.27≈0.6/0.17) → doesn't beat the
+>   policy. **TAXONOMY: learned veto = FREEZE horn (no reduction, dwell); model-based dodge
+>   = FLEE horn (reduction at success cost); proactive policy = the only graceful point.
+>   Reactive filtering, learned OR model-based, is bounded by freeze-vs-flee.** Results
+>   `results/e4_1/hybrid_cbf_d0p{35,45,55}.csv`; `filters/cbf_filter.py`; draft §3.2.
 > - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
 >   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
 >   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.

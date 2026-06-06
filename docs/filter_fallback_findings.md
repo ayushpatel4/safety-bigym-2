@@ -366,6 +366,28 @@ proactive constrained-RL is necessary.** Sweep: `results/svf_sweep_g1_0p3_v3_onp
 Do **not** pin this critic in `snapshots.py` (no useful operating point) — it is
 reported as a definitive negative.
 
+**MODEL-BASED filter (geometric CBF directional-dodge, `--safety-filter cbf`,
+`filters/cbf_filter.py`): it WORKS but FLEES — completing the freeze-vs-flee taxonomy.**
+Unlike the learned veto, the CBF *does* reduce proximity (0.198 → **0.150** at
+d_target=0.35) at only **1.3 %** intervention — by minimally pushing the floating base
+away from the human. But it does so by *retreating from the task*: success 0.75 → 0.57 /
+0.43 / 0.35 as d_target = 0.35 / 0.45 / 0.55, episodes stretch to 620–770 steps, and
+proximity floors at ~0.14 (the exogenous floor). It reaches the *same* success–proximity
+frontier as a tighter-λ proactive policy (λ=0.27 ≈ 0.60/0.17) → it does **not** beat the
+policy. So the reactive-filter taxonomy is now complete and both horns are bounded:
+
+| filter | mechanism | proximity | success | interv |
+|---|---|---|---|---|
+| learned veto (SVF) | **freeze** → dwell | ↑ (no cut) | 0.62 | 48 % |
+| model-based dodge (CBF, d=0.35) | **flee** → retreat | 0.150 (−24 %) | 0.57 | 1.3 % |
+| **proactive policy (λ=0.1)** | **anticipatory avoid** | **0.198 (−23 %)** | **0.75** | — |
+
+**Unified conclusion:** reactive filtering — learned *or* model-based — cannot cut
+proximity against an approaching coworker without paying the freeze or flee cost; only
+proactive constrained-RL reaches a graceful operating point. (A *formally-guaranteed*
+CBF-QP / HJ filter is future work; our geometric CBF demonstrates the behaviour without a
+guarantee.) Results: `results/e4_1/hybrid_cbf_d0p{35,45,55}.csv`.
+
 ---
 
 ## TL;DR
