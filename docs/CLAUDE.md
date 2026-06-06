@@ -132,7 +132,7 @@ The goal of this workspace: implement the Hybrid Safety Critic described in [PRO
 - **Tests:** `cd safety_bigym && pytest tests/` (discovers from `tests/` directly; no config)
 - **Training:** `cd safety_bigym && python train_safety.py launch=dp_pixel_safety_bigym env=safety_bigym/reach_target_single` (Hydra). Configs live under [safety_bigym/cfgs/](../cfgs/).
 - **W&B:** wired via Hydra configs ([safety_bigym/cfgs/safety_config.yaml](../cfgs/safety_config.yaml), [safety_bigym/cfgs/launch/dp_pixel_safety_bigym.yaml](../cfgs/launch/dp_pixel_safety_bigym.yaml)); logging is handled by RoboBase's `Workspace`. Enable with `wandb.use=true wandb.name=<run>`.
-- **Virtual Environment:** Use safety_bigym/venv/
+- **Virtual Environment:** Use safety_bigym/venv/. **Local-Mac quirk:** `source venv/bin/activate` can resolve `python` to the system Xcode python 3.9 (which lacks gymnasium/torch → import errors that masquerade as missing deps / "test collection error"); invoke the venv directly as **`./venv/bin/python`** (python 3.12). On the GPU box (swirl, Linux) the venv activates normally.
 
 ## Conventions for new code
 
