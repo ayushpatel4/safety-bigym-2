@@ -151,6 +151,35 @@ success–proximity frontier.** (A *formally-guaranteed* model-based filter — 
 certified barrier / HJ-reachability — remains future work; our geometric CBF demonstrates
 the behaviour but offers no formal guarantee in this high-DoF, exogenous-human scene.)
 
+### 3.3 Why the flee is intrinsic — and a test of whether it can be avoided
+
+The flee is not a tuning artifact of our particular CBF; it is **structural**. The task and
+the hazard are *co-located*: the coworker reaches into the robot's workspace, so the human's
+hand and the robot's end-effector occupy the same region. A separation barrier
+`h = sep − d_target` can be satisfied only by *increasing* `sep`, and `sep` increases only
+under **radial** motion (directly away from the human); a **tangential** sidestep leaves
+`sep` unchanged (`ḣ ≈ 0`) and so cannot satisfy the barrier. Because radial-away ≈
+away-from-the-workspace, any reactive separation filter that *moves the robot* must trade
+task progress for distance — it can only freeze (dwell) or flee (retreat). Reducing
+`d_target`/`max_push` merely slides along this flee Pareto toward the unfiltered policy; it
+does not escape it.
+
+The deeper reason is **temporal**: a reactive filter acts only *once the human is already
+close*, when the only moves are freeze or flee — it cannot **anticipate**. The proactive
+constrained-RL policy escapes the bind precisely because it *does* anticipate: it clears the
+shared workspace early and gently and times its reaching around the human, integrated with
+the task reward over the whole episode. **Eliminating the flee therefore requires
+anticipation — which is exactly what the constrained policy provides; "fixing" the flee
+within a reactive filter amounts to reinventing the policy.**
+
+We nonetheless tested the one structurally-different reactive option: retracting the
+**end-effector** (an arm "flinch") rather than the base — since the safety metric is
+EE-to-human and the base can stay in the workspace, this is the least-flee reactive
+correction available. **[Result pending `hybrid_cbf_ee`:** if it still pays a success cost,
+the flee is confirmed intrinsic to reactive control in a co-located task; if it materially
+reduces the cost, it is a less-disruptive reactive backstop — though still bounded by the
+~42 % exogenous floor (§5.1) and still not anticipatory.]
+
 ## 4. Generalisation and robustness
 
 - **Unseen coworker (E5.2).** Re-evaluated on a held-out coworker distribution
