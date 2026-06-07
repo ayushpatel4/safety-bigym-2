@@ -614,3 +614,270 @@ def test_inloop_retract_roundtrip_moves_only_arm_when_close():
     assert np.allclose(out[:4], sub[:4], atol=1e-5)
     assert np.allclose(out[14:], sub[14:], atol=1e-5)
     assert not np.allclose(out[_ARM_IDX], sub[_ARM_IDX], atol=1e-5)
+
+
+# =====================================================================================
+# SpeedScaleFilter — ISO-15066 SSM speed-scaling math, with synthetic q_cur/sep (no MuJoCo).
+#
+# The filter scales the per-step motion of every motion-bearing action dim toward q_cur
+# by  scale = clip((sep - d_stop)/(d_slow - d_stop), 0, 1):  sep>=d_slow -> pass-through
+# (scale 1), sep<=d_stop -> hold (scale 0, a_out==q_cur), in between a graded slowdown.
+# Dims with NaN q_cur (e.g. grippers) pass through. These tests feed a known q_cur / sep
+# and assert the scaling, the per-dim formula, clipping, and every fail-safe.
+# =====================================================================================
+
+from safety_bigym.filters.cbf_filter import SpeedScaleFilter
+
+# Action layout under test: [0..3]=base (delta, q_cur=0), [4..13]=10 arm joints (qpos),
+# [14,15]=grippers (q_cur=NaN -> pass-through). Mirrors compute_speed_scale_state.
+_SS_BASE_IDX = list(range(0, 4))
+_SS_ARM_IDX = list(range(4, 14))
+_SS_GRIP_IDX = [14, 15]
+
+
+def _ss_space(dim=16, lo=-10.0, hi=10.0):
+    return gym.spaces.Box(low=lo, high=hi, shape=(dim,), dtype=np.float32)
+
+
+def _ss_qcur(arm_qpos=None, dim=16):
+    """q_cur as compute_speed_scale_state builds it: base=0, arm=qpos, grippers=NaN."""
+    q = np.full(dim, np.nan, dtype=np.float64)
+    q[_SS_BASE_IDX] = 0.0
+    if arm_qpos is None:
+        arm_qpos = np.linspace(0.1, 1.0, len(_SS_ARM_IDX))
+    q[_SS_ARM_IDX] = np.asarray(arm_qpos, dtype=np.float64)
+    return q
+
+
+def _ss_state(sep, arm_qpos=None, dim=16):
+    return {"q_cur": _ss_qcur(arm_qpos=arm_qpos, dim=dim), "sep": float(sep)}
+
+
+# --- 1. sep >= d_slow -> scale 1 -> byte-for-byte pass-through ------------------------
+
+def test_ss_full_speed_passthrough_when_far():
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    out, info = fb.apply(_ss_state(sep=2.0), proposed)  # sep >> d_slow
+    assert info["intervened"] is False
+    assert np.isclose(info["scale"], 1.0)
+    assert np.array_equal(out, proposed)  # unchanged
+
+
+def test_ss_at_d_slow_passthrough():
+    # sep exactly d_slow -> scale clips to 1 -> pass-through.
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    out, info = fb.apply(_ss_state(sep=0.5), proposed)
+    assert info["intervened"] is False
+    assert np.isclose(info["scale"], 1.0)
+    assert np.array_equal(out, proposed)
+
+
+# --- 2. sep <= d_stop -> scale 0 -> hold (a_out == q_cur on finite dims) --------------
+
+def test_ss_hold_at_d_stop():
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    arm_qpos = np.linspace(0.2, 0.9, len(_SS_ARM_IDX))
+    proposed = np.linspace(-0.5, 0.5, 16).astype(np.float32)
+    out, info = fb.apply(_ss_state(sep=0.15, arm_qpos=arm_qpos), proposed)  # sep == d_stop
+    assert info["intervened"] is True
+    assert np.isclose(info["scale"], 0.0)
+    # base dims (q_cur 0) held at 0; arm dims held at q_cur (current qpos).
+    assert np.allclose(out[_SS_BASE_IDX], 0.0, atol=1e-6)
+    assert np.allclose(out[_SS_ARM_IDX], arm_qpos, atol=1e-6)
+    # gripper dims (NaN q_cur) pass through unchanged even at full hold.
+    assert np.allclose(out[_SS_GRIP_IDX], proposed[_SS_GRIP_IDX], atol=1e-6)
+
+
+def test_ss_hold_below_d_stop():
+    # sep < d_stop -> scale still clamps to 0 (hold).
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = np.linspace(-0.5, 0.5, 16).astype(np.float32)
+    out, info = fb.apply(_ss_state(sep=0.05), proposed)
+    assert info["intervened"] is True
+    assert np.isclose(info["scale"], 0.0)
+    qcur = _ss_qcur()
+    assert np.allclose(out[_SS_ARM_IDX], qcur[_SS_ARM_IDX], atol=1e-6)
+
+
+# --- 3. midway sep -> linear interpolation of scale ----------------------------------
+
+def test_ss_linear_interpolation_midway():
+    d_slow, d_stop = 0.5, 0.15
+    fb = SpeedScaleFilter(_ss_space(), d_slow=d_slow, d_stop=d_stop)
+    sep = 0.5 * (d_slow + d_stop)  # exactly halfway -> scale 0.5
+    proposed = np.linspace(-0.5, 0.5, 16).astype(np.float32)
+    arm_qpos = np.linspace(0.2, 0.9, len(_SS_ARM_IDX))
+    out, info = fb.apply(_ss_state(sep=sep, arm_qpos=arm_qpos), proposed)
+    assert info["intervened"] is True
+    assert np.isclose(info["scale"], 0.5, atol=1e-6)
+    # base: q_cur 0 -> a_out = 0 + 0.5*(a - 0) = 0.5*a.
+    assert np.allclose(out[_SS_BASE_IDX], 0.5 * proposed[_SS_BASE_IDX], atol=1e-6)
+    # arm: a_out = q_cur + 0.5*(a - q_cur).
+    expected_arm = arm_qpos + 0.5 * (proposed[_SS_ARM_IDX] - arm_qpos)
+    assert np.allclose(out[_SS_ARM_IDX], expected_arm, atol=1e-6)
+
+
+def test_ss_scale_value_matches_formula_at_quarter():
+    d_slow, d_stop = 0.9, 0.1
+    fb = SpeedScaleFilter(_ss_space(), d_slow=d_slow, d_stop=d_stop)
+    sep = d_stop + 0.25 * (d_slow - d_stop)  # -> scale 0.25
+    _out, info = fb.apply(_ss_state(sep=sep), np.zeros(16, np.float32))
+    assert np.isclose(info["scale"], 0.25, atol=1e-6)
+
+
+# --- 4. exact per-dim formula  a_out[i] = q_cur[i] + scale*(a[i] - q_cur[i]) ----------
+
+def test_ss_per_dim_formula_exact():
+    d_slow, d_stop = 0.6, 0.2
+    fb = SpeedScaleFilter(_ss_space(), d_slow=d_slow, d_stop=d_stop)
+    sep = 0.4  # scale = (0.4-0.2)/(0.6-0.2) = 0.5
+    arm_qpos = np.array([0.0, -0.3, 0.7, 1.2, -1.0, 0.5, 0.25, -0.6, 0.9, 0.1])
+    proposed = np.linspace(-0.9, 0.9, 16).astype(np.float32)
+    out, info = fb.apply(_ss_state(sep=sep, arm_qpos=arm_qpos), proposed)
+    scale = (sep - d_stop) / (d_slow - d_stop)
+    qcur = _ss_qcur(arm_qpos=arm_qpos)
+    finite = np.isfinite(qcur)
+    expected = proposed.copy()
+    expected[finite] = (qcur[finite] + scale * (proposed[finite] - qcur[finite])).astype(np.float32)
+    assert np.allclose(out, expected, atol=1e-6)
+    # NaN dims (grippers) untouched.
+    assert np.allclose(out[_SS_GRIP_IDX], proposed[_SS_GRIP_IDX], atol=1e-6)
+
+
+# --- 5. output clipped within action bounds ------------------------------------------
+
+def test_ss_output_clipped_to_action_bounds():
+    fb = SpeedScaleFilter(_ss_space(lo=-1.0, hi=1.0), d_slow=0.5, d_stop=0.15)
+    # arm q_cur outside the [-1,1] action bound; scaled target would exceed it -> clip.
+    arm_qpos = np.full(len(_SS_ARM_IDX), 5.0)  # current qpos far outside action bounds
+    proposed = np.zeros(16, np.float32)
+    out, info = fb.apply(_ss_state(sep=0.30, arm_qpos=arm_qpos), proposed)
+    assert info["intervened"] is True
+    assert np.all(out <= 1.0 + 1e-6) and np.all(out >= -1.0 - 1e-6)
+
+
+# --- 6. fail-safes: missing state / non-finite / bad shape ---------------------------
+
+def test_ss_missing_state_passthrough_and_warns_once(caplog):
+    import logging
+
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    with caplog.at_level(logging.WARNING, logger="safety_bigym.filters.cbf_filter"):
+        for _ in range(5):
+            out, info = fb.apply(None, proposed)
+    assert info["intervened"] is False
+    assert np.array_equal(out, proposed)
+    assert info.get("reason") == "missing_state"
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1  # one-time warning, not per-step spam
+
+
+def test_ss_partial_state_missing_key_passthrough():
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    st = _ss_state(sep=0.3)
+    del st["sep"]  # one required field absent
+    out, info = fb.apply(st, proposed)
+    assert info["intervened"] is False
+    assert np.array_equal(out, proposed)
+    assert info.get("reason") == "missing_state"
+
+
+def test_ss_nonfinite_sep_passthrough():
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    out, info = fb.apply(_ss_state(sep=np.nan), proposed)
+    assert info["intervened"] is False
+    assert np.array_equal(out, proposed)
+    assert info.get("reason") == "nonfinite"
+
+
+def test_ss_bad_shape_qcur_passthrough():
+    fb = SpeedScaleFilter(_ss_space(dim=16), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    # q_cur has 10 entries but action is 16-dim -> inconsistent -> pass-through.
+    st = {"q_cur": np.zeros(10, np.float64), "sep": 0.3}
+    out, info = fb.apply(st, proposed)
+    assert info["intervened"] is False
+    assert np.array_equal(out, proposed)
+    assert info.get("reason") == "bad_shape"
+
+
+def test_ss_all_nan_qcur_passthrough_values_but_intervenes():
+    # If every q_cur is NaN (no resolvable counterpart), no dim is scaled, but the
+    # filter still reports intervened (scale<1) and never injects motion -> a_out == a.
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    proposed = _proposed(16)
+    st = {"q_cur": np.full(16, np.nan, np.float64), "sep": 0.3}
+    out, info = fb.apply(st, proposed)
+    assert info["intervened"] is True
+    assert np.array_equal(out, proposed)  # nothing scaled (all dims pass through)
+
+
+# --- 7. constructor guards -----------------------------------------------------------
+
+def test_ss_non_box_action_space_raises():
+    with pytest.raises(TypeError):
+        SpeedScaleFilter(gym.spaces.Discrete(4))  # type: ignore[arg-type]
+
+
+def test_ss_d_slow_not_greater_than_d_stop_raises():
+    with pytest.raises(ValueError):
+        SpeedScaleFilter(_ss_space(), d_slow=0.15, d_stop=0.5)  # inverted
+    with pytest.raises(ValueError):
+        SpeedScaleFilter(_ss_space(), d_slow=0.3, d_stop=0.3)  # equal -> zero denom
+
+
+# --- 8. intervened flag boundary -----------------------------------------------------
+
+def test_ss_intervened_flag_tracks_scale_lt_one():
+    fb = SpeedScaleFilter(_ss_space(), d_slow=0.5, d_stop=0.15)
+    # just inside d_slow -> scale < 1 -> intervened.
+    _o1, i1 = fb.apply(_ss_state(sep=0.49), _proposed(16))
+    assert i1["intervened"] is True and i1["scale"] < 1.0
+    # just outside d_slow -> scale 1 -> not intervened.
+    _o2, i2 = fb.apply(_ss_state(sep=0.51), _proposed(16))
+    assert i2["intervened"] is False and np.isclose(i2["scale"], 1.0)
+
+
+# --- in-loop transform (mirrors CQNASRunner.step's speedscale branch) -----------------
+# CQNASRunner does, per step:
+#   state = compute_speed_scale_state(adapter._env)           # live MuJoCo (skipped here)
+#   raw_proposed = adapter._convert_action_to_raw(sub_action)
+#   raw_corrected, info = speedscale_filter.apply(state, raw_proposed)
+#   sub_action = adapter._convert_action_from_raw(raw_corrected)
+# This reproduces the de/normalisation round-trip with a synthetic state.
+
+def _runner_speedscale_step(adapter, fb, state, sub_action_norm):
+    raw_proposed = adapter._convert_action_to_raw(sub_action_norm)
+    raw_corrected, info = fb.apply(state, raw_proposed)
+    sub_action = np.asarray(adapter._convert_action_from_raw(raw_corrected), np.float32)
+    return sub_action, info
+
+
+def test_ss_inloop_roundtrip_passthrough_when_far():
+    adapter = _StubAdapter([-10.0] * 16, [10.0] * 16)
+    fb = SpeedScaleFilter(_ss_space(lo=-10.0, hi=10.0), d_slow=0.5, d_stop=0.15)
+    sub = np.linspace(-0.8, 0.8, 16).astype(np.float32)
+    out, info = _runner_speedscale_step(adapter, fb, _ss_state(sep=2.0), sub)
+    assert info["intervened"] is False
+    assert np.allclose(out, sub, atol=1e-5)  # full speed -> identity round-trip
+
+
+def test_ss_inloop_roundtrip_holds_when_close():
+    # At sep == d_stop the raw target is q_cur; round-tripping the normalised action
+    # back should reflect that hold (base -> raw 0; grippers pass through).
+    adapter = _StubAdapter([-10.0] * 16, [10.0] * 16)
+    fb = SpeedScaleFilter(_ss_space(lo=-10.0, hi=10.0), d_slow=0.5, d_stop=0.15)
+    sub = np.linspace(-0.5, 0.5, 16).astype(np.float32)
+    arm_qpos = np.zeros(len(_SS_ARM_IDX))  # raw hold target 0 for arm
+    out, info = _runner_speedscale_step(adapter, fb, _ss_state(sep=0.15, arm_qpos=arm_qpos), sub)
+    assert info["intervened"] is True
+    # raw base + arm held at 0 -> normalise(0) over [-10,10] = 0.
+    assert np.allclose(out[_SS_BASE_IDX], 0.0, atol=1e-4)
+    assert np.allclose(out[_SS_ARM_IDX], 0.0, atol=1e-4)
+    # grippers (NaN q_cur) survive the round-trip unchanged.
+    assert np.allclose(out[_SS_GRIP_IDX], sub[_SS_GRIP_IDX], atol=1e-5)

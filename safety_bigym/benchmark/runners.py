@@ -145,7 +145,7 @@ class CQNASRunner:
 
     def __init__(self, adapter, agent, *, action_sequence, temporal_ensemble=None,
                  filter_state=None, cbf_filter=None, ee_retract_filter=None,
-                 global_step=0):
+                 speedscale_filter=None, global_step=0):
         self.adapter = adapter  # SafetyBiGymCQNAdapter (its _env may be ObsCacheWrapper)
         self.agent = agent
         self.action_sequence = int(action_sequence)
@@ -157,6 +157,10 @@ class CQNASRunner:
         # Geometric CBF EE-retract ("flinch") filter (always-on, arm-only). Also
         # mutually exclusive with the SVF veto + base-CBF; needs the live env handle.
         self.ee_retract_filter = ee_retract_filter  # CBFRetractFilter or None
+        # ISO-15066 SSM speed-scaling filter (always-on; scales ALL motion-bearing
+        # action dims by separation). Mutually exclusive with the above; needs the
+        # live env handle (current qpos + closest separation).
+        self.speedscale_filter = speedscale_filter  # SpeedScaleFilter or None
         self.global_step = int(global_step)
         self._ts = None
         self._episode_step = 0
@@ -237,6 +241,22 @@ class CQNASRunner:
             self.filter_step_count += 1
             if filter_info["intervened"]:
                 self.intervention_count += 1
+        elif self.speedscale_filter is not None:
+            # Always-on ISO-15066 speed-scaling: read the current qpos + closest
+            # separation off the LIVE env, scale the per-step motion of every
+            # motion-bearing action dim, re-normalise. Pass-through when the state
+            # can't be resolved.
+            from safety_bigym.filters.cbf_filter import compute_speed_scale_state
+
+            state = compute_speed_scale_state(self.adapter._env)
+            raw_proposed = self.adapter._convert_action_to_raw(sub_action)
+            raw_corrected, filter_info = self.speedscale_filter.apply(state, raw_proposed)
+            sub_action = np.asarray(
+                self.adapter._convert_action_from_raw(raw_corrected), dtype=np.float32
+            )
+            self.filter_step_count += 1
+            if filter_info["intervened"]:
+                self.intervention_count += 1
 
         nts = self.adapter.step(sub_action)
         self._ts = nts
@@ -279,6 +299,7 @@ def build_cell_runner(
     num_demos_for_stats: int = 5,
     cbf_config=None,
     cbf_mode: str = "base",
+    speedscale_config=None,
 ):
     """Build ``(runner, renderable_env)`` for one cell, branching on ``meta.kind``.
 
@@ -291,14 +312,24 @@ def build_cell_runner(
       - ``cbf_config`` (a dict of CBF kwargs) -> geometric CBF, ``cbf_mode``-selected:
           * ``base`` (default) = :class:`CBFDodgeFilter` (push the floating base X,Y away).
           * ``ee``             = :class:`CBFRetractFilter` (retract the arm EE; base stays).
-    The CBF paths are CQN-AS-only and need no critic, so they skip
+      - ``speedscale_config`` (a dict of SpeedScaleFilter kwargs) ->
+        :class:`SpeedScaleFilter` (scale all motion-bearing action dims by separation;
+        the ISO-15066 velocity axis).
+    The CBF / speed-scale paths are CQN-AS-only and need no critic, so they skip
     :func:`filter_attach.assert_critic_covers_obs`.
     """
     from safety_bigym.benchmark import env_build, filter_attach
 
-    if filter_critic is not None and cbf_config is not None:
+    _geom_filters = [c for c in (cbf_config, speedscale_config) if c is not None]
+    if filter_critic is not None and _geom_filters:
         raise ValueError(
-            "build_cell_runner: pass only one of filter_critic (SVF) or cbf_config (CBF)."
+            "build_cell_runner: pass only one of filter_critic (SVF), cbf_config (CBF), "
+            "or speedscale_config (speed-scale)."
+        )
+    if len(_geom_filters) > 1:
+        raise ValueError(
+            "build_cell_runner: pass only one of cbf_config (CBF) or speedscale_config "
+            "(speed-scale)."
         )
 
     if meta.kind in ("random", "act"):
@@ -333,6 +364,7 @@ def build_cell_runner(
         filter_state = None
         cbf_filter = None
         ee_retract_filter = None
+        speedscale_filter = None
         if filter_critic is not None:
             raw_env = adapter._env
             keys = raw_env.observation_space.spaces.keys() if hasattr(raw_env.observation_space, "spaces") else ()
@@ -358,6 +390,16 @@ def build_cell_runner(
                 from safety_bigym.filters.cbf_filter import CBFDodgeFilter
 
                 cbf_filter = CBFDodgeFilter(adapter._env.action_space, **dict(cbf_config))
+        elif speedscale_config is not None:
+            # ISO-15066 speed-scaling: no critic. Needs the live env (current qpos +
+            # closest separation); ObsCacheWrapper is a transparent passthrough that
+            # keeps adapter._env a gym.Wrapper chain (and harmless if unused).
+            adapter._env = filter_attach.ObsCacheWrapper(adapter._env)
+            from safety_bigym.filters.cbf_filter import SpeedScaleFilter
+
+            speedscale_filter = SpeedScaleFilter(
+                adapter._env.action_space, **dict(speedscale_config)
+            )
 
         temporal_ensemble = None
         if bool(cfg.get("temporal_ensemble", False)):
@@ -370,6 +412,7 @@ def build_cell_runner(
             adapter, agent, action_sequence=int(cfg.action_sequence),
             temporal_ensemble=temporal_ensemble, filter_state=filter_state,
             cbf_filter=cbf_filter, ee_retract_filter=ee_retract_filter,
+            speedscale_filter=speedscale_filter,
         )
         return runner, adapter
 

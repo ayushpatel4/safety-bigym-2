@@ -72,7 +72,13 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CBFDodgeFilter", "CBFRetractFilter", "compute_ee_retract_state"]
+__all__ = [
+    "CBFDodgeFilter",
+    "CBFRetractFilter",
+    "compute_ee_retract_state",
+    "SpeedScaleFilter",
+    "compute_speed_scale_state",
+]
 
 
 class CBFDodgeFilter:
@@ -437,6 +443,183 @@ class CBFRetractFilter:
         return out, info
 
 
+class SpeedScaleFilter:
+    """ISO-15066 SSM **speed-scaling** filter — slow the robot near the human.
+
+    Where :class:`CBFDodgeFilter` / :class:`CBFRetractFilter` are *position* filters
+    that fight geometric proximity (push the base away / retract the arm — both
+    *flee* the workspace), this filter operates on ISO-15066's **velocity axis**: it
+    leaves the *direction* of the policy's commanded motion untouched and only scales
+    its *magnitude* down as the human gets close, in direct proportion to separation.
+    The robot keeps doing the task on the same trajectory, just slower near a person,
+    which is what ISO-15066 Speed-and-Separation-Monitoring actually asks for. It is
+    expected to cut ``ep_ssm_violation_actual_rate`` (the velocity-adaptive ISO
+    margin) and mean robot velocity at roughly unchanged geometric proximity and a
+    modest success cost.
+
+    Speed-scaling law
+    -----------------
+    Given the proposed RAW action ``a``, the robot's CURRENT joint/base positions
+    ``q_cur`` (at the same action indices), and the closest human<->robot separation
+    ``sep``::
+
+        scale = clip((sep - d_stop) / (d_slow - d_stop), 0, 1)
+        a_out[i] = q_cur[i] + scale * (a[i] - q_cur[i])     # per-dim motion scaling
+
+    so ``sep >= d_slow -> scale = 1`` (full speed, byte-for-byte pass-through),
+    ``sep <= d_stop -> scale = 0`` (hold the current position / zero motion), and in
+    between a graded slowdown. Because the action mode is *absolute* for the arm,
+    ``q_cur[i] + scale*(a[i]-q_cur[i])`` scales the per-step *motion* from the current
+    pose; for the floating base — which BiGym always drives in *delta* (incremental)
+    mode regardless of ``absolute=`` — the natural "current" of a delta command is
+    zero motion, so :func:`compute_speed_scale_state` reports ``q_cur = 0`` for the
+    base dims and the same formula collapses to ``a_out = scale * a`` (the delta is
+    scaled directly). Action dims with no known current position (e.g. grippers,
+    reported as NaN in ``q_cur``) pass through unchanged.
+
+    Fail-safe (never worse than a pass-through; never crash a rollout): missing/ill-
+    shaped state, any non-finite ``sep``/``q_cur``, or ``scale >= 1`` (human far
+    enough away) all return the proposed action unchanged with ``intervened=False``.
+
+    This is the *pure-math* half — ``q_cur`` and ``sep`` are supplied in the
+    ``state`` dict by :func:`compute_speed_scale_state` from a live env, so this class
+    needs **no MuJoCo** and is unit-testable with synthetic state.
+
+    Parameters
+    ----------
+    action_space:
+        The RAW (de-normalised) action :class:`gym.spaces.Box`; ``apply`` scales and
+        clips in this space.
+    d_slow:
+        Separation (m) at/above which the robot runs at full speed (``scale = 1``).
+        Default 0.5 m.
+    d_stop:
+        Separation (m) at/below which the robot holds position (``scale = 0``).
+        Default 0.15 m. Must be ``< d_slow``.
+    """
+
+    # state-dict fields produced by compute_speed_scale_state.
+    _QCUR = "q_cur"
+    _SEP = "sep"
+
+    def __init__(
+        self,
+        action_space: gym.spaces.Box,
+        *,
+        d_slow: float = 0.5,
+        d_stop: float = 0.15,
+        state_key: str = "speed_scale_state",
+    ):
+        if not isinstance(action_space, gym.spaces.Box):
+            raise TypeError(
+                f"SpeedScaleFilter expects a Box action_space; got "
+                f"{type(action_space).__name__}"
+            )
+        if not (float(d_slow) > float(d_stop)):
+            raise ValueError(
+                f"SpeedScaleFilter requires d_slow > d_stop; got "
+                f"d_slow={d_slow}, d_stop={d_stop}."
+            )
+        self._low = action_space.low.astype(np.float32)
+        self._high = action_space.high.astype(np.float32)
+        self._shape = action_space.shape
+        self.d_slow = float(d_slow)
+        self.d_stop = float(d_stop)
+        self._state_key = state_key
+        self._warned_no_state = False
+
+    def _passthrough(self, proposed: np.ndarray, *, scale: float = 1.0,
+                     sep: float = float("nan"), reason: str = "",
+                     ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        out = np.asarray(proposed, dtype=np.float32).copy()
+        info = {
+            "intervened": False,
+            "scale": float(scale),
+            "sep": float(sep),
+            "d_slow": self.d_slow,
+            "d_stop": self.d_stop,
+            "mode": "speedscale",
+        }
+        if reason:
+            info["reason"] = reason
+        return out, info
+
+    @staticmethod
+    def _extract_state(obs_or_state: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+        """Return the state dict — the runner hands it directly, but tolerate a
+        nested ``obs['speed_scale_state']`` too."""
+        if obs_or_state is None:
+            return None
+        if hasattr(obs_or_state, "get") and obs_or_state.get("speed_scale_state") is not None:
+            return obs_or_state.get("speed_scale_state")
+        return obs_or_state
+
+    def apply(
+        self,
+        state: Mapping[str, Any],
+        raw_proposed: np.ndarray,
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """Return ``(raw_scaled, info)`` in the RAW action space.
+
+        ``state`` carries ``q_cur`` (action-dim,) — the current joint/base position
+        at each action index (NaN for dims with no counterpart, e.g. grippers) — and
+        ``sep`` (float) — the closest human<->robot separation; see
+        :func:`compute_speed_scale_state`. ``info`` mirrors the other filters'
+        bookkeeping (``intervened`` / ``sep`` / ...) plus the applied ``scale`` so the
+        runner counts interventions identically.
+        """
+        proposed = np.asarray(raw_proposed, dtype=np.float32)
+        st = self._extract_state(state)
+
+        required = (self._QCUR, self._SEP)
+        if st is None or any(
+            (st.get(k) if hasattr(st, "get") else None) is None for k in required
+        ):
+            if not self._warned_no_state:
+                logger.warning(
+                    "SpeedScaleFilter inactive: env-state is missing one of %r "
+                    "(current joint positions / separation unavailable). Passing "
+                    "actions through unchanged.", list(required),
+                )
+                self._warned_no_state = True
+            return self._passthrough(proposed, reason="missing_state")
+
+        q_cur = np.asarray(st[self._QCUR], dtype=np.float64).ravel()
+        sep = float(st[self._SEP])
+
+        # Shape guard -> pass-through (never mis-index / crash a rollout).
+        if q_cur.size != proposed.size:
+            return self._passthrough(proposed, reason="bad_shape")
+        if not np.isfinite(sep):
+            return self._passthrough(proposed, reason="nonfinite")
+
+        denom = self.d_slow - self.d_stop  # > 0 (enforced in __init__)
+        scale = float(np.clip((sep - self.d_stop) / denom, 0.0, 1.0))
+
+        # Human far enough away -> full speed -> minimal intervention (pass-through).
+        if scale >= 1.0:
+            return self._passthrough(proposed, scale=1.0, sep=sep)
+
+        # Scale the per-dim motion toward q_cur. Dims with no known current position
+        # (NaN in q_cur) pass through unchanged so we never inject motion of our own.
+        out = proposed.copy()
+        finite = np.isfinite(q_cur)
+        if np.any(finite):
+            qf = q_cur[finite].astype(np.float32)
+            out[finite] = (qf + scale * (proposed[finite] - qf)).astype(np.float32)
+        out = np.clip(out, self._low, self._high).astype(np.float32)
+
+        info = {
+            "intervened": True,
+            "scale": float(scale),
+            "sep": float(sep),
+            "d_slow": self.d_slow,
+            "d_stop": self.d_stop,
+            "mode": "speedscale",
+        }
+        return out, info
+
+
 # ---------------------------------------------------------------------------
 # Env-state extraction (MuJoCo) — the "hard part" half of the EE-retract filter.
 # Only exercised on the GPU box (needs MuJoCo + a live SafetyBiGymEnv); the math
@@ -587,4 +770,92 @@ def compute_ee_retract_state(env) -> Optional[Dict[str, Any]]:
         "J_arm": J_arm,
         "arm_qpos": arm_qpos,
         "arm_action_idx": np.asarray(action_idx, dtype=int),
+    }
+
+
+def _min_human_robot_separation(senv) -> Optional[float]:
+    """Closest human-body <-> robot-link distance from a live SafetyBiGymEnv.
+
+    Reuses the env's own SSM-state readers (:meth:`_robot_ssm_state` /
+    :meth:`_human_ssm_state`) and returns the minimum pairwise distance — the exact
+    quantity ``info["safety"]["min_separation"]`` reports, computed live against the
+    obs the policy just acted on. Returns ``None`` if either set is unavailable
+    (filter then passes through). Wrapped in a broad try so a reader hiccup never
+    crashes a rollout.
+    """
+    try:
+        robot_positions, _rn, _rv = senv._robot_ssm_state()
+        human_positions, _hn, _hv = senv._human_ssm_state()
+    except Exception:  # pragma: no cover — best-effort, never crash the rollout
+        return None
+    robot_arr = np.atleast_2d(np.asarray(robot_positions, dtype=float))
+    human_arr = np.atleast_2d(np.asarray(human_positions, dtype=float))
+    if robot_arr.size == 0 or human_arr.size == 0:
+        return None
+    if robot_arr.shape[-1] != 3 or human_arr.shape[-1] != 3:
+        return None
+    diff = human_arr[:, None, :] - robot_arr[None, :, :]
+    d_min = float(np.linalg.norm(diff, axis=-1).min())
+    return d_min if np.isfinite(d_min) else None
+
+
+def compute_speed_scale_state(env) -> Optional[Dict[str, Any]]:
+    """Extract everything :class:`SpeedScaleFilter` needs from a live env.
+
+    Returns a dict with ``sep`` (float) — the closest human<->robot separation — and
+    ``q_cur`` (action-dim,) — the robot's current position counterpart at every action
+    index:
+
+    * **Arm dims** (limb actuators, absolute-target mode): the current joint ``qpos``,
+      so scaling moves the per-step motion ``q_cur + scale*(a - q_cur)``.
+    * **Floating-base dims** (X, Y, Z, RZ — always *delta* mode in BiGym): ``0.0``. A
+      delta command's "no motion" reference is zero, so the speed-scaling formula
+      collapses to ``scale * a`` and directly scales the commanded base step.
+    * **Everything else** (e.g. grippers): ``NaN`` -> the filter passes those dims
+      through unchanged (we never scale a grip command toward an unknown reference).
+
+    Returns ``None`` (filter then passes through) when the env handle, the action-dim,
+    or the separation can't be resolved. All quantities are read at the *current*
+    ``data`` (the obs the policy just acted on).
+    """
+    senv = _unwrap_safety_env(env)
+    if senv is None:
+        return None
+    mojo = getattr(senv, "_mojo", None)
+    if mojo is None:
+        return None
+    model, data = mojo.model, mojo.data
+
+    # Action dimension: prefer the (possibly filter-wrapped) handle's action_space so
+    # q_cur lines up with the raw action the filter scales; fall back to the base env.
+    action_space = getattr(env, "action_space", None) or getattr(senv, "action_space", None)
+    if action_space is None or not hasattr(action_space, "shape") or not action_space.shape:
+        return None
+    action_dim = int(np.prod(action_space.shape))
+    if action_dim <= 0:
+        return None
+
+    # q_cur: NaN everywhere (pass-through), then fill base (=0, delta mode) + arm (qpos).
+    q_cur = np.full(action_dim, np.nan, dtype=np.float64)
+
+    robot = getattr(senv, "_robot", None)
+    fb = getattr(robot, "floating_base", None) if robot is not None else None
+    base_n = int(getattr(fb, "dof_amount", 0)) if fb is not None else 0
+    if base_n > 0:
+        base_n = min(base_n, action_dim)
+        q_cur[:base_n] = 0.0  # delta-mode base: "no motion" reference is 0.
+
+    action_idx, _dof_idx, qpos_idx = _arm_joint_action_map(senv, model)
+    qpos = np.asarray(data.qpos, dtype=float)
+    for a_i, q_i in zip(action_idx, qpos_idx):
+        if 0 <= a_i < action_dim and 0 <= q_i < qpos.size:
+            q_cur[a_i] = qpos[q_i]
+
+    sep = _min_human_robot_separation(senv)
+    if sep is None:
+        return None
+
+    return {
+        "q_cur": q_cur,
+        "sep": float(sep),
     }

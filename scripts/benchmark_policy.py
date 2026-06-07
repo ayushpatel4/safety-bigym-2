@@ -50,11 +50,13 @@ logger = logging.getLogger("benchmark_policy")
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--snapshot", type=Path, default=None, help="Policy checkpoint (ACT/CQN-AS). Omit for random.")
-    p.add_argument("--safety-filter", choices=("none", "svf", "cbf"), default=None,
+    p.add_argument("--safety-filter", choices=("none", "svf", "cbf", "speedscale"), default=None,
                    help="Runtime safety filter. 'svf' = learned Safety-Value-Function veto "
                         "(needs --filter-snapshot). 'cbf' = geometric CBF directional-dodge "
-                        "(model-based, no checkpoint; CQN-AS only). Default: inferred — 'svf' "
-                        "if --filter-snapshot is given, else 'none'.")
+                        "(model-based, no checkpoint; CQN-AS only). 'speedscale' = ISO-15066 "
+                        "SSM speed-scaling (scale ALL motion-bearing action dims down by "
+                        "separation; the velocity axis; model-based, CQN-AS only). Default: "
+                        "inferred — 'svf' if --filter-snapshot is given, else 'none'.")
     p.add_argument("--filter-snapshot", type=Path, default=None, help="SVF critic checkpoint to wrap the policy.")
     p.add_argument("--filter-threshold", type=float, default=2.25, help="SVF Q-value threshold R (filter triggers q<R). 2.25 = G1 dense-0.3m-sweep operating point (snapshots.py).")
     p.add_argument("--fallback", default="zero_velocity")
@@ -79,6 +81,13 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                    help="Disable the CBF approach-velocity term (base-mode geometric-only dodge).")
     p.add_argument("--cbf-damping", type=float, default=0.05,
                    help="ee-mode only: damped-least-squares lambda for the EE Jacobian pseudo-inverse.")
+    # Speed-scale knobs (only used when --safety-filter speedscale).
+    p.add_argument("--speedscale-d-slow", type=float, default=0.5,
+                   help="Speed-scale: separation (m) at/above which the robot runs at full "
+                        "speed (scale=1). Default 0.5.")
+    p.add_argument("--speedscale-d-stop", type=float, default=0.15,
+                   help="Speed-scale: separation (m) at/below which the robot holds position "
+                        "(scale=0). Must be < d_slow. Default 0.15.")
     p.add_argument("--task", default="saucepan_to_hob")
     p.add_argument("--disruption", default="coworker_train")
     p.add_argument("--obs-mode", choices=("off", "oracle", "noisy"), default="noisy")
@@ -201,22 +210,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if safety_filter == "svf" and args.filter_snapshot is None:
         raise SystemExit("--safety-filter svf requires --filter-snapshot <critic.pt>.")
-    if safety_filter == "cbf" and args.filter_snapshot is not None:
-        raise SystemExit("--safety-filter cbf takes no --filter-snapshot (it is critic-free).")
+    if safety_filter in ("cbf", "speedscale") and args.filter_snapshot is not None:
+        raise SystemExit(f"--safety-filter {safety_filter} takes no --filter-snapshot "
+                         f"(it is critic-free).")
 
     use_svf = safety_filter == "svf"
     use_cbf = safety_filter == "cbf"
-    filtered = use_svf or use_cbf  # both populate intervention/filter-step bookkeeping
+    use_speedscale = safety_filter == "speedscale"
+    # all populate intervention/filter-step bookkeeping
+    filtered = use_svf or use_cbf or use_speedscale
 
     if filtered and args.obs_mode == "off":
-        which = "SVF critic" if use_svf else "CBF dodge"
+        which = {"svf": "SVF critic", "cbf": "CBF dodge",
+                 "speedscale": "speed-scale"}[safety_filter]
         raise SystemExit(f"--safety-filter {safety_filter} requires --obs-mode oracle|noisy "
                          f"(the {which} consumes human_pos_estimate).")
 
     meta, payload = load_policy(args.snapshot)
-    if use_cbf and meta.kind != "cqn_as":
-        raise SystemExit(f"--safety-filter cbf is implemented for CQN-AS snapshots only; "
-                         f"got policy kind {meta.kind!r}.")
+    if (use_cbf or use_speedscale) and meta.kind != "cqn_as":
+        raise SystemExit(f"--safety-filter {safety_filter} is implemented for CQN-AS "
+                         f"snapshots only; got policy kind {meta.kind!r}.")
     if args.max_steps is None:
         args.max_steps = _derive_max_steps(meta, payload)
     logger.info("Policy kind=%s (snapshot=%s) max_steps=%d safety_filter=%s",
@@ -248,6 +261,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         logger.info("CBF %s config: %s", args.cbf_mode, cbf_config)
 
+    speedscale_config = None
+    if use_speedscale:
+        speedscale_config = dict(
+            d_slow=args.speedscale_d_slow,
+            d_stop=args.speedscale_d_stop,
+        )
+        logger.info("Speed-scale config: %s", speedscale_config)
+
     runner, renderable = build_cell_runner(
         meta, payload,
         snapshot_path=args.snapshot,
@@ -256,6 +277,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         filter_critic=filter_critic, filter_threshold=args.filter_threshold,
         fallback_name=args.fallback, num_demos_for_stats=args.num_demos_for_stats,
         cbf_config=cbf_config, cbf_mode=args.cbf_mode,
+        speedscale_config=speedscale_config,
     )
 
     jsonl_path = args.out.with_suffix(".episodes.jsonl")
@@ -300,6 +322,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                        f"gain={args.cbf_gain},max_push={args.cbf_max_push},"
                        f"use_vel={bool(args.cbf_use_velocity)},beta={args.cbf_beta})")
         filter_meta = {"fallback": fb_desc}
+    elif use_speedscale:
+        filter_meta = {"fallback": (f"speedscale(d_slow={args.speedscale_d_slow},"
+                                    f"d_stop={args.speedscale_d_stop})")}
     elif use_svf:
         filter_meta = {"fallback": args.fallback}
     else:
@@ -314,8 +339,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "human_model": args.human_model,
         "policy_kind": meta.kind,
         "snapshot": str(args.snapshot) if args.snapshot else "",
-        "filter_snapshot": ((f"cbf_{args.cbf_mode}") if use_cbf else (str(args.filter_snapshot) if use_svf else "")),
-        "filter_threshold": (args.cbf_d_target if use_cbf else (args.filter_threshold if use_svf else "")),
+        "filter_snapshot": (("speedscale" if use_speedscale else
+                             (f"cbf_{args.cbf_mode}") if use_cbf else
+                             (str(args.filter_snapshot) if use_svf else ""))),
+        "filter_threshold": ((args.speedscale_d_slow if use_speedscale else
+                              args.cbf_d_target if use_cbf else
+                              args.filter_threshold if use_svf else "")),
         "seeds": ",".join(str(s) for s in seeds),
         "episodes_per_seed": int(args.episodes),
         "git_sha": _git_sha(),
