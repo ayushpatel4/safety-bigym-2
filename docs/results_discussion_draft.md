@@ -129,7 +129,21 @@ learned veto-and-freeze filter cannot.
 But it cuts proximity only by **fleeing**: the base retreats from the workspace, episodes
 stretch from ~450 to 620–770 steps, and **success falls 0.75 → 0.57 / 0.43 / 0.35** as
 d_target rises. Proximity floors at ~0.14 regardless of d_target — the ~42 % exogenous
-floor (§5.1) — so extra dodging only costs success. And the trade it reaches
+floor (§5.1) — so extra dodging only costs success. The full d_target sweep (0.30–0.55)
+traces a *single flee Pareto entirely below the proactive policy*, and the flee is
+**brittle even at minimal intervention**: at d_target=0.30 the filter dodges only when
+already in violation (1.1 % intervention) yet still costs success 0.75 → 0.58 (proximity
+0.170) — yanking the absolute base target at the critical close-approach moments derails
+the task and recovers slowly. There is no low-intervention "harmless backstop" setting for
+the base dodge.
+
+| base-CBF d_target | 0.30 | 0.32 | 0.35 | 0.38 | 0.45 | 0.55 |
+|---|---|---|---|---|---|---|
+| success | 0.58 | 0.57 | 0.57 | 0.53 | 0.43 | 0.35 |
+| proximity | 0.170 | 0.151 | 0.150 | 0.141 | 0.137 | 0.148 |
+| intervention | 1.1 % | 1.1 % | 1.3 % | 1.5 % | 2.4 % | 3.6 % |
+
+(policy reference: success 0.75, proximity 0.198.) And the trade it reaches
 (0.57, 0.150) is the same frontier the proactive policy already spans at a tighter
 multiplier (λ=0.27 ≈ 0.60, 0.17), so it does **not** beat the policy.
 

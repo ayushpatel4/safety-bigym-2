@@ -260,6 +260,18 @@ multi-hour launch.
 >   = FLEE horn (reduction at success cost); proactive policy = the only graceful point.
 >   Reactive filtering, learned OR model-based, is bounded by freeze-vs-flee.** Results
 >   `results/e4_1/hybrid_cbf_d0p{35,45,55}.csv`; `filters/cbf_filter.py`; draft §3.2.
+> - **(2026-06-07) Base-CBF full d_target sweep + EE-retract variant.** Full base-CBF sweep
+>   (d=0.30→0.55) confirms a *single flee Pareto entirely below the policy*; even d=0.30
+>   (1.1% interv, dodging only when already in violation) costs 0.75→0.58 (prox 0.170) — **no
+>   harmless-backstop setting; the base dodge is brittle even at minimal intervention.**
+>   **EE-retract "flinch" filter committed** (`e436a9c`, merged `606b05e`): `--cbf-mode ee`,
+>   `CBFRetractFilter`, real `mj_jacBody` arm-Jacobian retract (base stays planted), 36 unit
+>   tests pass. *Gotcha:* the arm action = the 10 `robot.limb_actuators` joints (action index
+>   `floating_base.dof_amount + i`), which EXCLUDES the 2 grippers — a naive "indices 4..15"
+>   would wrongly grab grippers. EE-mode needs live-env MuJoCo access (wrapper-walk to
+>   `SafetyBiGymEnv._mojo`); guarded to pass-through if unavailable, so `filter_intervention_rate>0`
+>   confirms the Jacobian path fires. **EE-retract sweep RUNNING** (`hybrid_cbf_ee_d0p{35,45,55}`)
+>   → fills draft §3.3 (does the flinch reduce the flee vs the base dodge?).
 > - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
 >   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
 >   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.
