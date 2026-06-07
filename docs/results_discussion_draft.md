@@ -274,6 +274,39 @@ filter **complements** rather than competes with the policy — the genuinely us
   identically zero under a known BiGym/mojo runtime-attachment issue, so the safety
   axis here is proximity/SSM only.
 
+### 5.1 Future work
+
+Three directions follow directly from the limitations above.
+
+**Formally-guaranteed model-based filters.** Our geometric CBF and speed-scaling filters
+demonstrate the velocity-axis behaviour empirically but provide no formal safety
+certificate. A control-barrier-function QP with a *certified* barrier, or a
+Hamilton–Jacobi reachability safety filter, would give provable separation/velocity
+guarantees. The obstacles in this setting are concrete: a CBF-QP needs a control-affine
+dynamics model and a valid barrier under the *exogenous* (unmodelled) human motion, and HJ
+reachability suffers the curse of dimensionality beyond ~6 continuous states (a high-DoF
+humanoid + a human forces learned-value approximations). The well-posed target is the
+**velocity axis** (§3.4), where the filter's role is unambiguous — not proximity.
+
+**PFL collision braking.** The Power-and-Force-Limiting axis is unevaluated here because the
+BiGym/mojo runtime robot attachment yields identically-zero contact forces. Once contact
+detection is fixed, a *last-resort collision-imminent brake* — firing only at near-contact
+(the ~0.002 m exogenous tail, §5) — would add an injury-prevention guarantee that neither
+the policy nor the proximity/velocity filters target, completing the division of labour
+(policy → proximity, speed-scaling → velocity, PFL brake → contact).
+
+**Anticipatory (predictive) filtering.** The one direction that could help the *proximity*
+axis is an anticipatory filter — a short-horizon predictive (MPC-style) controller with a
+human-motion predictor that clears space *before* the close approach rather than reacting
+once close. This deliberately blurs the line with the constrained policy, which already
+anticipates but learns avoidance end-to-end and task-integrated; a controlled comparison of
+a hand-designed predictive filter against the learned policy would quantify how much of the
+policy's advantage is *anticipation per se* versus *task-integrated learning under a learned
+cost*. Two further threads are scoped but out of chapter: a coworker-aggressiveness
+*realism spectrum* (E5, `coworker_eval`) characterising where reactive filtering becomes
+sufficient as the human grows less adversarial, and an external constrained-RL baseline
+(WCSAC) for the policy comparison.
+
 ## 6. Synthesis
 
 Against an approaching collaborator, reactive ISO-SSM filtering is fundamentally
