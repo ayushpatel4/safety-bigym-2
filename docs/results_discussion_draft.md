@@ -212,6 +212,38 @@ against a co-located coworker, *regardless of which part of the robot is dodged*
 anticipation — the constrained policy — resolves it. (A *formally-guaranteed* CBF-QP / HJ
 filter remains future work, but would face the same task-vs-separation conflict.)
 
+### 3.4 The filter's proper role: ISO-15066 speed compliance (a division of labour)
+
+The preceding results judge every filter on **geometric proximity** — but that is the
+*policy's* axis. A runtime safety filter's canonical role under ISO-15066 is the
+**Speed-and-Separation-Monitoring (SSM) velocity axis**: reduce the robot's *speed* as the
+human–robot separation shrinks, maintaining the velocity-adaptive safety margin even when
+the robot cannot increase distance. On that axis a filter is the right tool — and the SVF
+veto already acted as a crude version of it (mean robot velocity −8 %).
+
+We therefore implement a **graded ISO-SSM speed-scaling filter** that scales the robot's
+commanded per-step motion in proportion to the closest separation —
+`scale = clip((sep − d_stop)/(d_slow − d_stop), 0, 1)`, applied to every joint: full speed
+beyond `d_slow`, a smooth slow-down within it, a hold at `d_stop` (near contact). Unlike
+the position filters it neither dodges nor vetoes — it *modulates speed*. **[Result pending
+`speedscale_base`:** we expect the velocity-adaptive ISO violation rate
+`ep_ssm_violation_actual_rate` and mean robot velocity to fall at roughly unchanged
+geometric proximity and modest success cost — a filter that demonstrably improves the
+safety axis it is actually designed for.]
+
+This reframes the hybrid as a **clean division of labour** rather than a redundancy:
+
+> - **The proactive policy owns the geometric-proximity axis** — anticipatory avoidance
+>   reduces how *often* and how *long* the human and robot are close (−23 %).
+> - **The runtime filter owns the ISO-15066 velocity axis** — speed-scaling reduces how
+>   *fast* the robot moves when they are close, maintaining the velocity-adaptive SSM
+>   margin (and, with working PFL contact detection, a collision-imminent brake for the
+>   exogenous tail — future work, §5).
+
+The earlier negative results are therefore not "the filter is useless" but "the filter is
+the wrong tool for proximity, which is the policy's job." Assigned to its proper axis, the
+filter **complements** rather than competes with the policy — the genuinely useful hybrid.
+
 ## 4. Generalisation and robustness
 
 - **Unseen coworker (E5.2).** Re-evaluated on a held-out coworker distribution
