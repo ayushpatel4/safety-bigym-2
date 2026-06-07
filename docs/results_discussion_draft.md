@@ -187,12 +187,30 @@ anticipation — which is exactly what the constrained policy provides; "fixing"
 within a reactive filter amounts to reinventing the policy.**
 
 We nonetheless tested the one structurally-different reactive option: retracting the
-**end-effector** (an arm "flinch") rather than the base — since the safety metric is
-EE-to-human and the base can stay in the workspace, this is the least-flee reactive
-correction available. **[Result pending `hybrid_cbf_ee`:** if it still pays a success cost,
-the flee is confirmed intrinsic to reactive control in a co-located task; if it materially
-reduces the cost, it is a less-disruptive reactive backstop — though still bounded by the
-~42 % exogenous floor (§5.1) and still not anticipatory.]
+**end-effector** (an arm "flinch", via a real `mj_jacBody` damped-pseudo-inverse step on
+the arm joints) rather than the base — since the safety metric is EE-to-human and the base
+can stay in the workspace, this is the least-flee reactive correction available. **It does
+not stop the flee.** In the useful (high-success) regime it is in fact *worse* than the base
+dodge — at d_target=0.35 the flinch yields 0.50 success vs 0.57 for the base dodge at the
+same proximity (0.155 vs 0.150) — because the EE is the closest pair, so the flinch
+intervenes far more often (5.8 % vs 1.3 %) and **retracting the arm *is* pausing the task**.
+It only achieves lower proximity than the base dodge by abandoning the task: at d_target=0.55
+it reaches proximity 0.108 (below the base-CBF floor and the ~42 % exogenous estimate, since
+retracting the EE addresses the closest pair directly) but at only 0.38 success. Neither
+variant approaches the policy's frontier.
+
+| reactive variant | d_target | success | proximity | intervention |
+|---|---|---|---|---|
+| base-dodge (flee) | 0.35 / 0.45 / 0.55 | 0.57 / 0.43 / 0.35 | 0.150 / 0.137 / 0.148 | 1.3 / 2.4 / 3.6 % |
+| EE-retract (flinch) | 0.35 / 0.45 / 0.55 | 0.50 / 0.45 / 0.38 | 0.155 / 0.145 / 0.108 | 5.8 / 9.0 / 13.2 % |
+
+**Conclusion (the model-based filter cannot escape the dilemma):** tested across *both*
+structural options — dodging the base and retracting the arm — the cost simply moves from
+"base leaves the workspace" to "arm stops the task"; neither comes near the proactive policy
+(0.75 / 0.198). The freeze-vs-flee cost is therefore intrinsic to **reactive** control
+against a co-located coworker, *regardless of which part of the robot is dodged*. Only
+anticipation — the constrained policy — resolves it. (A *formally-guaranteed* CBF-QP / HJ
+filter remains future work, but would face the same task-vs-separation conflict.)
 
 ## 4. Generalisation and robustness
 

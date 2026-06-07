@@ -270,8 +270,14 @@ multi-hour launch.
 >   `floating_base.dof_amount + i`), which EXCLUDES the 2 grippers — a naive "indices 4..15"
 >   would wrongly grab grippers. EE-mode needs live-env MuJoCo access (wrapper-walk to
 >   `SafetyBiGymEnv._mojo`); guarded to pass-through if unavailable, so `filter_intervention_rate>0`
->   confirms the Jacobian path fires. **EE-retract sweep RUNNING** (`hybrid_cbf_ee_d0p{35,45,55}`)
->   → fills draft §3.3 (does the flinch reduce the flee vs the base dodge?).
+>   confirms the Jacobian path fires. **EE-retract sweep DONE — it does NOT stop the flee** (`hybrid_cbf_ee_d0p{35,45,55}`,
+>   interv 5.8/9.0/13.2% so the Jacobian fires): in the high-success regime it's *worse* than
+>   the base dodge (d=0.35: 0.50 vs 0.57 succ at ~same prox — the EE is the closest pair so it
+>   fires more and retracting the arm pauses the task); it only reaches lower proximity
+>   (0.108 @ d=0.55, below the exogenous estimate) by abandoning the task (0.38 succ). Neither
+>   reactive variant (base-dodge OR arm-flinch) nears the policy (0.75/0.198) → **freeze-vs-flee
+>   is intrinsic to reactive control regardless of which robot part dodges; only the proactive
+>   policy is graceful.** Draft §3.3 filled; figure `results/figs/filter_taxonomy.png` regenerated.
 > - **E5.2 OOD (`coworker_eval`) DONE** (`results/e4_1/e5_2_ood`): the reduction
 >   generalises — baseline 0.084 → Lagrangian 0.058 (−31%); higher success cost
 >   (0.92→0.70 — λ=0.1 over-constrains the gentler held-out coworker). Hybrid again worse.
