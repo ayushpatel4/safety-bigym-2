@@ -225,11 +225,42 @@ We therefore implement a **graded ISO-SSM speed-scaling filter** that scales the
 commanded per-step motion in proportion to the closest separation —
 `scale = clip((sep − d_stop)/(d_slow − d_stop), 0, 1)`, applied to every joint: full speed
 beyond `d_slow`, a smooth slow-down within it, a hold at `d_stop` (near contact). Unlike
-the position filters it neither dodges nor vetoes — it *modulates speed*. **[Result pending
-`speedscale_base`:** we expect the velocity-adaptive ISO violation rate
-`ep_ssm_violation_actual_rate` and mean robot velocity to fall at roughly unchanged
-geometric proximity and modest success cost — a filter that demonstrably improves the
-safety axis it is actually designed for.]
+the position filters it neither dodges nor vetoes — it *modulates speed*.
+
+**Result.** On the baseline policy (3 seeds × 20 ep, noisy BodySLAM) the speed-scaling
+filter does exactly what its axis demands: the velocity-adaptive ISO violation rate
+`ep_ssm_violation_actual_rate` falls from **0.146 → 0.048 (−67 %)** at the optimal
+`d_slow = 0.40 m`, with mean robot velocity down (0.289 → 0.229) and geometric proximity
+essentially unchanged (0.296 → 0.273) — the filter improves the safety axis it is *designed*
+for without touching the policy's axis. Crucially this is the **only** configuration in the
+entire filter taxonomy that meaningfully reduces *any* ISO axis on its own terms: the SVF
+*veto*, despite also slowing the robot, left `ssm_violation_actual` unchanged (0.148 ≈
+baseline 0.146), because a binary stop-or-go veto does not maintain the graded velocity
+margin ISO-SSM prescribes. Graded scaling is the right design; binary veto is not.
+
+| d_slow (m) | success | proximity | **ssm-actual** | robot-vel | intervention |
+|---|---|---|---|---|---|
+| baseline | 0.85 | 0.296 | 0.146 | 0.289 | — |
+| SVF veto | 0.78 | 0.303 | 0.148 | 0.266 | 15 % |
+| 0.25 | 0.57 | 0.293 | 0.078 | 0.232 | 37 % |
+| 0.30 | 0.55 | 0.296 | 0.077 | 0.230 | 40 % |
+| 0.35 | 0.50 | 0.270 | 0.067 | 0.234 | 42 % |
+| **0.40** | 0.53 | 0.273 | **0.048** | 0.229 | 45 % |
+| 0.50 | 0.42 | 0.267 | 0.059 | 0.226 | 49 % |
+| 0.60 | 0.35 | 0.272 | 0.061 | 0.198 | 58 % |
+
+`ep_ssm_violation_actual_rate` is U-shaped in `d_slow` (optimum 0.40): too small slows too
+*late* — full-speed approach steps still violate — and too large holds the robot at a
+reduced-but-still-violating speed across a wide zone.
+
+**But even on its proper axis the filter pays the reactive success cost.** The success
+floor (~0.50–0.57) is essentially invariant to `d_slow`: the gentlest setting
+(`d_slow = 0.25`, slow only when very close) still intervenes 37 % of the time and costs
+−33 % success, because the coworker is *persistently co-located* so any separation-driven
+speed response fires almost constantly. Speed-scaling is **"freeze-lite"** — graded rather
+than binary, and genuinely useful on the velocity axis, but it cannot escape the task cost
+every reactive modality pays. That escape requires *not being co-located in the first
+place* — anticipation, which only the policy provides.
 
 This reframes the hybrid as a **clean division of labour** rather than a redundancy:
 

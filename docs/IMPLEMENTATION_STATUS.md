@@ -287,6 +287,22 @@ multi-hour launch.
 >   condition is the E1.1 BC ablation, a separate no-human-obs policy).
 > - **E5.1 tail risk DONE:** worst-case separation exogenous-floor-bound (CVaR₅≈0.005,
 >   worst≈0.002 m, unchanged across configs).
+> - **(2026-06-08) Speed-scaling filter DONE — the filter taxonomy is complete.**
+>   `SpeedScaleFilter` (`40b203e`, 54 tests): `--safety-filter speedscale`, graded
+>   `scale = clip((sep−d_stop)/(d_slow−d_stop), 0, 1)` on every joint (base dims scale the
+>   *delta* — BiGym's floating base is always delta-driven). Baseline sweep
+>   `d_slow ∈ {0.25..0.60}` @ noisy, 3 seeds×20 ep (`results/e4_1/speedscale_base_ds*.csv`):
+>   **it is the ONLY filter that meaningfully cuts any ISO axis on its own terms** —
+>   `ssm_violation_actual` 0.146 → **0.048 (−67%)** at the optimum `d_slow=0.40` (U-shaped in
+>   d_slow; the SVF *veto* left it at 0.148 ≈ baseline → graded beats binary). vel 0.289→0.229;
+>   proximity unchanged (≈0.27, the policy's axis). **BUT the success floor (~0.50–0.57) is
+>   d_slow-INVARIANT** — even d_slow=0.25 intervenes 37% (persistent co-location) and costs
+>   −33% succ ⇒ speed-scaling is **"freeze-lite"**: genuinely useful on the velocity axis but
+>   still pays the reactive success cost; only the policy (anticipation) escapes. Confirms the
+>   **division of labour** (policy→proximity, filter→velocity). Draft §3.4 + §5.1 future-work
+>   filled. **Filter program complete — all reactive modalities (veto / base-dodge /
+>   arm-flinch / speed-scale) exhausted; none is graceful; the proactive policy is the only
+>   graceful frontier.**
 
 ---
 
