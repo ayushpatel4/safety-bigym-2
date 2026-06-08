@@ -44,6 +44,9 @@ SPEEDSCALE = [
     (0.35, 0.061, 0.60),
 ]
 OPT_DSLOW = 0.40
+# policy+speed-scaling hybrid (d=0.40, pooled): the filter ADDS velocity reduction on top of
+# the policy (ssm-actual 0.112 -> 0.065) while keeping proximity ~0.25; (success, ssm-actual)
+HYBRID = (0.44, 0.065)
 
 
 def main() -> int:
@@ -82,6 +85,14 @@ def main() -> int:
     ax.annotate("only the filter, on its proper axis,\ndrives ssm-actual to the floor (−67%)",
                 (0.50, 0.048), (0.58, 0.030), fontsize=8.5, color="#1a7a1a", ha="center",
                 arrowprops=dict(arrowstyle="->", color="#2ca02c", alpha=0.7))
+
+    # policy+filter hybrid — adds velocity reduction on top of the policy
+    ax.scatter(*HYBRID, c="#9467bd", marker="P", s=240, zorder=5, edgecolors="k",
+               linewidths=0.6, label="policy+filter hybrid")
+    ax.annotate("hybrid", HYBRID, (HYBRID[0] + 0.008, HYBRID[1] + 0.003), fontsize=8,
+                fontweight="bold")
+    ax.annotate("", HYBRID, POLICY, zorder=2,
+                arrowprops=dict(arrowstyle="->", color="#9467bd", alpha=0.5, ls="--"))
 
     ax.set_xlabel("task success rate  →  (higher better)")
     ax.set_ylabel("velocity-adaptive ISO violation rate\n$ep\\_ssm\\_violation\\_actual\\_rate$   ↓ safer")

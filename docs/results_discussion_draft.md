@@ -273,7 +273,8 @@ This reframes the hybrid as a **clean division of labour** rather than a redunda
 
 The earlier negative results are therefore not "the filter is useless" but "the filter is
 the wrong tool for proximity, which is the policy's job." Assigned to its proper axis, the
-filter **complements** rather than competes with the policy — the genuinely useful hybrid.
+filter **complements** rather than competes with the policy. The composed result below
+quantifies exactly what that complementarity buys — and what it costs.
 
 Figure~\ref{fig:velocity-axis} makes this concrete on the velocity axis: the policy *also*
 reduces `ssm_violation_actual` (0.146 → 0.112), because avoidance keeps the robot further
@@ -282,14 +283,27 @@ reaching a velocity margin the reward-seeking policy will not. The two are there
 complementary, not redundant: the policy halves the time spent close, and the filter, in
 the time that remains, holds the velocity margin the policy alone does not.
 
-**The composed hybrid (capstone).** Because the speed-scaling filter (i) is model-based and
-so — unlike the SVF veto — is *not* out-of-distribution on the avoiding policy, and (ii)
-acts on the *complementary* axis, the policy+speed-scaling hybrid is expected to be the one
-*net-positive* combination: it should retain the policy's proximity reduction (≈ 0.20) while
-adding the filter's velocity reduction (≈ 0.05), at a milder success cost than standalone
-speed-scaling (the filter fires *less* because the policy is already further away).
-[Benchmark `hybrid_speedscale` pending; this is the experiment that converts "Hybrid Safety
-Critic" from a counterproductive same-axis stack into a useful complementary-axis one.]
+**The composed hybrid (capstone).** Benchmarking the policy+speed-scaling hybrid
+(`d_slow=0.40`, 3 seeds × 20 ep, 180 pooled) confirms the composition but reframes its value.
+The hybrid is the **only** configuration that reduces *both* ISO axes at once — geometric
+proximity **0.250** (retained from the policy's 0.228; CIs overlap) **and** velocity-adaptive
+ssm-actual **0.065** (−41 % vs the policy's 0.112 — the filter's contribution) — whereas each
+component leaves the *other* axis near baseline (policy: ssm-actual 0.112; filter-alone:
+proximity 0.273 ≈ baseline 0.296). Figure~\ref{fig:joint-coverage} shows this directly: only
+the hybrid reaches the both-safe corner. It is also strictly better than the **SVF-veto**
+hybrid, which *degraded* proximity (0.265) with no velocity gain — a complementary-axis,
+model-based filter composes additively where a redundant-axis, out-of-distribution *learned*
+filter destroyed.
+
+The cost is task success: **0.85 → 0.44**. The proactive cost (0.85→0.76) and the reactive
+cost (×0.58) **stack multiplicatively**, and the hybrid does not beat either specialist on
+that specialist's own axis (policy still wins proximity 0.228 < 0.250; filter still wins
+velocity 0.048 < 0.065) — it is the *joint-coverage compromise*, not a per-axis champion. The
+honest reading is therefore not "the hybrid is free" but **"comprehensive ISO safety —
+proximity *and* velocity together — is reachable only by composing the proactive policy with a
+complementary-axis reactive filter, and that composition makes the safety–throughput trade
+explicit."** This is the Hybrid Safety Critic's actual contribution: not a free lunch, but the
+only route to both-axis compliance, with a cost dial tunable through λ and `d_slow`.
 
 ## 4. Generalisation and robustness
 

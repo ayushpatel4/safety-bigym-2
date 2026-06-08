@@ -303,6 +303,21 @@ multi-hour launch.
 >   filled. **Filter program complete — all reactive modalities (veto / base-dodge /
 >   arm-flinch / speed-scale) exhausted; none is graceful; the proactive policy is the only
 >   graceful frontier.**
+> - **(2026-06-08) Policy+speed-scaling HYBRID benchmarked — joint-coverage capstone.**
+>   `results/e4_1/hybrid_speedscale_d0p{30,40}_seed{0,1,2}` (pooled 180 ep via
+>   `analyze_row3.py aggregate`). The hybrid is the ONLY config that cuts BOTH ISO axes at
+>   once: proximity **0.250** (retained from policy 0.228, CIs overlap) AND ssm-actual
+>   **0.065** (−41% vs policy 0.112 — the filter's add). Each component leaves the OTHER axis
+>   ≈baseline (policy ssmA 0.112; filter-alone prox 0.273 ≈ baseline 0.296). Strictly beats the
+>   SVF-veto hybrid (which degraded prox to 0.265, no velocity gain) → a complementary-axis
+>   MODEL-BASED filter composes additively where a redundant-axis OOD LEARNED filter destroyed.
+>   **Cost: success 0.85→0.44 — proactive (×0.89) and reactive (×0.58) costs STACK
+>   multiplicatively; the hybrid beats NEITHER specialist on its own axis (policy wins prox
+>   0.228<0.250; filter wins velocity 0.048<0.065).** Honest verdict: NOT a free lunch, but the
+>   only route to both-axis (proximity AND velocity) ISO compliance, with a λ/d_slow cost dial.
+>   Figures `results/figs/joint_coverage.png` (both-axes scatter — capstone) + `velocity_axis.png`;
+>   draft §3.4 capstone filled. **This is the Hybrid Safety Critic's actual contribution —
+>   saucepan experiments fully complete.**
 
 ---
 
