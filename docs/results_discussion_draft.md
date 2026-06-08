@@ -275,6 +275,22 @@ The earlier negative results are therefore not "the filter is useless" but "the 
 the wrong tool for proximity, which is the policy's job." Assigned to its proper axis, the
 filter **complements** rather than competes with the policy — the genuinely useful hybrid.
 
+Figure~\ref{fig:velocity-axis} makes this concrete on the velocity axis: the policy *also*
+reduces `ssm_violation_actual` (0.146 → 0.112), because avoidance keeps the robot further
+from the human on average — but the speed-scaling filter is the *specialist* (→ 0.048),
+reaching a velocity margin the reward-seeking policy will not. The two are therefore
+complementary, not redundant: the policy halves the time spent close, and the filter, in
+the time that remains, holds the velocity margin the policy alone does not.
+
+**The composed hybrid (capstone).** Because the speed-scaling filter (i) is model-based and
+so — unlike the SVF veto — is *not* out-of-distribution on the avoiding policy, and (ii)
+acts on the *complementary* axis, the policy+speed-scaling hybrid is expected to be the one
+*net-positive* combination: it should retain the policy's proximity reduction (≈ 0.20) while
+adding the filter's velocity reduction (≈ 0.05), at a milder success cost than standalone
+speed-scaling (the filter fires *less* because the policy is already further away).
+[Benchmark `hybrid_speedscale` pending; this is the experiment that converts "Hybrid Safety
+Critic" from a counterproductive same-axis stack into a useful complementary-axis one.]
+
 ## 4. Generalisation and robustness
 
 - **Unseen coworker (E5.2).** Re-evaluated on a held-out coworker distribution
