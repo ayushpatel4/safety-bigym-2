@@ -190,6 +190,18 @@ class SafetyBiGymEnvFactory(BiGymEnvFactory):
                 if safety_cfg_block.get("workspace_excess_cap", 1.0) is None
                 else float(safety_cfg_block.get("workspace_excess_cap", 1.0))
             ),
+            add_progress_reward=bool(
+                safety_cfg_block.get("add_progress_reward", False)
+            ),
+            progress_beta=float(
+                safety_cfg_block.get("progress_beta", 1.0)
+            ),
+            progress_goal=float(
+                safety_cfg_block.get("progress_goal", 0.0)
+            ),
+            progress_gamma=float(
+                safety_cfg_block.get("progress_gamma", 0.99)
+            ),
         )
 
         # Build a ParameterSpace honouring any cfg.env.disruptions overrides.

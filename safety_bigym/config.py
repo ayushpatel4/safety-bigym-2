@@ -96,6 +96,32 @@ class SafetyConfig:
     workspace_beta: float = 0.05
     workspace_excess_cap: Optional[float] = 1.0
 
+    # Phase 3 rung-3 dense task-progress shaping. BiGym task reward is sparse
+    # (`float(success) * SPARSE_REWARD_FACTOR`, 0 until completion), so online RL
+    # gets no gradient toward the goal joint-config — the policy can only learn
+    # the task from BC. This adds a POTENTIAL-BASED shaping term (Ng, Harada &
+    # Russell 1999) on the manipulable's normalized joint state:
+    #   Φ(s) = -mean(|manipulable.get_state() - progress_goal|)   ∈ [-1, 0]
+    #   F_t  = progress_beta * (progress_gamma * Φ(s_t) - Φ(s_{t-1}))
+    # `progress_gamma` selects the shaping mode (smoke 2026-06-06 surfaced this):
+    #   - 1.0 (DEFAULT): F = beta * ΔΦ, pure change-in-potential. Do-nothing => 0;
+    #     a full open->closed sweep telescopes to +beta; regress is penalised.
+    #     Cleanest dense signal for the sparse task — the one we want.
+    #   - agent discount (e.g. 0.99): strict potential-based shaping (Ng, Harada &
+    #     Russell 1999), provably optimal-policy-invariant, BUT a constant Φ yields
+    #     F = (1-γ)|Φ| > 0 per step — a spurious "survival" bonus (~3.5/episode for
+    #     a do-nothing dishwasher) that swamps the sparse +1 terminal. Avoid unless
+    #     you specifically need invariance.
+    # Either way the discounted contribution is bounded by ~|progress_beta|, so
+    # beta ~ O(1) stays inside the critic support [v_min, v_max]. `progress_goal`
+    # is the per-task success target each normalized joint approaches: 0.0 for
+    # "close" tasks (dishwasher_close), 1.0 for "open" tasks. Off by default;
+    # opt in per-launch with env.safety.add_progress_reward=true.
+    add_progress_reward: bool = False
+    progress_beta: float = 1.0
+    progress_goal: float = 0.0
+    progress_gamma: float = 1.0
+
     # Logging
     log_violations: bool = True
     log_all_contacts: bool = False

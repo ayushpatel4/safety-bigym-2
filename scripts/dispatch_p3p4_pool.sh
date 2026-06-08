@@ -30,9 +30,9 @@
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$REPO_ROOT"
 
-GPUS="${GPUS:-0 3 4 5}"
+GPUS="${GPUS:-0 1 2 3 4 5}"
 POLL="${POLL:-30}"
-FRAMES="${FRAMES:-60000}"
+FRAMES="${FRAMES:-40000}"
 MAX_RETRY="${MAX_RETRY:-1}"
 STAGE1="${WARMSTART:-$REPO_ROOT/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt}"
 E31="${E31:-$REPO_ROOT/exp_local/e3_1_cost_signal/e3_1_saucepan_to_hob_20260531_190551}"

@@ -521,6 +521,11 @@ class SafetyBiGymEnv(BiGymEnv):
         """Reset environment with new scenario."""
         # Parent reset (resets robot and world)
         obs, info = super().reset(seed=seed, options=options)
+
+        # Phase 3 rung-3: seed the task-progress potential Φ(s_0) so the
+        # potential-based shaping in _compute_progress_reward telescopes
+        # from the first step (no-op unless add_progress_reward is set).
+        self._prev_potential = self._progress_potential()
         
         if not self._inject_human:
             return obs, info
@@ -984,6 +989,9 @@ class SafetyBiGymEnv(BiGymEnv):
         if self.safety_config.add_workspace_penalty:
             base_reward += self._compute_workspace_penalty()
 
+        if self.safety_config.add_progress_reward:
+            base_reward += self._compute_progress_reward()
+
         return base_reward
 
     def _compute_workspace_penalty(self) -> float:
@@ -1018,6 +1026,73 @@ class SafetyBiGymEnv(BiGymEnv):
         if cap is not None:
             excess = min(excess, float(cap))
         return -self.safety_config.workspace_beta * excess
+
+    # ------------------------------------------------------------------ #
+    # Phase 3 rung-3: dense potential-based task-progress shaping
+    # ------------------------------------------------------------------ #
+    def _lookup_task_state(self) -> Optional[np.ndarray]:
+        """Normalized joint-config vector of the task manipulable.
+
+        BiGym articulated props expose ``get_state()`` returning their
+        normalized joint positions (e.g. ``Dishwasher.get_state()`` ->
+        ``[door, tray_bottom, tray_mid]`` in [0, 1]; 1 = fully open at reset,
+        0 = closed). Scans the same scene/manipulable attribute names as
+        :meth:`_lookup_task_object_pos` and returns the first prop exposing a
+        usable ``get_state()``. Returns ``None`` when no such manipulable is
+        present (e.g. free-object pick-and-place) — the caller then emits zero
+        progress shaping.
+        """
+        for attr in self._TASK_OBJECT_ATTRS_SCENE + self._TASK_OBJECT_ATTRS_SINGLE:
+            obj = getattr(self, attr, None)
+            getter = getattr(obj, "get_state", None) if obj is not None else None
+            if not callable(getter):
+                continue
+            try:
+                vec = np.asarray(getter(), dtype=float).reshape(-1)
+            except Exception:
+                continue
+            if vec.size:
+                return vec
+        return None
+
+    def _progress_potential(self) -> Optional[float]:
+        """Shaping potential Φ(s) = -mean(|task_joint_state - progress_goal|).
+
+        Bounded in [-1, 0] (BiGym ``get_state()`` joints are normalized to
+        [0, 1] and ``progress_goal`` ∈ [0, 1]). Returns ``None`` (no shaping)
+        when progress shaping is disabled or the task exposes no joint-state
+        manipulable.
+        """
+        if not self.safety_config.add_progress_reward:
+            return None
+        state = self._lookup_task_state()
+        if state is None:
+            return None
+        return -float(np.mean(np.abs(state - self.safety_config.progress_goal)))
+
+    def _compute_progress_reward(self) -> float:
+        """Dense task-progress shaping F = beta * (gamma * Φ(s_t) - Φ(s_{t-1})).
+
+        Supplies the dense gradient toward the success joint-config that BiGym's
+        sparse terminal reward lacks. With ``progress_gamma`` == the agent's
+        discount this is strict potential-based shaping (Ng, Harada & Russell
+        1999, optimal-policy-invariant); with ``progress_gamma`` == 1.0 (default)
+        it is the change-in-potential ΔΦ — a cleaner progress signal with no
+        constant "survival" offset (see SafetyConfig). ``_prev_potential`` carries
+        Φ(s_{t-1}); it is seeded in :meth:`reset` to Φ(s_0). Assumes ``_reward``
+        is evaluated once per env step (BiGym's per-step ``_step_cache``). No-ops
+        (returns 0.0) when no manipulable joint state is available.
+        """
+        phi = self._progress_potential()
+        if phi is None:
+            return 0.0
+        prev = getattr(self, "_prev_potential", None)
+        self._prev_potential = phi
+        if prev is None:
+            # First evaluated step without a seed: no telescoping pair yet.
+            return 0.0
+        gamma = self.safety_config.progress_gamma
+        return float(self.safety_config.progress_beta * (gamma * phi - prev))
 
     def step(self, action):
         """Step environment and add privileged info."""

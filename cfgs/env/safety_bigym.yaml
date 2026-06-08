@@ -63,6 +63,19 @@ env:
     workspace_radius: 0.4
     workspace_beta: 0.05
     workspace_excess_cap: 1.0
+    # Phase 3 rung-3 dense task-progress shaping (see SafetyConfig). Counters the
+    # sparse BiGym reward (0 until success) by rewarding the manipulable's
+    # joint-config moving toward its success state: F = beta*(gamma*Φ' - Φ),
+    # Φ = -mean(|get_state() - progress_goal|). progress_gamma=1.0 (default) =
+    # pure ΔΦ (do-nothing->0, full progress->+beta); = agent discount = strict
+    # potential-based but with a (1-γ)|Φ| survival offset. Bounded by ~|beta| so
+    # it stays in critic support. Off by default; opt in per-launch with
+    # env.safety.add_progress_reward=true. `progress_goal` is the per-task
+    # success target (0 = "close" tasks, 1 = "open") — set in the task yaml.
+    add_progress_reward: false
+    progress_beta: 1.0
+    progress_goal: 0.0
+    progress_gamma: 1.0
 
   disruptions:
     weights:
