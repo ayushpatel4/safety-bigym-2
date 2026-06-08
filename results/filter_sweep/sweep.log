@@ -1,0 +1,13 @@
+=== threshold 1.5 ===
+)
+success_rate=0.7666666666666667 ep_proximity_violation_rate=0.26681935407422624 ep_min_separation=0.14832922966621812 filter_intervention_rate=0.20579009279832702
+=== threshold 2.25 ===
+)
+success_rate=0.5666666666666667 ep_proximity_violation_rate=0.25071805700673633 ep_min_separation=0.13325139402364627 filter_intervention_rate=0.3440749566724437
+=== threshold 3.5 ===
+)
+success_rate=0.0 ep_proximity_violation_rate=0.19686666666666666 ep_min_separation=0.10453529386663424 filter_intervention_rate=0.8834666666666666
+=== threshold 5.0 ===
+)
+success_rate=0.0 ep_proximity_violation_rate=0.15043333333333334 ep_min_separation=0.09724215056158757 filter_intervention_rate=1.0
+SWEEP DONE

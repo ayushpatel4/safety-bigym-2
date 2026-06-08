@@ -1,0 +1,154 @@
+2026-06-06 23:30:33,829 OpenGL.acceleratesupport INFO No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-06-06 23:30:34,239 absl INFO MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+2026-06-06 23:30:34,249 absl INFO MuJoCo library version is: 3.1.5
+2026-06-06 23:30:36,044 benchmark_policy INFO Policy kind=cqn_as (snapshot=/home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed0/snapshot_30546.pt) max_steps=1000 safety_filter=cbf
+2026-06-06 23:30:36,044 benchmark_policy INFO CBF dodge config: {'d_target': 0.32, 'gain': 1.0, 'max_push': 0.15, 'use_velocity': True, 'beta': 0.1}
+2026-06-06 23:30:36,247 safety_bigym.envs.safety_bigym_factory INFO Forcing disruption_type=COWORKER for every episode.
+2026-06-06 23:30:36,247 safety_bigym.envs.safety_bigym_factory INFO Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+2026-06-06 23:30:42,602 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-06 23:30:42,603 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-06 23:30:42,604 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-06 23:30:42,604 safety_bigym.envs.safety_env INFO G1 human controller initialized
+2026-06-06 23:30:42,604 safety_bigym.envs.safety_bigym_factory INFO Inserting BodySLAMWrapper(mode=noisy, occlusion=none).
+2026-06-06 23:30:42,608 root INFO Loading demos via raw BiGym env (for DemoStore compatibility).
+2026-06-06 23:30:46,344 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 23:30:46,345 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 23:30:46,345 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 23:30:48,224 root INFO Loaded 36 demos.
+2026-06-06 23:30:53,238 safety_bigym.agents.cqn_as.env_adapter INFO Converted 36 demos (29 successful) for CQN-AS.
+2026-06-06 23:31:32,137 benchmark_policy INFO seed=0 ep=0: reward=-2.180 success=True prox_rate=0.000 interv=0
+2026-06-06 23:31:58,568 benchmark_policy INFO seed=0 ep=1: reward=-40.000 success=False prox_rate=0.102 interv=5
+2026-06-06 23:32:06,149 benchmark_policy INFO seed=0 ep=2: reward=-2.125 success=True prox_rate=0.000 interv=2
+2026-06-06 23:32:13,993 benchmark_policy INFO seed=0 ep=3: reward=-2.321 success=True prox_rate=0.066 interv=2
+2026-06-06 23:32:21,736 benchmark_policy INFO seed=0 ep=4: reward=-2.491 success=True prox_rate=0.042 interv=3
+2026-06-06 23:32:45,449 benchmark_policy INFO seed=0 ep=5: reward=-36.485 success=False prox_rate=0.040 interv=13
+2026-06-06 23:32:53,167 benchmark_policy INFO seed=0 ep=6: reward=-2.500 success=True prox_rate=0.032 interv=0
+2026-06-06 23:33:00,570 benchmark_policy INFO seed=0 ep=7: reward=-1.795 success=True prox_rate=0.000 interv=0
+2026-06-06 23:33:28,188 benchmark_policy INFO seed=0 ep=8: reward=-45.072 success=False prox_rate=0.076 interv=16
+2026-06-06 23:33:43,651 benchmark_policy INFO seed=0 ep=9: reward=-1.554 success=True prox_rate=0.642 interv=0
+2026-06-06 23:34:08,413 benchmark_policy INFO seed=0 ep=10: reward=-44.358 success=False prox_rate=0.124 interv=2
+2026-06-06 23:34:25,213 benchmark_policy INFO seed=0 ep=11: reward=-1.641 success=True prox_rate=0.199 interv=7
+2026-06-06 23:34:49,557 benchmark_policy INFO seed=0 ep=12: reward=-45.747 success=False prox_rate=0.037 interv=4
+2026-06-06 23:34:57,135 benchmark_policy INFO seed=0 ep=13: reward=-2.371 success=True prox_rate=0.241 interv=0
+2026-06-06 23:35:04,021 benchmark_policy INFO seed=0 ep=14: reward=-2.105 success=True prox_rate=0.061 interv=12
+2026-06-06 23:35:29,293 benchmark_policy INFO seed=0 ep=15: reward=-45.965 success=False prox_rate=0.106 interv=4
+2026-06-06 23:35:42,718 benchmark_policy INFO seed=0 ep=16: reward=-2.012 success=True prox_rate=0.392 interv=5
+2026-06-06 23:35:49,930 benchmark_policy INFO seed=0 ep=17: reward=-2.031 success=True prox_rate=0.052 interv=5
+2026-06-06 23:35:57,347 benchmark_policy INFO seed=0 ep=18: reward=-2.418 success=True prox_rate=0.038 interv=2
+2026-06-06 23:36:06,387 benchmark_policy INFO seed=0 ep=19: reward=-1.934 success=True prox_rate=0.000 interv=0
+2026-06-06 23:36:29,595 benchmark_policy INFO seed=1 ep=0: reward=-23.176 success=False prox_rate=0.045 interv=14
+2026-06-06 23:36:54,397 benchmark_policy INFO seed=1 ep=1: reward=-32.962 success=False prox_rate=0.051 interv=16
+2026-06-06 23:37:24,093 benchmark_policy INFO seed=1 ep=2: reward=-27.335 success=False prox_rate=0.360 interv=94
+2026-06-06 23:37:31,783 benchmark_policy INFO seed=1 ep=3: reward=-2.162 success=True prox_rate=0.000 interv=0
+2026-06-06 23:37:39,594 benchmark_policy INFO seed=1 ep=4: reward=-1.991 success=True prox_rate=0.000 interv=0
+2026-06-06 23:37:47,517 benchmark_policy INFO seed=1 ep=5: reward=-2.163 success=True prox_rate=0.000 interv=0
+2026-06-06 23:37:55,449 benchmark_policy INFO seed=1 ep=6: reward=-2.433 success=True prox_rate=0.000 interv=0
+2026-06-06 23:38:03,104 benchmark_policy INFO seed=1 ep=7: reward=-2.409 success=True prox_rate=0.034 interv=9
+2026-06-06 23:38:27,700 benchmark_policy INFO seed=1 ep=8: reward=-46.731 success=False prox_rate=0.068 interv=2
+2026-06-06 23:38:54,807 benchmark_policy INFO seed=1 ep=9: reward=-45.844 success=False prox_rate=0.076 interv=6
+2026-06-06 23:39:02,228 benchmark_policy INFO seed=1 ep=10: reward=-1.996 success=True prox_rate=0.000 interv=0
+2026-06-06 23:39:28,309 benchmark_policy INFO seed=1 ep=11: reward=-16.121 success=False prox_rate=0.074 interv=15
+2026-06-06 23:39:35,872 benchmark_policy INFO seed=1 ep=12: reward=-2.310 success=True prox_rate=0.000 interv=0
+2026-06-06 23:40:01,093 benchmark_policy INFO seed=1 ep=13: reward=-47.956 success=False prox_rate=0.064 interv=0
+2026-06-06 23:40:26,637 benchmark_policy INFO seed=1 ep=14: reward=-34.646 success=False prox_rate=0.124 interv=16
+2026-06-06 23:40:52,341 benchmark_policy INFO seed=1 ep=15: reward=-46.250 success=False prox_rate=0.094 interv=10
+2026-06-06 23:41:00,118 benchmark_policy INFO seed=1 ep=16: reward=-2.258 success=True prox_rate=0.704 interv=14
+2026-06-06 23:41:11,551 benchmark_policy INFO seed=1 ep=17: reward=-1.873 success=True prox_rate=0.210 interv=4
+2026-06-06 23:41:37,827 benchmark_policy INFO seed=1 ep=18: reward=-45.126 success=False prox_rate=0.085 interv=0
+2026-06-06 23:42:02,128 benchmark_policy INFO seed=1 ep=19: reward=-38.555 success=False prox_rate=0.056 interv=26
+2026-06-06 23:42:16,233 benchmark_policy INFO seed=2 ep=0: reward=-2.107 success=True prox_rate=0.585 interv=0
+2026-06-06 23:42:51,515 benchmark_policy INFO seed=2 ep=1: reward=-26.308 success=False prox_rate=0.177 interv=11
+2026-06-06 23:43:05,678 benchmark_policy INFO seed=2 ep=2: reward=-1.706 success=True prox_rate=0.429 interv=0
+2026-06-06 23:43:30,701 benchmark_policy INFO seed=2 ep=3: reward=-6.550 success=False prox_rate=0.271 interv=7
+2026-06-06 23:43:56,913 benchmark_policy INFO seed=2 ep=4: reward=-44.871 success=False prox_rate=0.005 interv=13
+2026-06-06 23:44:04,237 benchmark_policy INFO seed=2 ep=5: reward=-2.135 success=True prox_rate=0.000 interv=0
+2026-06-06 23:44:11,674 benchmark_policy INFO seed=2 ep=6: reward=-2.376 success=True prox_rate=0.000 interv=0
+2026-06-06 23:44:23,145 benchmark_policy INFO seed=2 ep=7: reward=-2.121 success=True prox_rate=0.831 interv=3
+2026-06-06 23:44:49,120 benchmark_policy INFO seed=2 ep=8: reward=-28.925 success=False prox_rate=0.064 interv=20
+2026-06-06 23:45:27,126 benchmark_policy INFO seed=2 ep=9: reward=-12.478 success=False prox_rate=0.304 interv=2
+2026-06-06 23:45:49,547 benchmark_policy INFO seed=2 ep=10: reward=-45.787 success=False prox_rate=0.006 interv=0
+2026-06-06 23:46:01,747 benchmark_policy INFO seed=2 ep=11: reward=-2.141 success=True prox_rate=0.544 interv=10
+2026-06-06 23:46:16,108 benchmark_policy INFO seed=2 ep=12: reward=-2.356 success=True prox_rate=0.248 interv=6
+2026-06-06 23:46:22,874 benchmark_policy INFO seed=2 ep=13: reward=-1.930 success=True prox_rate=0.000 interv=0
+2026-06-06 23:46:43,268 benchmark_policy INFO seed=2 ep=14: reward=-45.587 success=False prox_rate=0.000 interv=0
+2026-06-06 23:46:56,306 benchmark_policy INFO seed=2 ep=15: reward=-2.572 success=True prox_rate=0.326 interv=0
+2026-06-06 23:47:25,399 benchmark_policy INFO seed=2 ep=16: reward=-35.345 success=False prox_rate=0.225 interv=3
+2026-06-06 23:47:46,977 benchmark_policy INFO seed=2 ep=17: reward=-45.538 success=False prox_rate=0.026 interv=1
+2026-06-06 23:47:58,357 benchmark_policy INFO seed=2 ep=18: reward=-1.997 success=True prox_rate=0.696 interv=8
+2026-06-06 23:48:05,656 benchmark_policy INFO seed=2 ep=19: reward=-1.981 success=True prox_rate=0.000 interv=0
+2026-06-06 23:48:05,886 benchmark_policy INFO Wrote 1 cell row to results/e4_1/hybrid_cbf_d0p32.csv (60 episodes) + raw rolls to results/e4_1/hybrid_cbf_d0p32.raw_episodes.parquet
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+success_rate=0.5666666666666667 ep_proximity_violation_rate=0.15052792737981247 ep_min_separation=0.15109731649592328 filter_intervention_rate=0.01061870191786759

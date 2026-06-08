@@ -1,0 +1,11 @@
+# lam0p15 operating-point picks @ success-floor 0.65  (generated 2026-06-05 15:33:47 BST)
+# NOTE: separate from the floor-0.75 run; sweep CSVs and plots untouched.
+=== lam0p15_seed0 (floor 0.65) ===
+# step=23273 prox=0.262 succ=0.72 vel=0.372
+exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed0/snapshot_23273.pt
+=== lam0p15_seed1 (floor 0.65) ===
+# step=37661 prox=0.164 succ=0.65 vel=0.410
+exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed1/snapshot_37661.pt
+=== lam0p15_seed2 (floor 0.65) ===
+# step=23318 prox=0.262 succ=0.78 vel=0.327
+exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed2/snapshot_23318.pt
