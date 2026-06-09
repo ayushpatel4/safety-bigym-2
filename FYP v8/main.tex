@@ -9,7 +9,7 @@
 %  PAGE LIMIT: 60 A4 pages of content (everything between the contents
 %  page and the reference list, exclusive). This is a limit, not a target.
 %
-%  STRUCTURE (8 content chapters; see docs/REPORT_STRATEGY.md for rationale):
+%  STRUCTURE (8 content chapters):
 %    Ch. 1 Introduction
 %    Ch. 2 Background and Related Work
 %    Ch. 3 The safety_bigym Benchmark  (env + metrics + co-working + demos)
@@ -23,10 +23,8 @@
 %  Overleaf and most TeXLive distributions; substitute vancouver.bst if
 %  preferred: both produce numbered [1] citations in order of appearance).
 %
-%  Fill-in markers:
-%    \placeholder{...}: prose to be written, rendered in grey
-%    \result{X}: numerical result to be filled, rendered in brackets
-%    \todo{...}: outstanding action, rendered in red
+%  Draft markers (\placeholder / \result / \todo) are defined below for
+%  editing convenience; the submitted text contains none.
 %
 %  Compile:
 %    pdflatex report && bibtex report && pdflatex report && pdflatex report
@@ -77,6 +75,7 @@
 
 % === Theorem environments ===
 \newtheorem{theorem}{Theorem}[chapter]
+\newtheorem{proposition}[theorem]{Proposition}
 \newtheorem{lemma}[theorem]{Lemma}
 \newtheorem{corollary}[theorem]{Corollary}
 
@@ -201,7 +200,7 @@ thank the authors of \bigym{} for the manipulation simulator and human
 demonstrations that \sbigym{} extends, and the authors of \cqnas{} for
 the demonstration-driven agent that serves as its backbone. I am
 indebted to the \textsc{AMASS} consortium for the motion-capture data
-that animates the coworker, and to the Imperial College London
+that drives the demonstration-replay human-state channel, and to the Imperial College London
 Department of Computing for the GPU cluster on which these experiments
 were run, and its support team. Finally, I thank my family and friends
 for their support and patience throughout the year.
@@ -213,9 +212,6 @@ for their support and patience throughout the year.
 \chapter{Introduction}
 \label{ch:intro}
 % =============================================================================
-% Target: 4-5 pages. No experimental results. Motivate; state the
-% gap; list the contributions; cross-reference where each contribution
-% is delivered.
 
 \section{Motivation}
 \label{sec:intro:motivation}
@@ -373,7 +369,7 @@ so the constrained objective must be re-derived in value-based form
 (Section~\ref{sec:method:lagrangian:why}). A dense safety signal must
 be shaped into a distributional value critic without saturating its
 support, which we show breaks training outright unless a specific
-invariant holds (Theorem~\ref{lem:support-bound}). A runtime safety
+invariant holds (Proposition~\ref{lem:support-bound}). A runtime safety
 filter must be trained offline on the noisy, deployment-time
 perception distribution rather than on simulator ground truth, or its
 veto decisions are calibrated against information the deployed robot
@@ -475,7 +471,7 @@ runtime filters (Section~\ref{sec:method:filter}). Because the backbone
 is critic-only, the actor-critic Lagrangian is re-derived in
 value-based form, and a value-support invariant must be respected or
 dense safety shaping silently breaks the distributional critic
-(Theorem~\ref{lem:support-bound}).
+(Proposition~\ref{lem:support-bound}).
 \item \textbf{The central empirical finding: reactive \iso{}~\ssm{}
 filtering is fundamentally limited against an approaching coworker,
 whereas proactive constrained RL resolves it.} A reactive filter faces
@@ -514,8 +510,8 @@ policy, the operating checkpoint must be chosen by a
 floor), because selecting on peak task success picks \emph{against} the
 constraint and hides the avoidance basin
 (Section~\ref{sec:results:headline-feature-table}).
-\item \textbf{A lemma on bounded reward shaping in distributional
-critics} (Theorem~\ref{lem:support-bound}): for a C51 distributional
+\item \textbf{A proposition on bounded reward shaping in distributional
+critics} (Proposition~\ref{lem:support-bound}): for a C51 distributional
 critic with value support $[v_{\min}, v_{\max}]$ and shaped reward
 bounded by $\beta \cdot c_{\mathrm{ws}}$ per step, training is
 well-defined only if
@@ -545,19 +541,17 @@ the experimental setup and the results, organised around the four
 research questions, with the feature-incremental ablation
 (contribution~C4) as the headline. Chapter~\ref{ch:disc} interrogates
 threats to validity and broader impact, Chapter~\ref{ch:future} sets
-out future work, and Chapter~\ref{ch:conclusion} concludes.
-Hyperparameter tables, a reproducibility checklist, and the
-declarations on generative-AI use, ethics, sustainability, and code
-availability appear as appendices.
+out future work, and Chapter~\ref{ch:conclusion} concludes. A
+declarations section covering originality, generative-AI use, ethics,
+sustainability, and code availability precedes the references;
+hyperparameter tables and the full reproducibility checklist appear
+as appendices.
 
 
 % =============================================================================
 \chapter{Background and Related Work}
 \label{ch:background}
 % =============================================================================
-% Target: 8 pages. The criteria caution against "predominantly
-% extended literature reviews." This chapter is selective, critical,
-% and recent.
 
 \section{\iso{}: Speed-Separation and Force Limiting}
 \label{sec:bg:iso}
@@ -663,7 +657,7 @@ $[v_{\min}, v_{\max}]$ and minimises a projected Bellman error. This
 fixed support is load-bearing for the safety extension: a shaped reward
 whose discounted return exceeds the support is silently clipped, which
 breaks value learning unless an invariant holds
-(Theorem~\ref{lem:support-bound}). Our backbone is built on a C51
+(Proposition~\ref{lem:support-bound}). Our backbone is built on a C51
 critic, which is why distributional value learning is introduced here.
 
 Three families of agent recur in this report as baseline or backbone.
@@ -1017,8 +1011,6 @@ literature to date.
 \chapter{The \texorpdfstring{\sbigym{}}{safety\_bigym} Benchmark}
 \label{ch:benchmark-env}
 % =============================================================================
-% Target: 5 pages. Frame as a benchmark contribution. Explain why a
-% new benchmark is needed; what it tests; how it relates to BiGym.
 
 \section{Why a New Benchmark}
 \label{sec:bench:why}
@@ -1221,7 +1213,7 @@ end-effector and the task object:
 \end{equation}
 with $r_{\mathrm{ws}} = 0.4$\,m, $\beta = 0.05$, $c_{\mathrm{ws}} =
 1.0$\,m. The cap $c_{\mathrm{ws}}$ is critical and is derived in
-Theorem~\ref{lem:support-bound} as a value-support invariant of the
+Proposition~\ref{lem:support-bound} as a value-support invariant of the
 C51 distributional critic; the bounded form is the one that
 \emph{works}, and is therefore the form the benchmark ships with.
 The shaped reward is $r^{\mathrm{task,shaped}}_t = r^{\mathrm{task}}_t
@@ -1692,11 +1684,6 @@ statistics for the live and demo distributions to share a binning.
 \chapter{The Hybrid Safety Architecture and Its Implementation}
 \label{ch:method}
 % =============================================================================
-% Target: 12 pages. Carries the bulk of the Execution mark. Every
-% major design choice (1) is specified, (2) is justified against at
-% least one named alternative, (3) is cross-referenced to the
-% experiment that ablates it. Framed explicitly as solving the
-% problem the benchmark surfaces.
 
 \section{Overview: From Problem to Solution}
 \label{sec:method:overview}
@@ -1724,10 +1711,14 @@ architecture has two mechanisms with deliberately different roles:
   of the continuous cost signal. At deployment, the policy is
   used as-is; the safety knowledge is baked into the learned
   $Q$-functions (Section~\ref{sec:method:lagrangian}).
-\item A \textbf{deployment-time mechanism}: an offline-trained,
-  frozen safety value function (SVF) that intercepts the policy's
-  proposed actions and vetoes catastrophically unsafe proposals
-  with a fallback action (Section~\ref{sec:method:filter}).
+\item A \textbf{deployment-time mechanism}: a runtime \emph{filter
+  slot} that intercepts the policy's proposed actions. The slot is
+  mechanism-agnostic, and we specify and evaluate the complete
+  reactive taxonomy through it: an offline-trained, frozen safety
+  value function (SVF) used as a veto, the original design
+  (Section~\ref{sec:method:filter}), plus two closed-form
+  alternatives, a graded \iso{} speed-scaling rule and a model-based
+  geometric dodge (Section~\ref{sec:method:filter:closedform}).
 \end{enumerate}
 
 Both mechanisms share a network shape and an observation interface,
@@ -1826,7 +1817,7 @@ ground-truth (\texttt{oracle}) input its $Q$-estimates collapse and it
 intervenes almost everywhere, so all filtered evaluations are reported
 on \texttt{noisy} (Section~\ref{sec:setup:perception-mode}). The exact
 transition count for the current critic is 37{,}883, of which
-$24.95\,\%$ are labelled unsafe ($r^{\mathrm{safe}} = 0$) at the
+$16.8\,\%$ are labelled unsafe ($r^{\mathrm{safe}} = 0$) at the
 $\tau = 0.3$\,m proximity threshold; the full figures are in the
 Phase~2 results write-up.
 
@@ -1854,10 +1845,10 @@ label depend on the very action it is meant to veto, conflating ``how
 dangerous is this configuration'' with ``how fast is the robot moving'',
 the latter being a decision the policy, not the filter, should own.
 
-Roughly $16.8\,\%$ of the collected transitions are proximity-violating.
-A \texttt{WeightedRandomSampler} over-samples the violating class to a
-$1{:}1$ ratio of safe to violating transitions per batch, so the critic
-is not dominated by the safe majority.
+Because the violating class is the minority, a
+\texttt{WeightedRandomSampler} over-samples it to a $1{:}1$ ratio of
+safe to violating transitions per batch, so the critic is not
+dominated by the safe majority.
 
 \subsection{Architecture and Training}
 \label{sec:method:filter:arch}
@@ -1938,6 +1929,75 @@ The Phase~2 fallback is zero-velocity braking on the floating base
 and on every joint velocity actuator. This can produce abrupt
 motion mid-trajectory; proportional damping is the natural upgrade
 and is deferred to future work (Section~\ref{sec:fw:fallback}).
+
+\section{Closed-Form Runtime Filters: Speed-Scaling and Geometric Dodge}
+\label{sec:method:filter:closedform}
+
+The filter slot of Figure~\ref{fig:hybrid-overview} is
+mechanism-agnostic: anything that maps the state and the proposed
+action $(s_t, a^{\mathrm{nom}}_t)$ to an executed action can occupy
+it. The learned SVF veto above is its learned instantiation. Two
+\emph{closed-form} mechanisms, specified here and evaluated alongside
+the veto in Chapter~\ref{ch:eval}, complete the reactive taxonomy:
+stop (veto), slow (speed-scaling), and move away (dodge). Both
+consume the same $\hat{p}^{\mathrm{human}}$ estimate as the SVF and
+contain no learned component.
+
+\subsection{Graded \iso{} Speed-Scaling}
+\label{sec:method:filter:speedscale}
+
+\iso{}~\ssm{}'s intent is graded: the robot should \emph{slow} as
+separation shrinks, not merely stop at a threshold. The speed-scaling
+filter implements this directly. At each step a scale factor is
+computed from the closest-pair human--robot separation
+$\mathrm{sep}_t$,
+\begin{equation}
+  \sigma_t \;=\; \mathrm{clip}\!\left(
+    \frac{\mathrm{sep}_t - d_{\mathrm{stop}}}
+         {d_{\mathrm{slow}} - d_{\mathrm{stop}}},\; 0,\; 1\right),
+  \qquad
+  a^{\mathrm{exec}}_t \;=\; q_t + \sigma_t \,
+    \bigl(a^{\mathrm{nom}}_t - q_t\bigr),
+  \label{eq:speed-scale}
+\end{equation}
+where $q_t$ is the current joint position for the absolute-mode arm
+dimensions (so the per-step \emph{motion} from the current pose is
+scaled) and zero for the delta-mode floating base (so the commanded
+increment is scaled directly). Above $d_{\mathrm{slow}}$ the filter
+is the identity ($\sigma_t = 1$, byte-for-byte pass-through); at or
+below $d_{\mathrm{stop}} = 0.15$\,m the robot holds position
+($\sigma_t = 0$); in between, speed falls linearly with separation.
+The slow radius $d_{\mathrm{slow}}$ is the single operating-point
+knob, swept over $[0.25, 0.60]$\,m with the headline at $0.40$\,m;
+an intervention is any step with $\sigma_t < 1$. Unlike the veto,
+this filter preserves the \emph{direction} of the policy's motion
+and modulates only its magnitude, which is why it can maintain the
+graded velocity margin the standard prescribes where a binary
+stop-or-go veto cannot
+(Section~\ref{sec:results:headline-feature-table}).
+
+\subsection{Model-Based Geometric Dodge}
+\label{sec:method:filter:dodge}
+
+The second closed-form mechanism is a geometric
+control-barrier-style fallback: when the closest-pair separation
+falls below a target $d_{\mathrm{target}}$, the filter adds a
+correction step directed \emph{away} from the human, proportional to
+the violation depth $(d_{\mathrm{target}} - \mathrm{sep}_t)$ and
+capped per step. Two variants differ in which part of the robot
+dodges: the \emph{base-dodge} pushes the floating base along the
+escape direction and leaves the arm untouched, while the
+\emph{end-effector retract} (``flinch'') keeps the base planted and
+retracts the end-effector along the escape direction via a
+damped-Jacobian step. $d_{\mathrm{target}}$ is swept over
+$[0.30, 0.55]$\,m. These variants exist to test whether a
+\emph{dodging} reactive response escapes the limits of the
+\emph{stopping} one; Section~\ref{sec:results:reactive-taxonomy}
+shows it does not (it trades the veto's freeze for a flee). The
+headline composition deploys the policy with the speed-scaling
+filter; the veto and the dodges are reported as taxonomy points
+(Table~\ref{tab:filter-taxonomy}), with operating-point values for
+all three mechanisms in Appendix~\ref{app:hparams:hybrid}.
 
 
 \section{Value-Based Lagrangian Constrained RL (Phase~3)}
@@ -2103,7 +2163,7 @@ critic loses the ability to distinguish values in the saturating
 region, and the gradient that should pull the end-effector back
 toward the task is clipped away.
 
-\begin{theorem}[Support-bounding invariant]
+\begin{proposition}[Support-bounding invariant]
 \label{lem:support-bound}
 Let a C51 distributional critic have value support
 $[v_{\min}, v_{\max}]$, discount $\gamma$, and an additive shaped
@@ -2117,7 +2177,7 @@ saturated) only if
   \beta \cdot c_{\mathrm{ws}} \,/\, (1-\gamma) \;\le\; |v_{\min}|.
   \label{eq:support-invariant}
 \end{equation}
-\end{theorem}
+\end{proposition}
 
 \begin{proof}
 The geometric-series sum of the per-step shaping under the worst
@@ -2570,7 +2630,6 @@ Tables~\ref{tab:results:baseline}--\ref{tab:e5.1-tail}.
 \chapter{Experimental Setup and Results}
 \label{ch:eval}
 % =============================================================================
-% Target: 4 pages.
 
 \section{Tasks}
 \label{sec:setup:tasks}
@@ -2690,8 +2749,10 @@ configurations that establish the division of labour across the two
   Tests proactive, training-time avoidance alone (the proximity axis).
 \item[(\textbf{3}) \emph{Speed-scaling filter on baseline}] = (1)
   evaluated with the graded speed-scaling runtime filter
-  ($d_{\mathrm{slow}} = 0.40$\,m). Tests reactive, deployment-time
-  velocity control alone (the velocity axis), without retraining.
+  ($d_{\mathrm{slow}} = 0.40$\,m,
+  Section~\ref{sec:method:filter:speedscale}). Tests reactive,
+  deployment-time velocity control alone (the velocity axis), without
+  retraining.
 \item[(\textbf{4}) \emph{Composed hybrid}] = (2) evaluated with the
   graded speed-scaling filter. Tests whether the two axes compose.
 \end{description}
@@ -2814,13 +2875,18 @@ Three complementarity metrics for RQ3:
 \section{Statistical Methodology}
 \label{sec:setup:stats}
 
-Three independent seeds per evaluation cell. 20 evaluation episodes
-per seed sampled from the relevant \texttt{ParameterSpace}.
-95\,\% bootstrap confidence intervals on all headline metrics
-(10\,000 bootstrap resamples). Significance tests reported only
-where a directional claim is made: Welch's $t$-test for means,
-bootstrap for \cvar{} comparisons. Effect sizes reported alongside
-$p$-values.
+Every evaluation cell runs 20 episodes per evaluation seed across
+three evaluation seeds (60 episodes), sampled from the relevant
+\texttt{ParameterSpace}. Configurations involving a \emph{trained}
+policy additionally pool three independently trained seeds, giving
+180 episodes for the headline policy and hybrid rows; each table
+states which applies. 95\,\% bootstrap confidence intervals
+(10{,}000 resamples over episodes) are reported for the primary
+safety metric in every headline table. Directional claims are
+assessed by bootstrap-CI overlap rather than parametric tests:
+episode-level safety metrics are bounded, zero-inflated and heavily
+non-Gaussian, so $t$-statistics would be poorly calibrated, whereas
+the CI criterion is conservative and assumption-free.
 
 \section{Smoke Gates}
 \label{sec:setup:smoke}
@@ -2834,20 +2900,25 @@ is launched without passing the relevant smoke gate first.}
 \section{Compute Budget}
 \label{sec:setup:compute}
 
-\placeholder{Total $\sim$\result{73}\,GPU-hours mandatory, rising to
-$\sim$\result{92}\,GPU-hours including the strengthening experiments,
-on a single NVIDIA A100 (40\,GB). Mandatory breakdown: G1 base-policy
-curriculum (stages 0/1/2) $\sim$\result{19}\,h; Phase~2 SVF re-eval,
-retrain and sweep $\sim$\result{6}\,h; E3.1 cost-signal form ablation
-$\sim$\result{18}\,h; E3.2 cost-budget Pareto sweep $\sim$\result{24}\,h;
-E4.1 headline (row-2 training only, rows 1/3/4/5 are pure eval)
-$\sim$\result{6}\,h; E4.3 internalisation curve $\sim$\result{1}\,h
-(the benchmark harness is engineering effort, not GPU time).
-Strengthening: E3.6 observation-channel under the constrained policy
-$\sim$\result{7}\,h; WCSAC external baseline $\sim$\result{10}\,h;
-E5.1/E5.2 robustness (pure eval) $\sim$\result{2}\,h. Carbon
-$\sim$8\,kg~CO\textsubscript{2}e under the 2026 UK grid
-emissions factor; derived in Appendix~\ref{app:sustainability}.}
+All training ran on a single NVIDIA A100 (40\,GB). The dominant cost
+is Lagrangian fine-tuning: a 40k-frame constrained run takes
+$\approx$9\,h, and 18 such runs were trained across the reported
+grids (3 E3.1 cost-form cells; 3 infeasible-budget E3.2 cells; 3
+seeds of PID auto-tuning at $d = 0.3$; and the fixed-$\lambda$ grid,
+$\lambda \in \{0.1, 0.15, 0.27\} \times 3$ seeds), totalling
+$\approx$160\,h. The remainder: the three-stage base-policy
+curriculum $\approx$19\,h, plus $\approx$12\,h for the no-shaping
+stage-2 variant used as the confound control; the Phase~2 SVF
+pipeline (snapshot collection, critic training, threshold sweeps,
+and the on-policy re-collection) $\approx$12\,h; and all
+snapshot evaluation together (the headline rows, the basin sweeps
+behind the safety-aware checkpoint selection, the filter taxonomy
+and $d_{\mathrm{slow}}$/$d_{\mathrm{target}}$ sweeps, E4.3, E3.6 and
+E5.1/E5.2) $\approx$15\,h, evaluation being cheap relative to
+training. The total is $\approx$220\,GPU-hours, reconstructed from
+run logs and rounded; carbon accounting
+($\approx$19\,kg~CO\textsubscript{2}e under the 2024 UK grid
+emissions factor) is derived in Appendix~\ref{app:sustainability}.
 
 \section{Experiment Index}
 \label{sec:setup:exp-index}
@@ -2930,15 +3001,15 @@ task-competent yet violates proximity on a large fraction of
 episodes, because nothing in its objective represents the human.}
 \label{tab:results:baseline}
 \small
-\begin{tabular}{lc}
+\begin{tabular}{lcc}
 \toprule
-Metric & Unconstrained baseline \\
+Metric & Unconstrained baseline & 95\,\% CI \\
 \midrule
-\texttt{success\_rate}                          & $0.85$ \\
-\texttt{ep\_proximity\_violation\_rate}         & $0.296$ \\
-\texttt{ep\_ssm\_violation\_actual\_rate}       & $0.146$ \\
-\texttt{ep\_min\_separation} (mean, m)          & $0.132$ \\
-$\cvar_{0.95}$ \texttt{ep\_min\_separation} (m) & $\approx 0.005$ \\
+\texttt{success\_rate}                          & $0.85$  & $[0.75, 0.93]$ \\
+\texttt{ep\_proximity\_violation\_rate}         & $0.296$ & $[0.23, 0.37]$ \\
+\texttt{ep\_ssm\_violation\_actual\_rate}       & $0.146$ & $[0.10, 0.19]$ \\
+\texttt{ep\_min\_separation} (mean, m)          & $0.132$ & -- \\
+$\cvar_{0.95}$ \texttt{ep\_min\_separation} (m) & $\approx 0.005$ & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -3025,14 +3096,16 @@ rather than one that exploits perfect state
 
 \begin{table}[h]
 \centering
-\caption{Experiment E3.6. The constrained policy and the
-unconstrained baseline re-evaluated under \texttt{oracle} and
+\caption{Experiment E3.6. The constrained policy (seed-0 trained)
+and the unconstrained baseline re-evaluated under \texttt{oracle} and
 \texttt{noisy} perception (\texttt{saucepan\_to\_hob},
-\texttt{coworker\_train}, 3 seeds $\times$ 20 episodes). The policy's
-proximity reduction is preserved under realistic noisy, lagged
-perception (CIs across modes overlap), and the baseline shows no
-oracle--noisy gap because it does not use the channel to avoid. The
-headline E4.1 table reports the \texttt{noisy} column.}
+\texttt{coworker\_train}; each cell is 60 episodes, 3 evaluation
+seeds $\times$ 20). The policy's proximity reduction is preserved
+under realistic noisy, lagged perception (bootstrap CIs across modes
+overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$
+noisy), and the baseline shows no oracle--noisy gap because it does
+not use the channel to avoid. The headline E4.1 table reports the
+pooled three-trained-seed \texttt{noisy} numbers.}
 \label{tab:e3.6-obs-rl}
 \small
 \begin{tabular}{lcccc}
@@ -3237,18 +3310,18 @@ revisited in Section~\ref{sec:disc:filter-role}.
 \small
 \caption{Reactive-filter fallback sub-study on the unconstrained
 baseline policy (v3 G1 SVF, \coworker{} distribution, \texttt{noisy}
-observations). No reactive fallback reduces geometric proximity at
-acceptable success and robot speed. Zero-velocity braking is a
-velocity backstop only; an aggressive retreat buys separation by
-abandoning the task and accelerating, which worsens the \ssm{}-actual
-rate.}
+observations; 60 evaluation episodes per row). No reactive fallback
+reduces geometric proximity at acceptable success and robot speed.
+Zero-velocity braking is a velocity backstop only; an aggressive
+retreat buys separation by abandoning the task and accelerating,
+which worsens the \ssm{}-actual rate.}
 \label{tab:filter-fallback}
 \begin{tabular}{lccccc}
 \toprule
 Fallback & $R$ & Interv. & Proximity & Success & Mean vel (m/s) \\
 \midrule
 None (baseline)        & --   & --      & $0.296$ & $0.85$ & $0.29$ \\
-\texttt{zero\_velocity}    & 2.25 & 15\,\% & $\approx 0.296$ & $\approx 0.85$ & $0.27$ \\
+\texttt{zero\_velocity}    & 2.25 & 15\,\% & $0.303$ & $0.78$ & $0.27$ \\
 \texttt{retreat\_gentle}   & 2.25 & 2\,\%  & $0.290$ & $0.75$ & raised \\
 \texttt{retreat\_aggressive} & 2.5 & 14\,\% & $0.095$ & $0.18$ & $1.70$ \\
 \bottomrule
@@ -3305,7 +3378,8 @@ Section~\ref{sec:results:joint-coverage}.
 The fixed-$\lambda$ ($\lambda = 0.1$) Lagrangian policy reduces
 \texttt{ep\_proximity\_violation\_rate} from the baseline $0.296$ to
 $0.228$, a $22.8\,\%$ reduction (bootstrap 95\,\% CI $[0.194, 0.264]$),
-at $0.76$ task success, pooled over three seeds (180 episodes). Each
+at $0.76$ task success (CI $[0.70, 0.82]$), pooled over three seeds
+(180 episodes). Each
 seed's selected operating point is below the baseline; the
 velocity-adaptive \ssm{}-actual rate also improves
 ($0.146 \rightarrow 0.112$, $-23\,\%$) and mean robot velocity rises
@@ -3322,26 +3396,31 @@ cost.
 \caption{Experiment E4.1 (\textbf{the headline}). The division of
 labour between the proactive policy and a complementary-axis runtime
 filter on \texttt{saucepan\_to\_hob} under \texttt{coworker\_train},
-\texttt{noisy} perception, pooled over 3 seeds $\times$ 20 episodes.
-The policy owns the geometric-proximity axis ($\tau = 0.3$\,m); the
-graded speed-scaling filter owns the velocity-adaptive \ssm{}-actual
-axis; only their composition reduces both at once, at a multiplicative
-success cost. $\Delta$ columns are relative to the unconstrained
-baseline (negative is safer). The two SVF-veto configurations are in
+\texttt{noisy} perception. Rows 1 and 3 evaluate the single stage-2
+baseline policy over 60 episodes (3 evaluation seeds $\times$ 20);
+rows 2 and 4 pool three independently trained seeds (180 episodes).
+Brackets are 95\,\% bootstrap CIs. The policy owns the
+geometric-proximity axis ($\tau = 0.3$\,m); the graded speed-scaling
+filter owns the velocity-adaptive \ssm{}-actual axis; only their
+composition reduces both at once, at a multiplicative success cost.
+$\Delta$ columns are relative to the unconstrained baseline (negative
+is safer). The two SVF-veto configurations are in
 Table~\ref{tab:filter-taxonomy}.}
 \label{tab:e4.1-feature-incremental}
 \small
 \setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lcccccc}
 \toprule
 Configuration & \texttt{succ.} & \texttt{prox.viol} & $\Delta$ prox.\ & \texttt{ssm-act.} & $\Delta$ ssm.\ & Interv.\ \\
 \midrule
-Unconstrained baseline                 & $0.85$ & $0.296$ & --       & $0.146$ & --       & -- \\
-Proactive policy ($\lambda{=}0.1$)     & $0.76$ & $\mathbf{0.228}$ & $\mathbf{-23\,\%}$ & $0.112$ & $-23\,\%$ & -- \\
-Speed-scaling filter (on baseline)     & $0.53$ & $0.273$ & $-8\,\%$ & $\mathbf{0.048}$ & $\mathbf{-67\,\%}$ & $45\,\%$ \\
-\textbf{Policy $+$ speed-scaling (hybrid)} & $\mathbf{0.44}$ & $0.250$ & $-15\,\%$ & $0.065$ & $-55\,\%$ & $45\,\%$ \\
+Unconstrained baseline                 & $0.85$ & $0.296\,[0.23, 0.37]$ & --       & $0.146\,[0.10, 0.19]$ & --       & -- \\
+Proactive policy ($\lambda{=}0.1$)     & $0.76$ & $\mathbf{0.228}\,[0.19, 0.26]$ & $\mathbf{-23\,\%}$ & $0.112\,[0.09, 0.13]$ & $-23\,\%$ & -- \\
+Speed-scaling filter (on baseline)     & $0.53$ & $0.273\,[0.21, 0.35]$ & $-8\,\%$ & $\mathbf{0.048}\,[0.03, 0.07]$ & $\mathbf{-67\,\%}$ & $45\,\%$ \\
+\textbf{Policy $+$ speed-scaling (hybrid)} & $\mathbf{0.44}$ & $0.250\,[0.21, 0.29]$ & $-15\,\%$ & $0.065\,[0.05, 0.08]$ & $-55\,\%$ & $40\,\%$ \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \paragraph{Operating-point selection must be safety-aware.}
@@ -3360,6 +3439,27 @@ basin checkpoint is shown in Figure~\ref{fig:fixlam}; that the basin
 appears consistently across all three seeds under fixed $\lambda$ is
 what makes the reduction reproducible, in contrast to the PID
 instability of Figure~\ref{fig:lambda-regimes}.
+
+\paragraph{The basin is constraint-driven, not selection noise.}
+Selecting a checkpoint by a deployment metric invites the objection
+that the ``basin'' is evaluation noise harvested by the selection
+rule. Four observations rule this out. First, the $\lambda = 0$ seed
+of Figure~\ref{fig:lambda-regimes}, processed by the \emph{same}
+selection rule, shows no basin: its deployment proximity stays flat
+at the baseline $\approx$0.30 with only isolated single-checkpoint
+dips. Second, the basin is not an isolated dip but a \emph{run} of
+consecutive checkpoints (six in the PID seed that engaged, and a
+comparable stretch in each fixed-$\lambda$ seed,
+Figure~\ref{fig:fixlam}) at $0.21$--$0.26$ proximity with success
+held at $0.72$--$0.80$. Third, the \ssm{}-actual rate co-improves
+inside the basin; uncorrelated evaluation noise on the proximity
+metric would not move a second safety metric in the same direction.
+Fourth, the selected operating point also sits below the
+\emph{no-shaping} baseline at matched success (the $-12\,\%$
+confound-controlled comparison below), so the reduction is not an
+artefact of the reference either. When $\lambda$ engages, the
+constraint does work; when it is slack, no amount of checkpoint
+selection manufactures a basin.
 
 \begin{figure}[h]
 \centering
@@ -3405,7 +3505,14 @@ own terms; the binary SVF veto, despite also slowing the robot, leaves
 \ssm{}-actual at $0.148 \approx$ baseline, because a stop-or-go veto
 does not maintain the graded margin \iso{}~\ssm{} prescribes
 (Section~\ref{sec:results:reactive-taxonomy}). Graded scaling is the
-right design; binary veto is not.
+right design; binary veto is not. The success cost, however, is not an
+artefact of the $0.40$\,m setting: even the gentlest point swept,
+$d_{\mathrm{slow}} = 0.25$\,m, intervenes on $37\,\%$ of steps
+(co-location is persistent, so some part of the robot is nearly always
+inside the slow radius) and still costs a third of task success
+($0.85 \rightarrow 0.57$) while achieving less of the velocity-axis
+reduction (\ssm{}-actual $0.078$ vs.\ $0.048$). The reactive cost is
+paid at every operating point; only its exchange rate moves.
 
 \paragraph{The composition is the only both-axis-compliant
 configuration, and it costs success.}
@@ -3455,10 +3562,13 @@ Figure~\ref{fig:filter-taxonomy} summarise the taxonomy.
 \begin{table}[h]
 \centering
 \caption{The reactive-filter taxonomy on \texttt{saucepan\_to\_hob}
-(\coworker{}, \texttt{noisy}). Every reactive modality, learned or
-model-based, is bounded by the freeze-versus-flee dilemma: it either
-freezes (and proximity does not fall) or flees (and task success
-collapses). None reaches the proactive policy's frontier
+(\coworker{}, \texttt{noisy}); every row is 60 evaluation episodes,
+and rows involving the constrained policy use the seed-0 trained
+policy (the pooled three-trained-seed policy numbers are in
+Table~\ref{tab:e4.1-feature-incremental}). Every reactive modality,
+learned or model-based, is bounded by the freeze-versus-flee dilemma:
+it either freezes (and proximity does not fall) or flees (and task
+success collapses). None reaches the proactive policy's frontier
 (success $0.75$, proximity $0.198$ at seed~0; $0.76$/$0.228$ pooled).
 The SVF veto applied to the \emph{policy} (the original hybrid design)
 is worse than the policy alone.}
@@ -3509,7 +3619,11 @@ base away from the human, episodes stretch from $\sim$450 to
 $620$--$770$ steps, and success falls to $0.57/0.43/0.35$ as
 $d_{\mathrm{target}} = 0.35/0.45/0.55$. Proximity floors at
 $\approx$0.14 regardless (the exogenous floor), so extra dodging only
-costs success. The same flee appears whichever part of the robot
+costs success. Nor is there a harmless-backstop setting below the
+sweep: at the minimal $d_{\mathrm{target}} = 0.30$\,m the filter
+intervenes on only $1.1\,\%$ of steps yet still costs success
+$0.75 \rightarrow 0.58$ (proximity $0.170$), because even rare dodges
+land at task-critical moments. The same flee appears whichever part of the robot
 dodges: retracting the \emph{end-effector} (an arm ``flinch'' via a
 damped-Jacobian step) is, in the useful regime, worse than the base
 dodge ($0.50$ success at $d = 0.35$, because the EE is the closest pair
@@ -3795,7 +3909,6 @@ is not.
 \chapter{Discussion}
 \label{ch:disc}
 % =============================================================================
-% Target: 4 pages. The 20% Reflection mark band lives here.
 
 \section{Research Questions Revisited}
 \label{sec:disc:rqs-revisited}
@@ -4141,8 +4254,6 @@ contribution to the safe-RL community's reproducibility crisis.
 \chapter{Future Work}
 \label{ch:future}
 % =============================================================================
-% Target: 3 pages. Specific, not generic. Each subsection is a
-% concrete project that a follow-up student could pick up.
 
 \section{Closing the Force Loop: Fixing \pfl{}}
 \label{sec:fw:pfl}
@@ -4254,7 +4365,6 @@ ablation against B-value-mean.
 \chapter{Conclusion}
 \label{ch:conclusion}
 % =============================================================================
-% Target: 1.5 pages.
 
 \noindent
 \textbf{Restate the problem and the contribution.}
@@ -4323,13 +4433,52 @@ learned-SVF line~\cite{srinivasan2020learning}
 (Table~\ref{tab:related-work-comparison}) situates the architecture
 honestly within the emerging literature rather than claiming primacy.
 The engineering lessons travel beyond this project: the
-support-bounding invariant (Theorem~\ref{lem:support-bound}) for
+support-bounding invariant (Proposition~\ref{lem:support-bound}) for
 shaped rewards on distributional critics, the curriculum necessity for
 safe-RL on long-horizon manipulation, and the out-of-distribution
 failure of a baseline-calibrated safety filter on an avoiding policy,
 all apply to any future project building safe-RL on top of demo-driven
 distributional agents.
 
+
+% =============================================================================
+% Declarations (departmental requirement; unnumbered, before references)
+% =============================================================================
+\clearpage
+\chapter*{Declarations}
+\addcontentsline{toc}{chapter}{Declarations}
+
+\paragraph{Originality.}
+I declare that this report and the work it describes are my own,
+carried out under the supervision of Dr Stephen James, and that all
+material from other sources, published or unpublished, is
+acknowledged and cited in the references.
+
+\paragraph{Use of generative AI.}
+Generative AI tools were used as assistive tools for literature
+search, \LaTeX{} formatting, infrastructure code scaffolding, and
+prose drafting, with all outputs verified, edited, tested, and
+endorsed by the author. The full declaration of what was used, how
+its outputs were verified, and the tools' observed limits is in
+Appendix~\ref{app:genai}.
+
+\paragraph{Ethics.}
+The project involves no human-subjects research and no personal
+data; all human-motion data is from the publicly released AMASS
+dataset under its research licence. The full ethical considerations,
+including the principal risk of over-claiming safety compliance, are
+in Appendix~\ref{app:ethics}.
+
+\paragraph{Sustainability.}
+Total compute was approximately 220~GPU-hours on a single A100,
+corresponding to roughly 19\,kg~CO\textsubscript{2}e; the accounting
+and the practices that bounded it are in
+Appendix~\ref{app:sustainability}.
+
+\paragraph{Code and data availability.}
+The code is open-source under the MIT licence at
+\url{https://github.com/ayushpatel4/safety-bigym-2}; model-weight and
+dataset availability are detailed in Appendix~\ref{app:data}.
 
 % =============================================================================
 % References
@@ -4406,7 +4555,7 @@ constraint) and cold-started.}
 Group & Value & Note \\
 \midrule
 \cqnas{} backbone & C51, 101 atoms, $\gamma = 0.99$ & \cite{seo2024cqnas} \\
-Value support & $v_{\min} = -6$, $v_{\max} = +2$ & satisfies Thm~\ref{lem:support-bound} \\
+Value support & $v_{\min} = -6$, $v_{\max} = +2$ & satisfies Prop.~\ref{lem:support-bound} \\
 Cost critic & mirrored C51, same support & decoupled optimiser \& features; cold-started \\
 Replay / batch / stack & 1M / 256 / 4 & \\
 Demonstrations & $\text{num\_demos} = 36$ & \\
@@ -4426,7 +4575,9 @@ Eval interval & 2{,}000 frames, 20 eval ep & basin at $\sim$20k--35k frames \\
 
 The deployment composition that reaches both \iso{} axes is the
 fixed-$\lambda$ policy plus a \emph{graded speed-scaling} filter
-($d_{\mathrm{slow}} = 0.40$\,m), not the learned SVF veto. The learned
+($d_{\mathrm{slow}} = 0.40$\,m,
+Section~\ref{sec:method:filter:speedscale}), not the learned SVF
+veto. The learned
 SVF veto ($R = 2.25$ on the G1 v3 SVF, $\alpha_{\mathrm{CQL}} = 5.0$)
 is reported as a \emph{negative} result: it is a velocity backstop on
 the baseline and counterproductive on the avoiding policy
@@ -4445,7 +4596,7 @@ deployment configuration.}
 \toprule
 Component & Value & Role \\
 \midrule
-\textbf{Composed filter} & graded speed-scaling, $d_{\mathrm{slow}} = 0.40$\,m & velocity (\ssm{}-actual) axis \\
+\textbf{Composed filter} & graded speed-scaling, $d_{\mathrm{slow}} = 0.40$\,m, $d_{\mathrm{stop}} = 0.15$\,m (Eq.~\ref{eq:speed-scale}) & velocity (\ssm{}-actual) axis \\
 Learned SVF veto & $R = 2.25$, $\alpha_{\mathrm{CQL}} = 5.0$ & reported negative (velocity backstop / OOD) \\
 SVF fallback (veto) & zero-velocity braking & re-introduces freeze on the policy \\
 Model-based dodge & $d_{\mathrm{target}} = 0.35$\,m & taxonomy point (flee); not deployed \\
@@ -4457,16 +4608,42 @@ Intervention smoothing & 1 step & multi-step hysteresis is future work \\
 \chapter{Reproducibility Checklist}
 \label{app:repro}
 
-\placeholder{Code repository: \url{https://github.com/ayushpatel4/safety-bigym-2}.
-Exact commit hashes for headline experiments. Dataset versions for
-\bigym{}~\cite{chernyadev2024bigym} (\result{v0.9.0}) and
-AMASS~\cite{mahmood2019amass} (CMU subset, downloaded 18 February 2026).
-Hardware: single NVIDIA A100 40\,GB, CUDA 12.8, PyTorch
-2.10.0. Step-by-step recipe for reproducing the headline
-Table~\ref{tab:e4.1-feature-incremental} including approximate
-wall-clock time per phase. Random seeds: \result{0, 1, 2} for 3-seed
-cells; \result{0, 1, 2, 3, 4} for 5-seed cells. \bigym{} version and
-local patches applied (see public fork at \result{[URL]}).}
+\begin{description}[leftmargin=2em,style=nextline]
+\item[Code] \url{https://github.com/ayushpatel4/safety-bigym-2} (MIT
+  licence). Headline experiments were run from the \texttt{phase3}
+  branch at commit \texttt{b3b2ce5}; in addition, the
+  snapshot-evaluation harness stamps the exact git SHA into every
+  benchmark CSV row, so each reported cell is traceable to the code
+  that produced it.
+\item[Upstream assets] \bigym{}~\cite{chernyadev2024bigym} is consumed
+  via a public fork at \url{https://github.com/ayushpatel4/bigym},
+  which carries the collision-channel and PD-actuator fixes of
+  Section~\ref{sec:bench:human}. AMASS~\cite{mahmood2019amass} (CMU
+  subset, downloaded 18 February 2026) drives the demonstration-replay
+  human-state channel. \cqnas{}~\cite{seo2024cqnas} is vendored at
+  upstream commit \texttt{8cf806e}
+  (Section~\ref{sec:impl:integration}).
+\item[Hardware and software] A single NVIDIA A100 (40\,GB), CUDA 12.8,
+  PyTorch 2.10.0; MuJoCo via \bigym{}. Every script has a CPU-only
+  smoke gate (Section~\ref{sec:setup:smoke}).
+\item[Seeds] Trained seeds $\{0, 1, 2\}$ for all three-seed cells;
+  evaluation uses seeds $\{0, 1, 2\}$ with 20 episodes each
+  (Section~\ref{sec:setup:stats}).
+\item[Headline recipe] (i) Train the three-stage curriculum
+  (Table~\ref{tab:curriculum-stages}; $\approx$19\,h). (ii) Fine-tune
+  with fixed $\lambda = 0.1$ for up to 40k frames per seed
+  ($\approx$9\,h each; Table~\ref{tab:app-hparams-lagrangian}).
+  (iii) Benchmark every saved checkpoint and select per seed by the
+  safety-aware rule (lowest deployment proximity at success
+  $\ge 0.75$), which yields the headline checkpoints
+  \texttt{lam0p1\_seed\{0,1,2\}} at steps 30{,}546 / 8{,}225 /
+  32{,}696. (iv) Reproduce
+  Table~\ref{tab:e4.1-feature-incremental} by running
+  \texttt{scripts/benchmark\_policy.py} on those checkpoints
+  (minutes per cell; no retraining).
+\item[Hyperparameters] Appendix~\ref{app:hparams}; the Hydra configs
+  in the repository pin every value not listed there.
+\end{description}
 
 \chapter{Use of Generative AI}
 \label{app:genai}
@@ -4524,14 +4701,15 @@ than this work provides.
 \chapter{Sustainability}
 \label{app:sustainability}
 
-Total compute was \result{$\sim$92}\,GPU-hours on a single NVIDIA A100
-(40\,GB) including the strengthening experiments, of which
-\result{$\sim$73}\,GPU-hours are the mandatory core. At an assumed mean
-board power of $0.3$\,kW and a data-centre power-usage effectiveness of
-$1.4$, this is approximately $39$\,kWh; at the 2024 UK grid carbon
-intensity of $0.21$\,kg\,CO\textsubscript{2}e/kWh, approximately
-$8$\,kg\,CO\textsubscript{2}e (core only: $\approx$\,31\,kWh,
-$\approx$\,6.5\,kg). Several practices kept this figure low: resumable
+Total compute was $\approx$220\,GPU-hours on a single NVIDIA A100
+(40\,GB), reconstructed from run logs
+(Section~\ref{sec:setup:compute}); training accounts for
+$\approx$205\,h of it and snapshot evaluation for the remainder. At an
+assumed mean board power of $0.3$\,kW and a data-centre
+power-usage effectiveness of $1.4$, this is approximately $92$\,kWh;
+at the 2024 UK grid carbon intensity of
+$0.21$\,kg\,CO\textsubscript{2}e/kWh, approximately
+$19$\,kg\,CO\textsubscript{2}e. Several practices kept this figure low: resumable
 training with checkpoint reuse; CPU smoke gates before every multi-hour
 training launch; deliberate seed-count selection (3--5) balancing
 statistical confidence against compute; warm-starting the constrained
@@ -4545,18 +4723,24 @@ relative to a retrain.
 \chapter{Code and Data Availability}
 \label{app:data}
 
-\placeholder{Code repository: \url{https://github.com/ayushpatel4/safety-bigym-2}, MIT licence.
-Pre-trained model weights for the headline Lagrangian policy and
-the Phase 2 SVF: \result{[weights URL]} (hosted on \result{[platform]}).
-Dataset shards used to train the Phase 2 SVF: \result{[URL]}
-(v3 snapshot-only collection on \texttt{coworker\_train} under
-\texttt{noisy}; 37{,}883 transitions, \placeholder{$\sim$Z\,GB}
-compressed). \bigym{}
-simulator fork (with the collision-channel and PD-actuator fixes
-from Section~\ref{sec:bench:human}) released as a public fork at
-\result{[URL]} with patches submitted upstream. The snapshot
-evaluation harness (Section~\ref{sec:bench:harness}) is shipped as
-part of the main repository under \texttt{scripts/benchmark\_policy.py}.}
+The code, including the \sbigym{} benchmark, all runtime-filter
+implementations, the training entry points, and the
+snapshot-evaluation harness
+(\texttt{scripts/benchmark\_policy.py},
+Section~\ref{sec:bench:harness}), is open-source under the MIT
+licence at \url{https://github.com/ayushpatel4/safety-bigym-2}. The
+\bigym{} simulator fork carrying the collision-channel and
+PD-actuator fixes of Section~\ref{sec:bench:human} is public at
+\url{https://github.com/ayushpatel4/bigym}. Pre-trained weights for
+the headline fixed-$\lambda$ policy (the three selected checkpoints
+listed in Appendix~\ref{app:repro}) and the Phase~2 SVF critic,
+together with the v3 SVF dataset shards (37{,}883 transitions,
+snapshot-only collection on \texttt{coworker\_train} under
+\texttt{noisy}), are archived on the project's experiment
+workstation and are available from the author on request while a
+hosted release is prepared; every quantitative table in this report
+is regenerable from those snapshots with the harness, without any
+retraining.
 
 
 % =============================================================================
