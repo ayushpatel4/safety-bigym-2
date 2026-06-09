@@ -500,11 +500,17 @@ class Workspace:
                 or episode_step % self.cfg.action_sequence == 0
             ):
                 with torch.no_grad(), utils.eval_mode(self.agent):
+                    # Most agents (CQN-AS) act deterministically here and get
+                    # exploration from add_noise_to_action below. Stochastic
+                    # actor-critic agents (WCSAC) instead explore by sampling
+                    # their policy inside act(), so they opt out of eval_mode
+                    # during collection via the `stochastic_act` flag. CQN-AS
+                    # lacks the attr -> getattr default False -> unchanged.
                     raw_action = self.agent.act(
                         time_step.rgb_obs,
                         time_step.low_dim_obs,
                         self.global_step,
-                        eval_mode=True,
+                        eval_mode=not getattr(self.agent, "stochastic_act", False),
                     )
                 action = raw_action.reshape([self.cfg.action_sequence, -1])
                 if self.cfg.temporal_ensemble:

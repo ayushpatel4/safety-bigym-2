@@ -7,6 +7,24 @@ It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
 Tasks are priority-ordered; smoke gates are mandatory before any
 multi-hour launch.
 
+> **2026-06-09 status delta — P9 (WCSAC external baseline) IMPLEMENTED.**
+> - `agent=wcsac` on the CQN-AS stack (`train_cqn_as.py`): faithful Worst-Case
+>   SAC — stochastic squashed-Gaussian actor, twin reward critics, a Gaussian
+>   safety critic (mean+variance via the WCSAC 2nd-moment recursion), closed-form
+>   Gaussian CVaR_α constraint, projected-dual λ, auto entropy temperature.
+>   Reuses the existing per-step cost + cost-carrying replay + eval harness;
+>   **zero RoboBase drift**. Code `safety_bigym/agents/wcsac/`, config
+>   `cfgs/agent/wcsac.yaml`, tests `tests/test_wcsac_agent.py` (15 pass), scripts
+>   `scripts/wcsac_{smoke,train}.sh`.
+> - **Verified**: 15/15 unit tests + a ≤100-frame env smoke (80 update steps,
+>   0 non-finite; λ rises while CVaR>budget — the constraint mechanism works).
+> - **Two honest departures from the Lagrangian baseline** (documented in
+>   `wcsac_train.sh`): WCSAC trains **from scratch** (no CQN-AS warm-start —
+>   architecture mismatch) and `cost_budget` is a CVaR-of-cost-**return** ceiling,
+>   not the per-step mean the Lagrangian sweeps. From-scratch pixel SAC may
+>   underperform the warm-started value method → the documented §disc:wcsac-honest path.
+> - **Status**: GPU sweep (dish + drawers, budget grid) launched; eval pending.
+
 > **2026-05-30 status delta.**
 > - **P1 DONE** — G1 base-policy curriculum ran; stage-2 snapshot in hand
 >   (the unconstrained baseline / row-1 reference).
@@ -639,6 +657,11 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   in-training hook, which the oracle-collapse killed.)
 
 ### P9. E3.7: WCSAC external baseline
+- **STATUS (2026-06-09): IMPLEMENTED — `agent=wcsac` on `train_cqn_as.py`.**
+  Faithful Worst-Case SAC (`safety_bigym/agents/wcsac/`, `cfgs/agent/wcsac.yaml`,
+  `tests/test_wcsac_agent.py`, `scripts/wcsac_{smoke,train}.sh`). Unit-tested +
+  env-smoke-verified; GPU sweep running, eval pending. Trains from scratch — the
+  SAC architecture can't load the CQN-AS C2F warm-start snapshots.
 - **Goal**: place our hybrid against the standard distributional
   safe-RL method. Honest-failure path documented in §disc:wcsac-honest.
 - **Acceptance gate**: reimplementation matches Safety-Gym numbers

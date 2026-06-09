@@ -20,7 +20,7 @@ The project builds a **Hybrid Safety Critic** for a manipulation robot sharing s
 | Workstream D / BASE-FIX | CQN-AS demos + bounded workspace curriculum — unblocks non-degenerate training | ✅ SMPL-H base curriculum finished; G1/tightened-stage verification pending |
 | **3** | **Constrained RL** — a policy that *internalises* safety via a Lagrangian cost constraint | 🔵 **P3.0 done; P3.1 code complete/unit-tested; GPU smoke pending** |
 | 4 | Hybrid deployment — Phase 3 policy + frozen Phase 2 filter, improved fallback | ⬜ not started |
-| 5 | Evaluation — tail-risk metrics, baselines (incl. WCSAC) | ⬜ not started |
+| 5 | Evaluation — tail-risk metrics, baselines (incl. WCSAC) | ⬜ not started — **WCSAC baseline ✅ implemented** (`agent=wcsac`), GPU runs pending |
 
 **The Phase 2 filter and the Phase 3 policy are two different safety mechanisms** that converge in Phase 4:
 - **Phase 2 SVF** = a *runtime filter*. It sits outside the policy and vetoes unsafe actions at deployment. Trained offline, frozen.
@@ -134,7 +134,7 @@ sweeps to the GPU box.
 | E3.4 | filter during training | Phase 2 SVF on/off as a training-time veto |
 | E3.5 | architecture | A-value vs B-value-mean vs B-value-CVaR (headline) |
 | E3.6 | observation channel | `bodyslam=off` vs `noisy` (this is where the old E1.4 question lands) |
-| E3.7 | external baseline | WCSAC (distributional safe-RL reference) on the humanoid |
+| E3.7 | external baseline | WCSAC (distributional safe-RL reference) on the humanoid — ✅ implemented (`agent=wcsac`, `train_cqn_as.py`); GPU runs pending |
 | E3.X.workspace | defend β | β ∈ {0.0, 0.05, 0.2, 0.5, 1.0} — pick the knee that prevents evacuation w/o task-success loss |
 
 ### Pre-sweep smoke gates (must pass before any full GPU sweep)

@@ -1,0 +1,57 @@
+# @package _global_
+# WCSAC (Worst-Case Soft Actor-Critic) -- E3.7 / P9 external distributional
+# safe-RL baseline. Select with `agent=wcsac` on train_cqn_as.py.
+#
+# Unlike the value-based CQN-AS agents, WCSAC is actor-critic and single-step,
+# so it overrides two root defaults here (composition order in
+# cqn_as_config.yaml puts `agent` after `_self_`, so these win):
+#   * action_sequence: 1     -- canonical single-step SAC (the actor emits one
+#                               action, not a 16-step chunk). WCSACAgent.update
+#                               raises a clear error if this isn't 1.
+#   * temporal_ensemble: false -- no action-chunk ensembling.
+action_sequence: 1
+temporal_ensemble: false
+
+agent:
+  _target_: safety_bigym.agents.wcsac.wcsac_agent.WCSACAgent
+  # Obs/action shapes are filled at runtime by train_cqn_as.py:make_agent from
+  # the env specs (must be declared here so OmegaConf's struct mode allows the
+  # assignment -- mirrors cfgs/agent/cqn_as.yaml).
+  rgb_obs_shape: ???
+  low_dim_obs_shape: ???
+  action_shape: ???
+  device: ${device}
+
+  # Optimisation (SAC defaults; cf. RoboBase sac_lix.yaml).
+  actor_lr: 1e-4
+  critic_lr: 1e-4
+  safety_lr: 1e-4
+  alpha_lr: 1e-4
+  init_temperature: 0.1
+  weight_decay: 0.0          # SAC uses plain Adam-style decay; 0 unlike CQN-AS's 0.1
+  critic_target_tau: 0.005   # soft target update rate
+  critic_target_interval: 1
+  update_every_steps: 1
+
+  # Network sizing. feature_dim is the DrQ-style trunk width (projects the wide
+  # CNN feature down); hidden_dim is the actor/critic MLP width.
+  feature_dim: ${feature_dim}
+  hidden_dim: 256
+
+  # Worst-case constraint. cvar_alpha is the confidence level (worst 1-alpha
+  # tail of the cost return). cost_budget d is the CVaR ceiling in cost-RETURN
+  # units: with per-step c_t in [0,1] and gamma=0.99 the effective horizon is
+  # ~1/(1-gamma)=100, so the Lagrangian per-step budget of 0.01 maps to a
+  # return budget of ~1.0. THIS IS THE KEY KNOB to sweep for the safety/task
+  # trade-off curve (see scripts/wcsac_train.sh).
+  cvar_alpha: 0.9
+  cost_budget: 1.0
+
+  # Lagrange multiplier (projected dual gradient ascent: lambda enforces
+  # CVaR_alpha <= cost_budget).
+  lambda_lr: 1e-3
+  lambda_init: 0.0
+  lambda_max: 100.0
+
+  # Uniform-random actions for the first num_expl_steps env steps (SAC seeding).
+  num_expl_steps: 2000
