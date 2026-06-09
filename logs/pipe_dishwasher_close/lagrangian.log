@@ -1,0 +1,10 @@
+== fixed-lambda pool | GPUS='3 4 5' POLL=120s frames=40000 ==
+   lambdas='0.1' seeds='0 1 2' -> /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/dishwasher_close_fixlam0p1  (3 cells; logs /home/ap2322/Documents/safety_bigym/logs/dispatch_fixed_lambda)
+   warmstart=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/pipe_base_dishwasher_close/stage1_easy/snapshot_27621.pt
+[04:53] gpu4  <-    0.1:0  (pid 2024904)
+[04:53] gpu5  <-    0.1:1  (pid 2025061)
+[10:53] gpu3  <-    0.1:2  (pid 2126239)
+[12:53] gpu4  DONE  0.1:0
+[13:27] gpu5  DONE  0.1:1
+[16:16] gpu3  FAIL  0.1:2 -> requeued (retry 1/1)
+[16:16] gpu3  <-    0.1:2  (pid 2229145)

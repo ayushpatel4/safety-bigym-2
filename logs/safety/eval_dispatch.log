@@ -1,0 +1,7 @@
+[safety-eval] 12 cells across 6 GPUs
+[safety-eval] gpu0 <- drawers_b05 pid=3580047
+[safety-eval] gpu5 <- drawers_b03_s1 pid=3583946
+[safety-eval] gpu4 <- drawers_b05_s2 pid=3584608
+[safety-eval] gpu0 <- dish_b05_s2 pid=3618698
+[safety-eval] gpu0 <- drawers_b03_s2 pid=3634592
+[safety-eval] DONE -> /home/ap2322/Documents/safety_bigym/results/safety_eval/eval_dispatch_summary.json

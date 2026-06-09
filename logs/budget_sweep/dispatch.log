@@ -1,0 +1,7 @@
+[budget] 8 cells across 6 GPUs; budgets=[0.16, 0.19, 0.22, 0.24]
+[budget] gpu2 <- dish_b16 (budget 0.16) pid=3797952
+[budget] gpu3 <- drawers_b16 (budget 0.16) pid=3798031
+[budget] gpu5 <- dish_b19 (budget 0.19) pid=3798189
+[budget] gpu1 <- drawers_b19 (budget 0.19) pid=3798346
+[budget] gpu0 <- dish_b22 (budget 0.22) pid=3798491
+[budget] gpu4 <- drawers_b22 (budget 0.22) pid=3798636

@@ -21,3 +21,5 @@ agent:
   lambda_max: 100.0
   cost_budget: 0.01           # constraint target d on rolling-mean cost
   rolling_cost_momentum: 0.99
+  rolling_cost_init: 0.0       # warm-start for the rolling-cost estimate (0.0 = orig;
+                               # set ~natural cost to bind λ from frame 0, not ~20k in)

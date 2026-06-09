@@ -1,0 +1,16 @@
+nohup: ignoring input
+== pipeline | TASK=dishwasher_close lane='3 4 5' λ=0.1 no_shaping=0 ==
+   base=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/pipe_base_dishwasher_close
+   lag =/home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/dishwasher_close_fixlam0p1
+   logs=/home/ap2322/Documents/safety_bigym/logs/pipe_dishwasher_close
+[21:53] Phase 1: base curriculum on gpu 3
+[21:53] waiting for base stage1_easy : /home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/pipe_base_dishwasher_close/stage1_easy/final_metrics.json
+[04:53] ready: base stage1_easy
+[04:53] Phase 2: Lagrangian λ=0.1 ×3 (warmstart /home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/pipe_base_dishwasher_close/stage1_easy/snapshot_27621.pt)
+[04:53] waiting for base stage2_full (row-1 baseline) : /home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/pipe_base_dishwasher_close/stage2_full/final_metrics.json
+[10:31] ready: base stage2_full (row-1 baseline)
+[10:31] waiting for λ seed0 : /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/dishwasher_close_fixlam0p1/lam0p1_seed0/final_metrics.json
+[12:53] ready: λ seed0
+[12:53] waiting for λ seed1 : /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/dishwasher_close_fixlam0p1/lam0p1_seed1/final_metrics.json
+[13:27] ready: λ seed1
+[13:27] waiting for λ seed2 : /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/dishwasher_close_fixlam0p1/lam0p1_seed2/final_metrics.json

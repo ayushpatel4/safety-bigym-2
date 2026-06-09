@@ -70,6 +70,7 @@ class LagrangianCQNASAgent(CQNASAgent):
         lambda_max: float = 100.0,
         cost_budget: float = 0.01,
         rolling_cost_momentum: float = 0.99,
+        rolling_cost_init: float = 0.0,
         **base_kwargs,
     ):
         # NOTE: super().__init__ calls self.train() (agent.py:700) BEFORE our
@@ -88,7 +89,12 @@ class LagrangianCQNASAgent(CQNASAgent):
             lambda_init=lambda_init,
         )
         self._lambda = float(lambda_init)
-        self._rolling_cost = 0.0
+        # Warm-start the rolling-cost estimate so the PID sees the policy's true
+        # operating cost from frame 0 instead of warming up from 0 over ~20k frames
+        # (0.99 momentum) — that estimation lag kept λ inert through the first half
+        # of the fine-tune, forcing a late, bang-bang bind. Default 0.0 preserves the
+        # original behaviour; set to the measured natural cost (~0.25) to bind early.
+        self._rolling_cost = float(rolling_cost_init)
         self._rolling_cost_momentum = float(rolling_cost_momentum)
 
     def _build_cost_critic(self, base_kwargs, cost_v_min, cost_v_max, device):

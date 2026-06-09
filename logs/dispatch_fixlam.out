@@ -1,0 +1,6 @@
+nohup: ignoring input
+== fixed-lambda pool | GPUS='0 1 2 3 4 5' POLL=30s frames=40000 ==
+   lambdas='0.27' seeds='0 1 2' -> /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam0p27  (3 cells; logs /home/ap2322/Documents/safety_bigym/logs/dispatch_fixed_lambda)
+   warmstart=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt
+[17:24] gpu4  <-    0.27:0  (pid 795585)
+[17:24] gpu5  <-    0.27:1  (pid 795821)

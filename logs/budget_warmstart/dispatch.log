@@ -1,0 +1,2 @@
+[bws] 4 cells across 6 GPUs; budgets=[0.2, 0.22] natural={'dishwasher_close': 0.25, 'drawers_open_all': 0.22}
+[bws] gpu4 <- dish_b2_ws (budget 0.2) pid=4180153

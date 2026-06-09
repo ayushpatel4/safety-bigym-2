@@ -1,0 +1,140 @@
+[Fri Jun  5 12:04:21 AM BST 2026] waiting for training PIDs: 1381848 1369699
+[Fri Jun  5 02:39:21 AM BST 2026] pid 1381848 exited
+[Fri Jun  5 02:39:21 AM BST 2026] pid 1369699 exited
+[Fri Jun  5 02:39:21 AM BST 2026] both lam0p15 runs finished -> starting basin sweeps
+============================================================
+[Fri Jun  5 02:39:21 AM BST 2026] === basin sweeps for lam0p1 ===
+[Fri Jun  5 02:39:21 AM BST 2026] lam0p1 seed0 STEPS: 7711 10278 12780 15942 17805 20285 22521 25058 28234 30546 32706 35257 38185 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed0 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed0_noisy ==
+   gpu0 <- snapshot_7711.pt
+   gpu1 <- snapshot_10278.pt
+   gpu2 <- snapshot_12780.pt
+   gpu3 <- snapshot_15942.pt
+   gpu4 <- snapshot_17805.pt
+   gpu5 <- snapshot_20285.pt
+   gpu0 <- snapshot_22521.pt
+   gpu1 <- snapshot_25058.pt
+   gpu2 <- snapshot_28234.pt
+   gpu3 <- snapshot_30546.pt
+   gpu4 <- snapshot_32706.pt
+   gpu5 <- snapshot_35257.pt
+   gpu0 <- snapshot_38185.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed0_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed0_noisy --success-floor 0.75
+[Fri Jun  5 02:39:49 AM BST 2026] lam0p1 seed1 STEPS: 8225 10128 12663 15858 18487 20124 22692 25224 28112 30432 32706 35891 37831 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed1 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed1_noisy ==
+   gpu0 <- snapshot_8225.pt
+   gpu1 <- snapshot_10128.pt
+   gpu2 <- snapshot_12663.pt
+   gpu3 <- snapshot_15858.pt
+   gpu4 <- snapshot_18487.pt
+   gpu5 <- snapshot_20124.pt
+   gpu0 <- snapshot_22692.pt
+   gpu1 <- snapshot_25224.pt
+   gpu2 <- snapshot_28112.pt
+   gpu3 <- snapshot_30432.pt
+   gpu4 <- snapshot_32706.pt
+   gpu5 <- snapshot_35891.pt
+   gpu0 <- snapshot_37831.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed1_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed1_noisy --success-floor 0.75
+[Fri Jun  5 02:40:18 AM BST 2026] lam0p1 seed2 STEPS: 8069 10008 12567 15424 18424 20854 22714 25014 27539 30468 32696 35230 37799 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed2 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed2_noisy ==
+   gpu0 <- snapshot_8069.pt
+   gpu1 <- snapshot_10008.pt
+   gpu2 <- snapshot_12567.pt
+   gpu3 <- snapshot_15424.pt
+   gpu4 <- snapshot_18424.pt
+   gpu5 <- snapshot_20854.pt
+   gpu0 <- snapshot_22714.pt
+   gpu1 <- snapshot_25014.pt
+   gpu2 <- snapshot_27539.pt
+   gpu3 <- snapshot_30468.pt
+   gpu4 <- snapshot_32696.pt
+   gpu5 <- snapshot_35230.pt
+   gpu0 <- snapshot_37799.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed2_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p1_seed2_noisy --success-floor 0.75
+[Fri Jun  5 02:40:46 AM BST 2026] pick lam0p1 seed0:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p1_seed0_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:40:46 AM BST 2026] WARN: pick lam0p1 seed0 returned non-zero
+[Fri Jun  5 02:40:46 AM BST 2026] pick lam0p1 seed1:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p1_seed1_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:40:46 AM BST 2026] WARN: pick lam0p1 seed1 returned non-zero
+[Fri Jun  5 02:40:46 AM BST 2026] pick lam0p1 seed2:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p1_seed2_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:40:46 AM BST 2026] WARN: pick lam0p1 seed2 returned non-zero
+============================================================
+[Fri Jun  5 02:40:46 AM BST 2026] === basin sweeps for lam0p15 ===
+[Fri Jun  5 02:40:46 AM BST 2026] lam0p15 seed0 STEPS: 7852 10167 12681 15039 17725 20363 23273 25449 28030 30219 32728 35596 37877 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed0 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed0_noisy ==
+   gpu0 <- snapshot_7852.pt
+   gpu1 <- snapshot_10167.pt
+   gpu2 <- snapshot_12681.pt
+   gpu3 <- snapshot_15039.pt
+   gpu4 <- snapshot_17725.pt
+   gpu5 <- snapshot_20363.pt
+   gpu0 <- snapshot_23273.pt
+   gpu1 <- snapshot_25449.pt
+   gpu2 <- snapshot_28030.pt
+   gpu3 <- snapshot_30219.pt
+   gpu4 <- snapshot_32728.pt
+   gpu5 <- snapshot_35596.pt
+   gpu0 <- snapshot_37877.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed0_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed0_noisy --success-floor 0.75
+[Fri Jun  5 02:41:14 AM BST 2026] lam0p15 seed1 STEPS: 7572 10207 12522 15081 17629 20260 23205 25082 27647 30910 32597 35259 37661 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed1 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed1_noisy ==
+   gpu0 <- snapshot_7572.pt
+   gpu1 <- snapshot_10207.pt
+   gpu2 <- snapshot_12522.pt
+   gpu3 <- snapshot_15081.pt
+   gpu4 <- snapshot_17629.pt
+   gpu5 <- snapshot_20260.pt
+   gpu0 <- snapshot_23205.pt
+   gpu1 <- snapshot_25082.pt
+   gpu2 <- snapshot_27647.pt
+   gpu3 <- snapshot_30910.pt
+   gpu4 <- snapshot_32597.pt
+   gpu5 <- snapshot_35259.pt
+   gpu0 <- snapshot_37661.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed1_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed1_noisy --success-floor 0.75
+[Fri Jun  5 02:41:40 AM BST 2026] lam0p15 seed2 STEPS: 7821 10102 13051 15004 17582 20472 23318 25209 27768 30261 33133 35466 37728 
+== basin sweep | stage=exp_local/fixed_lambda/fixlam_0p1/lam0p15_seed2 obs=noisy | GPUS='0 1 2 3 4 5' -> /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed2_noisy ==
+   gpu0 <- snapshot_7821.pt
+   gpu1 <- snapshot_10102.pt
+   gpu2 <- snapshot_13051.pt
+   gpu3 <- snapshot_15004.pt
+   gpu4 <- snapshot_17582.pt
+   gpu5 <- snapshot_20472.pt
+   gpu0 <- snapshot_23318.pt
+   gpu1 <- snapshot_25209.pt
+   gpu2 <- snapshot_27768.pt
+   gpu3 <- snapshot_30261.pt
+   gpu4 <- snapshot_33133.pt
+   gpu5 <- snapshot_35466.pt
+   gpu0 <- snapshot_37728.pt
+== basin sweep done. CSVs in /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed2_noisy ==
+   pick the operating point:  python scripts/analyze_row3.py pick --sweep-dir /home/ap2322/Documents/safety_bigym/results/e4_1/basin_lam0p15_seed2_noisy --success-floor 0.75
+[Fri Jun  5 02:42:06 AM BST 2026] pick lam0p15 seed0:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p15_seed0_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:42:07 AM BST 2026] WARN: pick lam0p15 seed0 returned non-zero
+[Fri Jun  5 02:42:07 AM BST 2026] pick lam0p15 seed1:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p15_seed1_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:42:07 AM BST 2026] WARN: pick lam0p15 seed1 returned non-zero
+[Fri Jun  5 02:42:07 AM BST 2026] pick lam0p15 seed2:
+no checkpoint clears success>=0.75 under results/e4_1/basin_lam0p15_seed2_noisy; loosen --success-floor or widen STEPS
+[Fri Jun  5 02:42:07 AM BST 2026] WARN: pick lam0p15 seed2 returned non-zero
+[Fri Jun  5 02:42:07 AM BST 2026] === plots ===
+WARN: no s*.csv in results/e4_1/basin_lam0p1_seed0_noisy (skipping)
+WARN: no s*.csv in results/e4_1/basin_lam0p1_seed1_noisy (skipping)
+WARN: no s*.csv in results/e4_1/basin_lam0p1_seed2_noisy (skipping)
+no data found in any --sweep-dir
+[Fri Jun  5 02:42:08 AM BST 2026] WARN: lam0p1 plot failed
+WARN: no s*.csv in results/e4_1/basin_lam0p15_seed0_noisy (skipping)
+WARN: no s*.csv in results/e4_1/basin_lam0p15_seed1_noisy (skipping)
+WARN: no s*.csv in results/e4_1/basin_lam0p15_seed2_noisy (skipping)
+no data found in any --sweep-dir
+[Fri Jun  5 02:42:08 AM BST 2026] WARN: lam0p15 plot failed
+[Fri Jun  5 02:42:08 AM BST 2026] ALL DONE

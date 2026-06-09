@@ -1,0 +1,8 @@
+[dispatch] 6 curriculum cells across 6 GPUs
+[dispatch] gpu0 <- dish_rung1_a pid=2581771
+[dispatch] gpu4 <- dish_rung1_b pid=2581849
+[dispatch] gpu3 <- drawers_rung3_a pid=2595999
+[dispatch] gpu5 <- drawers_rung3_b pid=2597631
+[dispatch] gpu1 <- drawers_rung1_a pid=2607379
+[dispatch] gpu2 <- drawers_rung1_b pid=2609329
+[dispatch] DONE -> /home/ap2322/Documents/safety_bigym/exp_local/curriculum/dispatch_summary.json

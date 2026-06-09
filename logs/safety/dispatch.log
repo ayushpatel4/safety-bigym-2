@@ -1,0 +1,10 @@
+[safety] 14 cells across 6 GPUs
+[safety] gpu4 <- dish_b03_s1 (budget 0.3) pid=3138560
+[safety] gpu0 <- dish_b03_s2 (budget 0.3) pid=3143449
+[safety] gpu2 <- dish_b05_s1 (budget 0.5) pid=3256503
+[safety] gpu1 <- dish_b05_s2 (budget 0.5) pid=3273193
+[safety] gpu5 <- drawers_b03_s1 (budget 0.3) pid=3282989
+[safety] gpu3 <- drawers_b03_s2 (budget 0.3) pid=3292120
+[safety] gpu4 <- drawers_b05_s1 (budget 0.5) pid=3342817
+[safety] gpu0 <- drawers_b05_s2 (budget 0.5) pid=3350298
+[safety] DONE -> /home/ap2322/Documents/safety_bigym/exp_local/safety/dispatch_summary.json

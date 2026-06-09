@@ -1,0 +1,13 @@
+nohup: ignoring input
+== fixed-lambda pool | GPUS='0 1 2 3 4 5' POLL=30s frames=40000 ==
+   lambdas='0.15' seeds='1 2' -> /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam_0p1  (2 cells; logs /home/ap2322/Documents/safety_bigym/logs/dispatch_fixed_lambda)
+   warmstart=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt
+[18:06] gpu3  <-    0.15:1  (pid 1366017)
+[18:08] gpu3  FAIL  0.15:1 -> requeued (retry 1/1)
+[18:11] gpu4  <-    0.15:2  (pid 1369689)
+[18:17] gpu2  <-    0.15:1  (pid 1381838)
+[00:27] gpu4  DONE  0.15:2
+[02:38] gpu2  DONE  0.15:1
+== all fixed-lambda cells complete ==
+== DONE. next: per-seed basin sweep -> pick -> pool ==
+   for s in 1 2; do STAGE_DIR=/home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam_0p1/lam0.15_seedN OBS=noisy bash scripts/run_basin_sweep.sh; done

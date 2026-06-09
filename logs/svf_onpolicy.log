@@ -1,0 +1,965 @@
+nohup: ignoring input
+== preflight: 1-episode snapshot collection; check de-norm uses DEMO stats ==
+2026-06-06 16:13:58,475 OpenGL.acceleratesupport INFO No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-06-06 16:13:58,764 absl INFO MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+2026-06-06 16:13:58,775 absl INFO MuJoCo library version is: 3.1.5
+2026-06-06 16:14:00,694 svf_collect_dataset INFO Snapshot at /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed0/snapshot_30546.pt: trained bodyslam=oracle, cameras=['head', 'right_wrist', 'left_wrist'] @ 84x84; env wrapping uses plan.bodyslam_mode='noisy'.
+2026-06-06 16:14:00,694 svf_collect_dataset INFO Collecting source=snapshot task=saucepan_to_hob disruption=coworker_train (1 episodes, max 8 steps)
+2026-06-06 16:14:00,699 svf_collect_dataset INFO Coworker scenario for coworker_train from disruption yaml (matches deployment): {'coworker_closest_approach_range': (0.6, 0.95), 'coworker_near_loiter_range': (9.0, 14.0), 'coworker_reach_period_range': (1.3, 2.2), 'coworker_target_mix_p_ee_range': (0.45, 0.72), 'coworker_trajectory_weights': {'COWORKER_PATROL': 10, 'APPROACH_LOITER_DEPART': 0, 'STATIONARY': 0}, 'coworker_walk_speed_range': (1.0, 1.4)}
+2026-06-06 16:14:00,704 svf_collect_dataset INFO Collection env control_frequency=20 Hz (demo_down_sample_rate=25) — matches deployment factory._create_env.
+2026-06-06 16:14:06,001 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-06 16:14:06,001 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-06 16:14:06,002 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-06 16:14:06,002 safety_bigym.envs.safety_env INFO G1 human controller initialized
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+2026-06-06 16:14:09,322 svf_collect_dataset INFO Recovering demo-derived action stats: building a throwaway adapter + loading 36 demos (BodySLAM replay). This runs SILENTLY for a few minutes — not a hang.
+2026-06-06 16:14:09,323 safety_bigym.envs.safety_bigym_factory INFO Forcing disruption_type=COWORKER for every episode.
+2026-06-06 16:14:09,323 safety_bigym.envs.safety_bigym_factory INFO Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+2026-06-06 16:14:14,688 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-06 16:14:14,689 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-06 16:14:14,690 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-06 16:14:14,690 safety_bigym.envs.safety_env INFO G1 human controller initialized
+2026-06-06 16:14:14,690 safety_bigym.envs.safety_bigym_factory INFO Inserting BodySLAMWrapper(mode=oracle, occlusion=none).
+2026-06-06 16:14:14,693 root INFO Loading demos via raw BiGym env (for DemoStore compatibility).
+2026-06-06 16:14:18,099 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:18,099 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:18,099 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:19,713 root INFO Loaded 36 demos.
+2026-06-06 16:14:24,053 safety_bigym.agents.cqn_as.env_adapter INFO Converted 36 demos (29 successful) for CQN-AS.
+2026-06-06 16:14:24,145 svf_collect_dataset INFO Snapshot policy de-norm: DEMO-derived action stats (matches deployment); range=[-1.879..1.571]
+2026-06-06 16:14:24,151 svf_collect_dataset INFO Snapshot policy uses TemporalEnsembleControl (history_len=26 for rollout_max_steps=8, action_sequence=16) to match deployment.
+2026-06-06 16:14:24,151 svf_collect_dataset INFO Critic feature spec frozen: input_dim=92 (obs_keys=('human_pos_estimate', 'proprioception', 'proprioception_floating_base', 'proprioception_floating_base_actions', 'proprioception_grippers'))
+2026-06-06 16:14:24,517 svf_collect_dataset INFO   [snapshot] episode 1/1: 8 steps, 0 unsafe (proximity<0.30); cumulative transitions=8
+2026-06-06 16:14:24,518 svf_collect_dataset INFO Wrote 8 transitions to /tmp/svf_preflight_2226467
+== preflight PASS: snapshot policy de-normalises with demo stats. ==
+== collect (sources: snapshot) -> datasets/svf_coworker_train_g1_0p3_v3_onpolicy ==
+2026-06-06 16:14:26,251 OpenGL.acceleratesupport INFO No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-06-06 16:14:26,523 absl INFO MUJOCO_GL=egl, attempting to import specified OpenGL backend.
+2026-06-06 16:14:26,531 absl INFO MuJoCo library version is: 3.1.5
+2026-06-06 16:14:28,565 svf_collect_dataset INFO Snapshot at /home/ap2322/Documents/safety_bigym/exp_local/fixed_lambda/fixlam_0p1/lam0p1_seed0/snapshot_30546.pt: trained bodyslam=oracle, cameras=['head', 'right_wrist', 'left_wrist'] @ 84x84; env wrapping uses plan.bodyslam_mode='noisy'.
+2026-06-06 16:14:28,565 svf_collect_dataset INFO Collecting source=snapshot task=saucepan_to_hob disruption=coworker_train (100 episodes, max 1000 steps)
+2026-06-06 16:14:28,569 svf_collect_dataset INFO Coworker scenario for coworker_train from disruption yaml (matches deployment): {'coworker_closest_approach_range': (0.6, 0.95), 'coworker_near_loiter_range': (9.0, 14.0), 'coworker_reach_period_range': (1.3, 2.2), 'coworker_target_mix_p_ee_range': (0.45, 0.72), 'coworker_trajectory_weights': {'COWORKER_PATROL': 10, 'APPROACH_LOITER_DEPART': 0, 'STATIONARY': 0}, 'coworker_walk_speed_range': (1.0, 1.4)}
+2026-06-06 16:14:28,574 svf_collect_dataset INFO Collection env control_frequency=20 Hz (demo_down_sample_rate=25) — matches deployment factory._create_env.
+2026-06-06 16:14:33,970 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-06 16:14:33,971 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-06 16:14:33,971 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-06 16:14:33,971 safety_bigym.envs.safety_env INFO G1 human controller initialized
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+2026-06-06 16:14:37,297 svf_collect_dataset INFO Recovering demo-derived action stats: building a throwaway adapter + loading 36 demos (BodySLAM replay). This runs SILENTLY for a few minutes — not a hang.
+2026-06-06 16:14:37,298 safety_bigym.envs.safety_bigym_factory INFO Forcing disruption_type=COWORKER for every episode.
+2026-06-06 16:14:37,298 safety_bigym.envs.safety_bigym_factory INFO Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+2026-06-06 16:14:42,697 safety_bigym.envs.safety_env INFO Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+2026-06-06 16:14:42,698 safety_bigym.envs.safety_env INFO Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+2026-06-06 16:14:42,699 safety_bigym.envs.safety_env INFO Safety wrapper initialized
+2026-06-06 16:14:42,699 safety_bigym.envs.safety_env INFO G1 human controller initialized
+2026-06-06 16:14:42,699 safety_bigym.envs.safety_bigym_factory INFO Inserting BodySLAMWrapper(mode=oracle, occlusion=none).
+2026-06-06 16:14:42,702 root INFO Loading demos via raw BiGym env (for DemoStore compatibility).
+2026-06-06 16:14:46,042 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:46,043 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:46,043 root INFO Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+2026-06-06 16:14:47,647 root INFO Loaded 36 demos.
+2026-06-06 16:14:52,205 safety_bigym.agents.cqn_as.env_adapter INFO Converted 36 demos (29 successful) for CQN-AS.
+2026-06-06 16:14:52,298 svf_collect_dataset INFO Snapshot policy de-norm: DEMO-derived action stats (matches deployment); range=[-1.879..1.571]
+2026-06-06 16:14:52,306 svf_collect_dataset INFO Snapshot policy uses TemporalEnsembleControl (history_len=1018 for rollout_max_steps=1000, action_sequence=16) to match deployment.
+2026-06-06 16:14:52,307 svf_collect_dataset INFO Critic feature spec frozen: input_dim=92 (obs_keys=('human_pos_estimate', 'proprioception', 'proprioception_floating_base', 'proprioception_floating_base_actions', 'proprioception_grippers'))
+2026-06-06 16:14:58,338 svf_collect_dataset INFO   [snapshot] episode 1/100: 304 steps, 14 unsafe (proximity<0.30); cumulative transitions=304
+2026-06-06 16:15:19,791 svf_collect_dataset INFO   [snapshot] episode 2/100: 1000 steps, 182 unsafe (proximity<0.30); cumulative transitions=1304
+2026-06-06 16:15:38,214 svf_collect_dataset INFO   [snapshot] episode 3/100: 1000 steps, 27 unsafe (proximity<0.30); cumulative transitions=2304
+2026-06-06 16:15:43,966 svf_collect_dataset INFO   [snapshot] episode 4/100: 307 steps, 0 unsafe (proximity<0.30); cumulative transitions=2611
+2026-06-06 16:15:54,125 svf_collect_dataset INFO   [snapshot] episode 5/100: 306 steps, 115 unsafe (proximity<0.30); cumulative transitions=2917
+2026-06-06 16:16:10,958 svf_collect_dataset INFO   [snapshot] episode 6/100: 1000 steps, 72 unsafe (proximity<0.30); cumulative transitions=3917
+2026-06-06 16:16:16,354 svf_collect_dataset INFO   [snapshot] episode 7/100: 306 steps, 0 unsafe (proximity<0.30); cumulative transitions=4223
+2026-06-06 16:16:22,822 svf_collect_dataset INFO   [snapshot] episode 8/100: 307 steps, 0 unsafe (proximity<0.30); cumulative transitions=4530
+2026-06-06 16:16:30,304 svf_collect_dataset INFO   [snapshot] episode 9/100: 307 steps, 178 unsafe (proximity<0.30); cumulative transitions=4837
+2026-06-06 16:16:36,030 svf_collect_dataset INFO   [snapshot] episode 10/100: 313 steps, 14 unsafe (proximity<0.30); cumulative transitions=5150
+2026-06-06 16:16:41,452 svf_collect_dataset INFO   [snapshot] episode 11/100: 309 steps, 0 unsafe (proximity<0.30); cumulative transitions=5459
+2026-06-06 16:16:46,902 svf_collect_dataset INFO   [snapshot] episode 12/100: 312 steps, 16 unsafe (proximity<0.30); cumulative transitions=5771
+2026-06-06 16:17:06,357 svf_collect_dataset INFO   [snapshot] episode 13/100: 1000 steps, 117 unsafe (proximity<0.30); cumulative transitions=6771
+2026-06-06 16:17:12,096 svf_collect_dataset INFO   [snapshot] episode 14/100: 307 steps, 0 unsafe (proximity<0.30); cumulative transitions=7078
+2026-06-06 16:17:25,313 svf_collect_dataset INFO   [snapshot] episode 15/100: 314 steps, 108 unsafe (proximity<0.30); cumulative transitions=7392
+2026-06-06 16:17:31,121 svf_collect_dataset INFO   [snapshot] episode 16/100: 306 steps, 8 unsafe (proximity<0.30); cumulative transitions=7698
+2026-06-06 16:17:51,211 svf_collect_dataset INFO   [snapshot] episode 17/100: 1000 steps, 16 unsafe (proximity<0.30); cumulative transitions=8698
+2026-06-06 16:17:56,922 svf_collect_dataset INFO   [snapshot] episode 18/100: 306 steps, 0 unsafe (proximity<0.30); cumulative transitions=9004
+2026-06-06 16:18:02,589 svf_collect_dataset INFO   [snapshot] episode 19/100: 301 steps, 4 unsafe (proximity<0.30); cumulative transitions=9305
+2026-06-06 16:18:08,598 svf_collect_dataset INFO   [snapshot] episode 20/100: 315 steps, 201 unsafe (proximity<0.30); cumulative transitions=9620
+2026-06-06 16:18:26,767 svf_collect_dataset INFO   [snapshot] episode 21/100: 1000 steps, 0 unsafe (proximity<0.30); cumulative transitions=10620
+2026-06-06 16:18:46,440 svf_collect_dataset INFO   [snapshot] episode 22/100: 1000 steps, 128 unsafe (proximity<0.30); cumulative transitions=11620
+2026-06-06 16:18:52,257 svf_collect_dataset INFO   [snapshot] episode 23/100: 306 steps, 24 unsafe (proximity<0.30); cumulative transitions=11926
+2026-06-06 16:18:58,482 svf_collect_dataset INFO   [snapshot] episode 24/100: 309 steps, 15 unsafe (proximity<0.30); cumulative transitions=12235
+2026-06-06 16:19:06,204 svf_collect_dataset INFO   [snapshot] episode 25/100: 309 steps, 29 unsafe (proximity<0.30); cumulative transitions=12544
+2026-06-06 16:19:15,617 svf_collect_dataset INFO   [snapshot] episode 26/100: 308 steps, 257 unsafe (proximity<0.30); cumulative transitions=12852
+2026-06-06 16:19:35,772 svf_collect_dataset INFO   [snapshot] episode 27/100: 1000 steps, 63 unsafe (proximity<0.30); cumulative transitions=13852
+2026-06-06 16:19:48,638 svf_collect_dataset INFO   [snapshot] episode 28/100: 302 steps, 46 unsafe (proximity<0.30); cumulative transitions=14154
+2026-06-06 16:19:54,411 svf_collect_dataset INFO   [snapshot] episode 29/100: 308 steps, 101 unsafe (proximity<0.30); cumulative transitions=14462
+2026-06-06 16:20:14,259 svf_collect_dataset INFO   [snapshot] episode 30/100: 1000 steps, 84 unsafe (proximity<0.30); cumulative transitions=15462
+2026-06-06 16:20:23,549 svf_collect_dataset INFO   [snapshot] episode 31/100: 312 steps, 214 unsafe (proximity<0.30); cumulative transitions=15774
+2026-06-06 16:20:29,519 svf_collect_dataset INFO   [snapshot] episode 32/100: 314 steps, 0 unsafe (proximity<0.30); cumulative transitions=16088
+2026-06-06 16:20:38,928 svf_collect_dataset INFO   [snapshot] episode 33/100: 308 steps, 133 unsafe (proximity<0.30); cumulative transitions=16396
+2026-06-06 16:20:44,806 svf_collect_dataset INFO   [snapshot] episode 34/100: 304 steps, 0 unsafe (proximity<0.30); cumulative transitions=16700
+2026-06-06 16:21:03,929 svf_collect_dataset INFO   [snapshot] episode 35/100: 1000 steps, 52 unsafe (proximity<0.30); cumulative transitions=17700
+2026-06-06 16:21:22,949 svf_collect_dataset INFO   [snapshot] episode 36/100: 1000 steps, 36 unsafe (proximity<0.30); cumulative transitions=18700
+2026-06-06 16:21:41,722 svf_collect_dataset INFO   [snapshot] episode 37/100: 1000 steps, 24 unsafe (proximity<0.30); cumulative transitions=19700
+2026-06-06 16:21:47,544 svf_collect_dataset INFO   [snapshot] episode 38/100: 309 steps, 0 unsafe (proximity<0.30); cumulative transitions=20009
+2026-06-06 16:21:53,525 svf_collect_dataset INFO   [snapshot] episode 39/100: 309 steps, 0 unsafe (proximity<0.30); cumulative transitions=20318
+2026-06-06 16:21:59,574 svf_collect_dataset INFO   [snapshot] episode 40/100: 315 steps, 0 unsafe (proximity<0.30); cumulative transitions=20633
+2026-06-06 16:22:05,310 svf_collect_dataset INFO   [snapshot] episode 41/100: 300 steps, 16 unsafe (proximity<0.30); cumulative transitions=20933
+2026-06-06 16:22:11,318 svf_collect_dataset INFO   [snapshot] episode 42/100: 311 steps, 15 unsafe (proximity<0.30); cumulative transitions=21244
+2026-06-06 16:22:19,275 svf_collect_dataset INFO   [snapshot] episode 43/100: 303 steps, 112 unsafe (proximity<0.30); cumulative transitions=21547
+2026-06-06 16:22:25,508 svf_collect_dataset INFO   [snapshot] episode 44/100: 312 steps, 0 unsafe (proximity<0.30); cumulative transitions=21859
+2026-06-06 16:22:33,205 svf_collect_dataset INFO   [snapshot] episode 45/100: 304 steps, 4 unsafe (proximity<0.30); cumulative transitions=22163
+2026-06-06 16:22:51,255 svf_collect_dataset INFO   [snapshot] episode 46/100: 1000 steps, 88 unsafe (proximity<0.30); cumulative transitions=23163
+2026-06-06 16:23:00,464 svf_collect_dataset INFO   [snapshot] episode 47/100: 317 steps, 4 unsafe (proximity<0.30); cumulative transitions=23480
+2026-06-06 16:23:06,410 svf_collect_dataset INFO   [snapshot] episode 48/100: 315 steps, 6 unsafe (proximity<0.30); cumulative transitions=23795
+2026-06-06 16:23:12,220 svf_collect_dataset INFO   [snapshot] episode 49/100: 310 steps, 89 unsafe (proximity<0.30); cumulative transitions=24105
+2026-06-06 16:23:32,771 svf_collect_dataset INFO   [snapshot] episode 50/100: 1000 steps, 31 unsafe (proximity<0.30); cumulative transitions=25105
+2026-06-06 16:23:50,632 svf_collect_dataset INFO   [snapshot] episode 51/100: 1000 steps, 0 unsafe (proximity<0.30); cumulative transitions=26105
+2026-06-06 16:24:10,712 svf_collect_dataset INFO   [snapshot] episode 52/100: 1000 steps, 137 unsafe (proximity<0.30); cumulative transitions=27105
+2026-06-06 16:24:18,018 svf_collect_dataset INFO   [snapshot] episode 53/100: 310 steps, 60 unsafe (proximity<0.30); cumulative transitions=27415
+2026-06-06 16:24:27,821 svf_collect_dataset INFO   [snapshot] episode 54/100: 304 steps, 82 unsafe (proximity<0.30); cumulative transitions=27719
+2026-06-06 16:24:34,445 svf_collect_dataset INFO   [snapshot] episode 55/100: 311 steps, 19 unsafe (proximity<0.30); cumulative transitions=28030
+2026-06-06 16:24:40,268 svf_collect_dataset INFO   [snapshot] episode 56/100: 307 steps, 15 unsafe (proximity<0.30); cumulative transitions=28337
+2026-06-06 16:24:46,114 svf_collect_dataset INFO   [snapshot] episode 57/100: 305 steps, 71 unsafe (proximity<0.30); cumulative transitions=28642
+2026-06-06 16:25:06,323 svf_collect_dataset INFO   [snapshot] episode 58/100: 1000 steps, 128 unsafe (proximity<0.30); cumulative transitions=29642
+2026-06-06 16:25:12,254 svf_collect_dataset INFO   [snapshot] episode 59/100: 315 steps, 8 unsafe (proximity<0.30); cumulative transitions=29957
+2026-06-06 16:25:30,318 svf_collect_dataset INFO   [snapshot] episode 60/100: 1000 steps, 0 unsafe (proximity<0.30); cumulative transitions=30957
+2026-06-06 16:25:36,189 svf_collect_dataset INFO   [snapshot] episode 61/100: 312 steps, 11 unsafe (proximity<0.30); cumulative transitions=31269
+2026-06-06 16:26:02,389 svf_collect_dataset INFO   [snapshot] episode 62/100: 1000 steps, 286 unsafe (proximity<0.30); cumulative transitions=32269
+2026-06-06 16:26:08,214 svf_collect_dataset INFO   [snapshot] episode 63/100: 309 steps, 0 unsafe (proximity<0.30); cumulative transitions=32578
+2026-06-06 16:26:16,311 svf_collect_dataset INFO   [snapshot] episode 64/100: 310 steps, 178 unsafe (proximity<0.30); cumulative transitions=32888
+2026-06-06 16:26:33,460 svf_collect_dataset INFO   [snapshot] episode 65/100: 320 steps, 202 unsafe (proximity<0.30); cumulative transitions=33208
+2026-06-06 16:27:08,006 svf_collect_dataset INFO   [snapshot] episode 66/100: 1000 steps, 428 unsafe (proximity<0.30); cumulative transitions=34208
+2026-06-06 16:27:14,848 svf_collect_dataset INFO   [snapshot] episode 67/100: 314 steps, 0 unsafe (proximity<0.30); cumulative transitions=34522
+2026-06-06 16:27:20,875 svf_collect_dataset INFO   [snapshot] episode 68/100: 318 steps, 0 unsafe (proximity<0.30); cumulative transitions=34840
+2026-06-06 16:27:26,875 svf_collect_dataset INFO   [snapshot] episode 69/100: 308 steps, 0 unsafe (proximity<0.30); cumulative transitions=35148
+2026-06-06 16:27:32,933 svf_collect_dataset INFO   [snapshot] episode 70/100: 315 steps, 143 unsafe (proximity<0.30); cumulative transitions=35463
+2026-06-06 16:27:54,698 svf_collect_dataset INFO   [snapshot] episode 71/100: 1000 steps, 546 unsafe (proximity<0.30); cumulative transitions=36463
+2026-06-06 16:28:11,630 svf_collect_dataset INFO   [snapshot] episode 72/100: 1000 steps, 248 unsafe (proximity<0.30); cumulative transitions=37463
+2026-06-06 16:28:26,928 svf_collect_dataset INFO   [snapshot] episode 73/100: 1000 steps, 0 unsafe (proximity<0.30); cumulative transitions=38463
+2026-06-06 16:28:31,817 svf_collect_dataset INFO   [snapshot] episode 74/100: 312 steps, 0 unsafe (proximity<0.30); cumulative transitions=38775
+2026-06-06 16:28:36,672 svf_collect_dataset INFO   [snapshot] episode 75/100: 309 steps, 0 unsafe (proximity<0.30); cumulative transitions=39084
+2026-06-06 16:28:44,995 svf_collect_dataset INFO   [snapshot] episode 76/100: 304 steps, 57 unsafe (proximity<0.30); cumulative transitions=39388
+2026-06-06 16:28:57,080 svf_collect_dataset INFO   [snapshot] episode 77/100: 313 steps, 177 unsafe (proximity<0.30); cumulative transitions=39701
+2026-06-06 16:29:03,904 svf_collect_dataset INFO   [snapshot] episode 78/100: 313 steps, 0 unsafe (proximity<0.30); cumulative transitions=40014
+2026-06-06 16:29:22,246 svf_collect_dataset INFO   [snapshot] episode 79/100: 1000 steps, 78 unsafe (proximity<0.30); cumulative transitions=41014
+2026-06-06 16:29:29,385 svf_collect_dataset INFO   [snapshot] episode 80/100: 310 steps, 29 unsafe (proximity<0.30); cumulative transitions=41324
+2026-06-06 16:29:34,142 svf_collect_dataset INFO   [snapshot] episode 81/100: 316 steps, 73 unsafe (proximity<0.30); cumulative transitions=41640
+2026-06-06 16:29:38,660 svf_collect_dataset INFO   [snapshot] episode 82/100: 305 steps, 46 unsafe (proximity<0.30); cumulative transitions=41945
+2026-06-06 16:29:43,279 svf_collect_dataset INFO   [snapshot] episode 83/100: 310 steps, 0 unsafe (proximity<0.30); cumulative transitions=42255
+2026-06-06 16:30:09,123 svf_collect_dataset INFO   [snapshot] episode 84/100: 1000 steps, 534 unsafe (proximity<0.30); cumulative transitions=43255
+2026-06-06 16:30:20,273 svf_collect_dataset INFO   [snapshot] episode 85/100: 299 steps, 135 unsafe (proximity<0.30); cumulative transitions=43554
+2026-06-06 16:30:47,068 svf_collect_dataset INFO   [snapshot] episode 86/100: 1000 steps, 792 unsafe (proximity<0.30); cumulative transitions=44554
+2026-06-06 16:31:03,563 svf_collect_dataset INFO   [snapshot] episode 87/100: 1000 steps, 65 unsafe (proximity<0.30); cumulative transitions=45554
+2026-06-06 16:31:08,400 svf_collect_dataset INFO   [snapshot] episode 88/100: 308 steps, 14 unsafe (proximity<0.30); cumulative transitions=45862
+2026-06-06 16:31:13,759 svf_collect_dataset INFO   [snapshot] episode 89/100: 305 steps, 99 unsafe (proximity<0.30); cumulative transitions=46167
+2026-06-06 16:31:30,125 svf_collect_dataset INFO   [snapshot] episode 90/100: 1000 steps, 26 unsafe (proximity<0.30); cumulative transitions=47167
+2026-06-06 16:31:36,371 svf_collect_dataset INFO   [snapshot] episode 91/100: 308 steps, 109 unsafe (proximity<0.30); cumulative transitions=47475
+2026-06-06 16:32:00,910 svf_collect_dataset INFO   [snapshot] episode 92/100: 1000 steps, 463 unsafe (proximity<0.30); cumulative transitions=48475
+2026-06-06 16:32:05,628 svf_collect_dataset INFO   [snapshot] episode 93/100: 313 steps, 0 unsafe (proximity<0.30); cumulative transitions=48788
+2026-06-06 16:32:10,475 svf_collect_dataset INFO   [snapshot] episode 94/100: 309 steps, 13 unsafe (proximity<0.30); cumulative transitions=49097
+2026-06-06 16:32:32,202 svf_collect_dataset INFO   [snapshot] episode 95/100: 1000 steps, 555 unsafe (proximity<0.30); cumulative transitions=50097
+2026-06-06 16:32:37,127 svf_collect_dataset INFO   [snapshot] episode 96/100: 304 steps, 0 unsafe (proximity<0.30); cumulative transitions=50401
+2026-06-06 16:32:55,619 svf_collect_dataset INFO   [snapshot] episode 97/100: 1000 steps, 128 unsafe (proximity<0.30); cumulative transitions=51401
+2026-06-06 16:33:11,673 svf_collect_dataset INFO   [snapshot] episode 98/100: 1000 steps, 26 unsafe (proximity<0.30); cumulative transitions=52401
+2026-06-06 16:33:27,352 svf_collect_dataset INFO   [snapshot] episode 99/100: 1000 steps, 86 unsafe (proximity<0.30); cumulative transitions=53401
+2026-06-06 16:33:32,396 svf_collect_dataset INFO   [snapshot] episode 100/100: 310 steps, 0 unsafe (proximity<0.30); cumulative transitions=53711
+2026-06-06 16:33:32,397 svf_collect_dataset INFO Wrote 53711 transitions to datasets/svf_coworker_train_g1_0p3_v3_onpolicy
+== train -> checkpoints/svf_coworker_train_g1_0p3_v3_onpolicy.pt ==
+2026-06-06 16:33:35,369 svf_train_critic INFO Loading dataset from datasets/svf_coworker_train_g1_0p3_v3_onpolicy
+2026-06-06 16:33:35,546 svf_train_critic INFO Relabelling r_safe on the fly at proximity_threshold=0.3 m (from stored min_separation).
+2026-06-06 16:33:35,546 svf_train_critic INFO Dataset: 53711 transitions; 8710 violating, 45001 safe
+2026-06-06 16:33:36,695 svf_train_critic INFO step=     1 loss=809.8338 bellman=798.3347 cql=2.2998 q_mean=49.923
+2026-06-06 16:33:41,943 svf_train_critic INFO step=   500 loss=0.1467 bellman=28.6810 cql=-5.7068 q_mean=9.805
+2026-06-06 16:33:47,068 svf_train_critic INFO step=  1000 loss=2.0663 bellman=5.7492 cql=-0.7366 q_mean=3.104
+2026-06-06 16:33:52,174 svf_train_critic INFO step=  1500 loss=2.1519 bellman=6.7704 cql=-0.9237 q_mean=3.247
+2026-06-06 16:33:57,325 svf_train_critic INFO step=  2000 loss=1.9988 bellman=4.8962 cql=-0.5795 q_mean=2.890
+2026-06-06 16:34:02,547 svf_train_critic INFO step=  2500 loss=2.1555 bellman=9.4740 cql=-1.4637 q_mean=3.775
+2026-06-06 16:34:07,702 svf_train_critic INFO step=  3000 loss=1.8818 bellman=7.0765 cql=-1.0389 q_mean=3.344
+2026-06-06 16:34:12,772 svf_train_critic INFO step=  3500 loss=1.7278 bellman=5.8499 cql=-0.8244 q_mean=3.129
+2026-06-06 16:34:17,947 svf_train_critic INFO step=  4000 loss=1.6201 bellman=6.5910 cql=-0.9942 q_mean=3.298
+2026-06-06 16:34:23,074 svf_train_critic INFO step=  4500 loss=1.8110 bellman=6.2895 cql=-0.8957 q_mean=3.200
+2026-06-06 16:34:28,394 svf_train_critic INFO step=  5000 loss=1.7587 bellman=6.1010 cql=-0.8685 q_mean=3.171
+2026-06-06 16:34:33,629 svf_train_critic INFO step=  5500 loss=2.1901 bellman=6.1225 cql=-0.7865 q_mean=3.090
+2026-06-06 16:34:38,759 svf_train_critic INFO step=  6000 loss=1.9345 bellman=6.2612 cql=-0.8653 q_mean=3.168
+2026-06-06 16:34:43,919 svf_train_critic INFO step=  6500 loss=1.7184 bellman=5.9719 cql=-0.8507 q_mean=3.154
+2026-06-06 16:34:48,985 svf_train_critic INFO step=  7000 loss=1.8320 bellman=6.0952 cql=-0.8526 q_mean=3.156
+2026-06-06 16:34:54,165 svf_train_critic INFO step=  7500 loss=1.7051 bellman=6.1322 cql=-0.8854 q_mean=3.188
+2026-06-06 16:34:59,329 svf_train_critic INFO step=  8000 loss=1.9503 bellman=6.4859 cql=-0.9071 q_mean=3.210
+2026-06-06 16:35:04,425 svf_train_critic INFO step=  8500 loss=1.8347 bellman=6.0698 cql=-0.8470 q_mean=3.150
+2026-06-06 16:35:09,487 svf_train_critic INFO step=  9000 loss=1.6896 bellman=6.0780 cql=-0.8777 q_mean=3.180
+2026-06-06 16:35:14,547 svf_train_critic INFO step=  9500 loss=1.6783 bellman=6.3138 cql=-0.9271 q_mean=3.230
+2026-06-06 16:35:19,651 svf_train_critic INFO step= 10000 loss=1.7616 bellman=6.0839 cql=-0.8645 q_mean=3.167
+2026-06-06 16:35:24,794 svf_train_critic INFO step= 10500 loss=1.9231 bellman=6.5898 cql=-0.9333 q_mean=3.236
+2026-06-06 16:35:29,894 svf_train_critic INFO step= 11000 loss=1.8361 bellman=6.2657 cql=-0.8859 q_mean=3.189
+2026-06-06 16:35:34,956 svf_train_critic INFO step= 11500 loss=1.7870 bellman=6.0257 cql=-0.8477 q_mean=3.151
+2026-06-06 16:35:39,976 svf_train_critic INFO step= 12000 loss=1.7872 bellman=6.1351 cql=-0.8696 q_mean=3.172
+2026-06-06 16:35:45,241 svf_train_critic INFO step= 12500 loss=1.6612 bellman=6.4871 cql=-0.9652 q_mean=3.268
+2026-06-06 16:35:50,530 svf_train_critic INFO step= 13000 loss=1.8208 bellman=6.3110 cql=-0.8980 q_mean=3.201
+2026-06-06 16:35:55,762 svf_train_critic INFO step= 13500 loss=1.5727 bellman=6.1565 cql=-0.9168 q_mean=3.219
+2026-06-06 16:36:00,945 svf_train_critic INFO step= 14000 loss=1.7679 bellman=6.1940 cql=-0.8852 q_mean=3.188
+2026-06-06 16:36:06,117 svf_train_critic INFO step= 14500 loss=1.8702 bellman=6.3089 cql=-0.8877 q_mean=3.190
+2026-06-06 16:36:11,417 svf_train_critic INFO step= 15000 loss=1.6842 bellman=6.4740 cql=-0.9580 q_mean=3.261
+2026-06-06 16:36:16,936 svf_train_critic INFO step= 15500 loss=1.8152 bellman=6.1195 cql=-0.8609 q_mean=3.163
+2026-06-06 16:36:22,387 svf_train_critic INFO step= 16000 loss=1.7961 bellman=6.3917 cql=-0.9191 q_mean=3.222
+2026-06-06 16:36:27,707 svf_train_critic INFO step= 16500 loss=1.9798 bellman=6.1848 cql=-0.8410 q_mean=3.144
+2026-06-06 16:36:32,976 svf_train_critic INFO step= 17000 loss=1.7490 bellman=6.2104 cql=-0.8923 q_mean=3.195
+2026-06-06 16:36:38,403 svf_train_critic INFO step= 17500 loss=1.8440 bellman=6.0990 cql=-0.8510 q_mean=3.154
+2026-06-06 16:36:43,956 svf_train_critic INFO step= 18000 loss=1.7790 bellman=6.5032 cql=-0.9448 q_mean=3.247
+2026-06-06 16:36:49,241 svf_train_critic INFO step= 18500 loss=1.8804 bellman=6.3948 cql=-0.9029 q_mean=3.205
+2026-06-06 16:36:54,452 svf_train_critic INFO step= 19000 loss=1.6008 bellman=6.2035 cql=-0.9205 q_mean=3.223
+2026-06-06 16:36:59,832 svf_train_critic INFO step= 19500 loss=1.7157 bellman=6.2606 cql=-0.9090 q_mean=3.212
+2026-06-06 16:37:05,392 svf_train_critic INFO step= 20000 loss=1.8022 bellman=6.3603 cql=-0.9116 q_mean=3.214
+2026-06-06 16:37:11,729 svf_train_critic INFO step= 20500 loss=1.7704 bellman=6.2845 cql=-0.9028 q_mean=3.205
+2026-06-06 16:37:18,280 svf_train_critic INFO step= 21000 loss=1.8633 bellman=6.0312 cql=-0.8336 q_mean=3.138
+2026-06-06 16:37:24,717 svf_train_critic INFO step= 21500 loss=1.8246 bellman=6.0906 cql=-0.8532 q_mean=3.156
+2026-06-06 16:37:31,172 svf_train_critic INFO step= 22000 loss=1.8331 bellman=6.5922 cql=-0.9518 q_mean=3.254
+2026-06-06 16:37:37,714 svf_train_critic INFO step= 22500 loss=1.7796 bellman=6.2718 cql=-0.8985 q_mean=3.201
+2026-06-06 16:37:44,333 svf_train_critic INFO step= 23000 loss=1.6748 bellman=6.4728 cql=-0.9596 q_mean=3.262
+2026-06-06 16:37:50,728 svf_train_critic INFO step= 23500 loss=1.6062 bellman=6.2815 cql=-0.9351 q_mean=3.238
+2026-06-06 16:37:57,219 svf_train_critic INFO step= 24000 loss=1.9270 bellman=6.4495 cql=-0.9045 q_mean=3.207
+2026-06-06 16:38:03,745 svf_train_critic INFO step= 24500 loss=1.9260 bellman=6.1784 cql=-0.8505 q_mean=3.153
+2026-06-06 16:38:10,361 svf_train_critic INFO step= 25000 loss=1.6981 bellman=6.1972 cql=-0.8998 q_mean=3.202
+2026-06-06 16:38:16,961 svf_train_critic INFO step= 25500 loss=1.8131 bellman=6.0077 cql=-0.8389 q_mean=3.142
+2026-06-06 16:38:23,511 svf_train_critic INFO step= 26000 loss=1.6073 bellman=6.2564 cql=-0.9298 q_mean=3.234
+2026-06-06 16:38:30,044 svf_train_critic INFO step= 26500 loss=1.8375 bellman=6.2470 cql=-0.8819 q_mean=3.185
+2026-06-06 16:38:36,716 svf_train_critic INFO step= 27000 loss=1.7487 bellman=6.3975 cql=-0.9298 q_mean=3.232
+2026-06-06 16:38:43,455 svf_train_critic INFO step= 27500 loss=1.7973 bellman=6.1055 cql=-0.8617 q_mean=3.164
+2026-06-06 16:38:50,229 svf_train_critic INFO step= 28000 loss=1.7035 bellman=6.3516 cql=-0.9296 q_mean=3.232
+2026-06-06 16:38:56,895 svf_train_critic INFO step= 28500 loss=1.8363 bellman=6.1536 cql=-0.8635 q_mean=3.166
+2026-06-06 16:39:03,783 svf_train_critic INFO step= 29000 loss=1.6876 bellman=6.2149 cql=-0.9055 q_mean=3.208
+2026-06-06 16:39:10,529 svf_train_critic INFO step= 29500 loss=1.8388 bellman=6.1721 cql=-0.8667 q_mean=3.169
+2026-06-06 16:39:17,598 svf_train_critic INFO step= 30000 loss=1.7776 bellman=6.3713 cql=-0.9187 q_mean=3.221
+2026-06-06 16:39:24,395 svf_train_critic INFO step= 30500 loss=1.6696 bellman=6.3338 cql=-0.9328 q_mean=3.235
+2026-06-06 16:39:30,989 svf_train_critic INFO step= 31000 loss=1.8404 bellman=6.3077 cql=-0.8935 q_mean=3.199
+2026-06-06 16:39:37,818 svf_train_critic INFO step= 31500 loss=1.5563 bellman=6.2831 cql=-0.9453 q_mean=3.248
+2026-06-06 16:39:44,503 svf_train_critic INFO step= 32000 loss=1.6215 bellman=6.2082 cql=-0.9173 q_mean=3.220
+2026-06-06 16:39:51,348 svf_train_critic INFO step= 32500 loss=1.6166 bellman=5.9048 cql=-0.8576 q_mean=3.160
+2026-06-06 16:39:58,009 svf_train_critic INFO step= 33000 loss=1.5692 bellman=5.8602 cql=-0.8582 q_mean=3.161
+2026-06-06 16:40:04,652 svf_train_critic INFO step= 33500 loss=1.7754 bellman=6.1877 cql=-0.8824 q_mean=3.185
+2026-06-06 16:40:11,150 svf_train_critic INFO step= 34000 loss=1.7962 bellman=6.2296 cql=-0.8867 q_mean=3.189
+2026-06-06 16:40:17,844 svf_train_critic INFO step= 34500 loss=1.7181 bellman=6.3214 cql=-0.9207 q_mean=3.226
+2026-06-06 16:40:24,659 svf_train_critic INFO step= 35000 loss=1.7766 bellman=6.4859 cql=-0.9418 q_mean=3.244
+2026-06-06 16:40:31,370 svf_train_critic INFO step= 35500 loss=1.7430 bellman=6.1480 cql=-0.8810 q_mean=3.184
+2026-06-06 16:40:37,979 svf_train_critic INFO step= 36000 loss=1.7054 bellman=6.2938 cql=-0.9177 q_mean=3.220
+2026-06-06 16:40:44,554 svf_train_critic INFO step= 36500 loss=1.7183 bellman=6.3395 cql=-0.9242 q_mean=3.227
+2026-06-06 16:40:51,093 svf_train_critic INFO step= 37000 loss=1.8148 bellman=6.3510 cql=-0.9072 q_mean=3.210
+2026-06-06 16:40:57,981 svf_train_critic INFO step= 37500 loss=1.8239 bellman=6.2463 cql=-0.8845 q_mean=3.187
+2026-06-06 16:41:04,772 svf_train_critic INFO step= 38000 loss=1.6859 bellman=6.2219 cql=-0.9072 q_mean=3.210
+2026-06-06 16:41:11,507 svf_train_critic INFO step= 38500 loss=1.6547 bellman=6.2427 cql=-0.9176 q_mean=3.220
+2026-06-06 16:41:18,179 svf_train_critic INFO step= 39000 loss=1.6885 bellman=6.1429 cql=-0.8909 q_mean=3.194
+2026-06-06 16:41:24,813 svf_train_critic INFO step= 39500 loss=1.6838 bellman=6.1085 cql=-0.8849 q_mean=3.188
+2026-06-06 16:41:31,809 svf_train_critic INFO step= 40000 loss=1.6743 bellman=6.2724 cql=-0.9196 q_mean=3.222
+2026-06-06 16:41:38,550 svf_train_critic INFO step= 40500 loss=1.7831 bellman=6.2395 cql=-0.8913 q_mean=3.194
+2026-06-06 16:41:45,436 svf_train_critic INFO step= 41000 loss=1.8890 bellman=6.2426 cql=-0.8707 q_mean=3.173
+2026-06-06 16:41:52,186 svf_train_critic INFO step= 41500 loss=1.8454 bellman=6.2650 cql=-0.8839 q_mean=3.186
+2026-06-06 16:41:59,240 svf_train_critic INFO step= 42000 loss=1.6757 bellman=6.1190 cql=-0.8887 q_mean=3.191
+2026-06-06 16:42:06,085 svf_train_critic INFO step= 42500 loss=1.6360 bellman=6.3135 cql=-0.9355 q_mean=3.238
+2026-06-06 16:42:13,020 svf_train_critic INFO step= 43000 loss=1.8120 bellman=6.3316 cql=-0.9039 q_mean=3.207
+2026-06-06 16:42:19,884 svf_train_critic INFO step= 43500 loss=1.8208 bellman=6.2329 cql=-0.8824 q_mean=3.185
+2026-06-06 16:42:26,684 svf_train_critic INFO step= 44000 loss=1.8325 bellman=6.4391 cql=-0.9213 q_mean=3.224
+2026-06-06 16:42:33,460 svf_train_critic INFO step= 44500 loss=1.7248 bellman=6.1125 cql=-0.8775 q_mean=3.180
+2026-06-06 16:42:40,322 svf_train_critic INFO step= 45000 loss=1.8193 bellman=6.2714 cql=-0.8904 q_mean=3.193
+2026-06-06 16:42:47,211 svf_train_critic INFO step= 45500 loss=1.6764 bellman=6.2900 cql=-0.9227 q_mean=3.225
+2026-06-06 16:42:53,973 svf_train_critic INFO step= 46000 loss=1.8927 bellman=6.3369 cql=-0.8889 q_mean=3.191
+2026-06-06 16:43:00,609 svf_train_critic INFO step= 46500 loss=1.8408 bellman=6.2824 cql=-0.8883 q_mean=3.191
+2026-06-06 16:43:07,404 svf_train_critic INFO step= 47000 loss=1.9110 bellman=6.2746 cql=-0.8727 q_mean=3.177
+2026-06-06 16:43:14,322 svf_train_critic INFO step= 47500 loss=1.9008 bellman=6.1957 cql=-0.8590 q_mean=3.162
+2026-06-06 16:43:21,230 svf_train_critic INFO step= 48000 loss=1.8700 bellman=6.3079 cql=-0.8876 q_mean=3.190
+2026-06-06 16:43:28,013 svf_train_critic INFO step= 48500 loss=1.8368 bellman=6.3590 cql=-0.9044 q_mean=3.208
+2026-06-06 16:43:34,689 svf_train_critic INFO step= 49000 loss=1.8507 bellman=6.0845 cql=-0.8467 q_mean=3.149
+2026-06-06 16:43:41,295 svf_train_critic INFO step= 49500 loss=1.7900 bellman=6.2479 cql=-0.8916 q_mean=3.194
+2026-06-06 16:43:47,985 svf_train_critic INFO step= 50000 loss=1.9478 bellman=6.1266 cql=-0.8358 q_mean=3.138
+2026-06-06 16:43:54,767 svf_train_critic INFO step= 50500 loss=1.8587 bellman=6.3734 cql=-0.9029 q_mean=3.206
+2026-06-06 16:44:01,508 svf_train_critic INFO step= 51000 loss=1.6646 bellman=6.3686 cql=-0.9408 q_mean=3.243
+2026-06-06 16:44:08,132 svf_train_critic INFO step= 51500 loss=1.7804 bellman=6.3035 cql=-0.9046 q_mean=3.207
+2026-06-06 16:44:15,028 svf_train_critic INFO step= 52000 loss=1.7241 bellman=6.4235 cql=-0.9399 q_mean=3.243
+2026-06-06 16:44:21,860 svf_train_critic INFO step= 52500 loss=1.7996 bellman=6.2623 cql=-0.8926 q_mean=3.195
+2026-06-06 16:44:28,714 svf_train_critic INFO step= 53000 loss=1.7614 bellman=6.2410 cql=-0.8959 q_mean=3.199
+2026-06-06 16:44:35,813 svf_train_critic INFO step= 53500 loss=1.8977 bellman=6.2353 cql=-0.8675 q_mean=3.170
+2026-06-06 16:44:42,356 svf_train_critic INFO step= 54000 loss=1.7917 bellman=6.1746 cql=-0.8766 q_mean=3.179
+2026-06-06 16:44:48,897 svf_train_critic INFO step= 54500 loss=1.7594 bellman=6.1968 cql=-0.8875 q_mean=3.190
+2026-06-06 16:44:55,495 svf_train_critic INFO step= 55000 loss=1.8205 bellman=6.3644 cql=-0.9088 q_mean=3.211
+2026-06-06 16:45:02,340 svf_train_critic INFO step= 55500 loss=1.7634 bellman=6.2901 cql=-0.9053 q_mean=3.208
+2026-06-06 16:45:09,020 svf_train_critic INFO step= 56000 loss=1.7142 bellman=6.2755 cql=-0.9123 q_mean=3.215
+2026-06-06 16:45:15,839 svf_train_critic INFO step= 56500 loss=1.7063 bellman=6.1654 cql=-0.8918 q_mean=3.194
+2026-06-06 16:45:22,556 svf_train_critic INFO step= 57000 loss=1.9862 bellman=6.1331 cql=-0.8294 q_mean=3.132
+2026-06-06 16:45:29,213 svf_train_critic INFO step= 57500 loss=1.7799 bellman=6.2631 cql=-0.8966 q_mean=3.199
+2026-06-06 16:45:35,780 svf_train_critic INFO step= 58000 loss=1.7512 bellman=6.2039 cql=-0.8906 q_mean=3.193
+2026-06-06 16:45:42,351 svf_train_critic INFO step= 58500 loss=1.8536 bellman=6.3345 cql=-0.8962 q_mean=3.199
+2026-06-06 16:45:48,893 svf_train_critic INFO step= 59000 loss=1.7592 bellman=6.1682 cql=-0.8818 q_mean=3.184
+2026-06-06 16:45:55,397 svf_train_critic INFO step= 59500 loss=1.9072 bellman=6.1510 cql=-0.8488 q_mean=3.151
+2026-06-06 16:46:02,005 svf_train_critic INFO step= 60000 loss=1.7776 bellman=6.1290 cql=-0.8703 q_mean=3.173
+2026-06-06 16:46:08,710 svf_train_critic INFO step= 60500 loss=1.8281 bellman=6.1994 cql=-0.8743 q_mean=3.177
+2026-06-06 16:46:15,204 svf_train_critic INFO step= 61000 loss=1.7796 bellman=6.2382 cql=-0.8917 q_mean=3.194
+2026-06-06 16:46:21,670 svf_train_critic INFO step= 61500 loss=1.6036 bellman=6.2843 cql=-0.9361 q_mean=3.239
+2026-06-06 16:46:28,156 svf_train_critic INFO step= 62000 loss=1.7994 bellman=6.1329 cql=-0.8667 q_mean=3.169
+2026-06-06 16:46:34,809 svf_train_critic INFO step= 62500 loss=1.7429 bellman=6.3121 cql=-0.9138 q_mean=3.217
+2026-06-06 16:46:41,509 svf_train_critic INFO step= 63000 loss=1.6933 bellman=6.3360 cql=-0.9286 q_mean=3.231
+2026-06-06 16:46:48,172 svf_train_critic INFO step= 63500 loss=1.8489 bellman=6.3939 cql=-0.9090 q_mean=3.212
+2026-06-06 16:46:55,039 svf_train_critic INFO step= 64000 loss=1.5757 bellman=6.1542 cql=-0.9157 q_mean=3.218
+2026-06-06 16:47:01,862 svf_train_critic INFO step= 64500 loss=1.8782 bellman=6.2147 cql=-0.8673 q_mean=3.170
+2026-06-06 16:47:08,746 svf_train_critic INFO step= 65000 loss=1.7700 bellman=6.3784 cql=-0.9217 q_mean=3.224
+2026-06-06 16:47:15,595 svf_train_critic INFO step= 65500 loss=1.7508 bellman=6.2537 cql=-0.9006 q_mean=3.203
+2026-06-06 16:47:22,199 svf_train_critic INFO step= 66000 loss=1.7792 bellman=6.2560 cql=-0.8953 q_mean=3.198
+2026-06-06 16:47:27,791 svf_train_critic INFO step= 66500 loss=1.6616 bellman=6.1938 cql=-0.9064 q_mean=3.209
+2026-06-06 16:47:33,439 svf_train_critic INFO step= 67000 loss=2.0632 bellman=6.1893 cql=-0.8252 q_mean=3.128
+2026-06-06 16:47:39,307 svf_train_critic INFO step= 67500 loss=1.6837 bellman=6.2801 cql=-0.9193 q_mean=3.222
+2026-06-06 16:47:45,159 svf_train_critic INFO step= 68000 loss=1.7699 bellman=6.3426 cql=-0.9145 q_mean=3.217
+2026-06-06 16:47:50,965 svf_train_critic INFO step= 68500 loss=1.5875 bellman=6.2529 cql=-0.9331 q_mean=3.236
+2026-06-06 16:47:57,923 svf_train_critic INFO step= 69000 loss=1.7827 bellman=6.1543 cql=-0.8743 q_mean=3.177
+2026-06-06 16:48:06,378 svf_train_critic INFO step= 69500 loss=1.8336 bellman=6.3448 cql=-0.9022 q_mean=3.206
+2026-06-06 16:48:14,907 svf_train_critic INFO step= 70000 loss=1.7301 bellman=6.2743 cql=-0.9088 q_mean=3.211
+2026-06-06 16:48:23,278 svf_train_critic INFO step= 70500 loss=1.9408 bellman=6.2697 cql=-0.8658 q_mean=3.171
+2026-06-06 16:48:30,066 svf_train_critic INFO step= 71000 loss=1.6528 bellman=6.3686 cql=-0.9432 q_mean=3.246
+2026-06-06 16:48:36,627 svf_train_critic INFO step= 71500 loss=1.7685 bellman=6.3543 cql=-0.9172 q_mean=3.220
+2026-06-06 16:48:43,123 svf_train_critic INFO step= 72000 loss=1.6726 bellman=6.1077 cql=-0.8870 q_mean=3.190
+2026-06-06 16:48:49,807 svf_train_critic INFO step= 72500 loss=1.8263 bellman=6.2424 cql=-0.8832 q_mean=3.186
+2026-06-06 16:48:56,519 svf_train_critic INFO step= 73000 loss=1.8094 bellman=6.3759 cql=-0.9133 q_mean=3.216
+2026-06-06 16:49:03,034 svf_train_critic INFO step= 73500 loss=1.7007 bellman=6.3895 cql=-0.9378 q_mean=3.240
+2026-06-06 16:49:09,489 svf_train_critic INFO step= 74000 loss=1.7988 bellman=6.2374 cql=-0.8877 q_mean=3.190
+2026-06-06 16:49:16,028 svf_train_critic INFO step= 74500 loss=1.7201 bellman=6.1700 cql=-0.8900 q_mean=3.193
+2026-06-06 16:49:22,528 svf_train_critic INFO step= 75000 loss=1.6905 bellman=6.2763 cql=-0.9172 q_mean=3.220
+2026-06-06 16:49:29,136 svf_train_critic INFO step= 75500 loss=1.6624 bellman=6.2551 cql=-0.9185 q_mean=3.221
+2026-06-06 16:49:35,481 svf_train_critic INFO step= 76000 loss=1.5926 bellman=6.2530 cql=-0.9321 q_mean=3.235
+2026-06-06 16:49:41,696 svf_train_critic INFO step= 76500 loss=2.0129 bellman=6.3438 cql=-0.8662 q_mean=3.169
+2026-06-06 16:49:48,022 svf_train_critic INFO step= 77000 loss=1.7291 bellman=6.2638 cql=-0.9069 q_mean=3.210
+2026-06-06 16:49:54,429 svf_train_critic INFO step= 77500 loss=1.7597 bellman=6.2105 cql=-0.8902 q_mean=3.193
+2026-06-06 16:50:00,814 svf_train_critic INFO step= 78000 loss=1.8577 bellman=6.2867 cql=-0.8858 q_mean=3.188
+2026-06-06 16:50:07,110 svf_train_critic INFO step= 78500 loss=1.7354 bellman=6.1231 cql=-0.8775 q_mean=3.183
+2026-06-06 16:50:13,491 svf_train_critic INFO step= 79000 loss=1.7712 bellman=6.1810 cql=-0.8819 q_mean=3.185
+2026-06-06 16:50:19,744 svf_train_critic INFO step= 79500 loss=1.7779 bellman=6.2366 cql=-0.8917 q_mean=3.194
+2026-06-06 16:50:26,124 svf_train_critic INFO step= 80000 loss=1.7106 bellman=6.3066 cql=-0.9192 q_mean=3.222
+2026-06-06 16:50:32,553 svf_train_critic INFO step= 80500 loss=1.8405 bellman=6.0035 cql=-0.8326 q_mean=3.135
+2026-06-06 16:50:38,928 svf_train_critic INFO step= 81000 loss=1.7095 bellman=6.3443 cql=-0.9270 q_mean=3.230
+2026-06-06 16:50:45,237 svf_train_critic INFO step= 81500 loss=1.9535 bellman=6.3168 cql=-0.8726 q_mean=3.175
+2026-06-06 16:50:51,693 svf_train_critic INFO step= 82000 loss=1.8472 bellman=6.2737 cql=-0.8853 q_mean=3.188
+2026-06-06 16:50:58,096 svf_train_critic INFO step= 82500 loss=1.7024 bellman=6.3446 cql=-0.9284 q_mean=3.231
+2026-06-06 16:51:04,530 svf_train_critic INFO step= 83000 loss=1.7774 bellman=6.1870 cql=-0.8819 q_mean=3.185
+2026-06-06 16:51:10,857 svf_train_critic INFO step= 83500 loss=1.8568 bellman=6.3333 cql=-0.8953 q_mean=3.198
+2026-06-06 16:51:17,213 svf_train_critic INFO step= 84000 loss=1.7287 bellman=6.1576 cql=-0.8858 q_mean=3.188
+2026-06-06 16:51:23,549 svf_train_critic INFO step= 84500 loss=1.6333 bellman=6.4183 cql=-0.9570 q_mean=3.260
+2026-06-06 16:51:29,956 svf_train_critic INFO step= 85000 loss=1.8174 bellman=6.3330 cql=-0.9031 q_mean=3.206
+2026-06-06 16:51:36,377 svf_train_critic INFO step= 85500 loss=1.8680 bellman=6.2696 cql=-0.8803 q_mean=3.183
+2026-06-06 16:51:42,735 svf_train_critic INFO step= 86000 loss=1.6512 bellman=6.2565 cql=-0.9211 q_mean=3.224
+2026-06-06 16:51:49,164 svf_train_critic INFO step= 86500 loss=1.7090 bellman=6.2008 cql=-0.8984 q_mean=3.201
+2026-06-06 16:51:55,516 svf_train_critic INFO step= 87000 loss=1.8767 bellman=6.3760 cql=-0.8999 q_mean=3.202
+2026-06-06 16:52:01,954 svf_train_critic INFO step= 87500 loss=1.7493 bellman=6.2908 cql=-0.9083 q_mean=3.211
+2026-06-06 16:52:08,388 svf_train_critic INFO step= 88000 loss=1.9054 bellman=6.2733 cql=-0.8736 q_mean=3.176
+2026-06-06 16:52:14,739 svf_train_critic INFO step= 88500 loss=1.8467 bellman=6.3167 cql=-0.8940 q_mean=3.197
+2026-06-06 16:52:21,102 svf_train_critic INFO step= 89000 loss=1.7685 bellman=6.2759 cql=-0.9015 q_mean=3.204
+2026-06-06 16:52:27,487 svf_train_critic INFO step= 89500 loss=1.8284 bellman=6.1640 cql=-0.8671 q_mean=3.170
+2026-06-06 16:52:34,080 svf_train_critic INFO step= 90000 loss=1.7216 bellman=6.2766 cql=-0.9110 q_mean=3.214
+2026-06-06 16:52:40,618 svf_train_critic INFO step= 90500 loss=1.8278 bellman=6.1687 cql=-0.8682 q_mean=3.171
+2026-06-06 16:52:46,960 svf_train_critic INFO step= 91000 loss=1.7107 bellman=6.2819 cql=-0.9142 q_mean=3.217
+2026-06-06 16:52:53,326 svf_train_critic INFO step= 91500 loss=1.7678 bellman=6.2341 cql=-0.8932 q_mean=3.197
+2026-06-06 16:52:59,767 svf_train_critic INFO step= 92000 loss=1.7385 bellman=6.1935 cql=-0.8910 q_mean=3.194
+2026-06-06 16:53:06,346 svf_train_critic INFO step= 92500 loss=1.6232 bellman=6.1638 cql=-0.9081 q_mean=3.211
+2026-06-06 16:53:12,862 svf_train_critic INFO step= 93000 loss=2.0621 bellman=6.3855 cql=-0.8647 q_mean=3.167
+2026-06-06 16:53:19,218 svf_train_critic INFO step= 93500 loss=1.7199 bellman=6.2086 cql=-0.8977 q_mean=3.200
+2026-06-06 16:53:25,576 svf_train_critic INFO step= 94000 loss=1.6805 bellman=6.3646 cql=-0.9368 q_mean=3.239
+2026-06-06 16:53:31,973 svf_train_critic INFO step= 94500 loss=1.7088 bellman=6.2542 cql=-0.9091 q_mean=3.212
+2026-06-06 16:53:38,488 svf_train_critic INFO step= 95000 loss=1.8174 bellman=6.3553 cql=-0.9076 q_mean=3.210
+2026-06-06 16:53:44,967 svf_train_critic INFO step= 95500 loss=1.7882 bellman=6.3025 cql=-0.9028 q_mean=3.205
+2026-06-06 16:53:51,314 svf_train_critic INFO step= 96000 loss=1.8573 bellman=6.3683 cql=-0.9022 q_mean=3.205
+2026-06-06 16:53:57,522 svf_train_critic INFO step= 96500 loss=1.8066 bellman=6.2864 cql=-0.8960 q_mean=3.199
+2026-06-06 16:54:03,772 svf_train_critic INFO step= 97000 loss=1.5155 bellman=6.2120 cql=-0.9393 q_mean=3.242
+2026-06-06 16:54:10,070 svf_train_critic INFO step= 97500 loss=1.7480 bellman=6.2812 cql=-0.9066 q_mean=3.209
+2026-06-06 16:54:16,515 svf_train_critic INFO step= 98000 loss=1.6994 bellman=6.2584 cql=-0.9118 q_mean=3.214
+2026-06-06 16:54:22,696 svf_train_critic INFO step= 98500 loss=1.7973 bellman=6.2342 cql=-0.8874 q_mean=3.190
+2026-06-06 16:54:28,943 svf_train_critic INFO step= 99000 loss=1.7391 bellman=6.2579 cql=-0.9038 q_mean=3.206
+2026-06-06 16:54:35,158 svf_train_critic INFO step= 99500 loss=1.7381 bellman=6.2262 cql=-0.8976 q_mean=3.200
+2026-06-06 16:54:41,533 svf_train_critic INFO step=100000 loss=1.5935 bellman=6.1889 cql=-0.9191 q_mean=3.222
+2026-06-06 16:54:47,938 svf_train_critic INFO step=100500 loss=1.9156 bellman=6.3895 cql=-0.8948 q_mean=3.197
+2026-06-06 16:54:54,157 svf_train_critic INFO step=101000 loss=1.8269 bellman=6.1975 cql=-0.8741 q_mean=3.177
+2026-06-06 16:55:00,362 svf_train_critic INFO step=101500 loss=1.9261 bellman=6.3027 cql=-0.8753 q_mean=3.178
+2026-06-06 16:55:06,574 svf_train_critic INFO step=102000 loss=1.6899 bellman=6.2828 cql=-0.9186 q_mean=3.221
+2026-06-06 16:55:12,942 svf_train_critic INFO step=102500 loss=1.8577 bellman=6.3239 cql=-0.8932 q_mean=3.196
+2026-06-06 16:55:19,301 svf_train_critic INFO step=103000 loss=1.5828 bellman=6.2150 cql=-0.9264 q_mean=3.229
+2026-06-06 16:55:25,529 svf_train_critic INFO step=103500 loss=1.6798 bellman=6.3468 cql=-0.9334 q_mean=3.236
+2026-06-06 16:55:31,765 svf_train_critic INFO step=104000 loss=1.8746 bellman=6.2524 cql=-0.8756 q_mean=3.178
+2026-06-06 16:55:37,997 svf_train_critic INFO step=104500 loss=1.8161 bellman=6.2451 cql=-0.8858 q_mean=3.188
+2026-06-06 16:55:44,338 svf_train_critic INFO step=105000 loss=1.7781 bellman=6.2164 cql=-0.8876 q_mean=3.190
+2026-06-06 16:55:50,699 svf_train_critic INFO step=105500 loss=1.6624 bellman=6.3370 cql=-0.9349 q_mean=3.238
+2026-06-06 16:55:56,900 svf_train_critic INFO step=106000 loss=1.6605 bellman=6.2259 cql=-0.9131 q_mean=3.216
+2026-06-06 16:56:03,108 svf_train_critic INFO step=106500 loss=1.7500 bellman=6.1831 cql=-0.8866 q_mean=3.189
+2026-06-06 16:56:09,377 svf_train_critic INFO step=107000 loss=1.7784 bellman=6.2886 cql=-0.9020 q_mean=3.205
+2026-06-06 16:56:15,679 svf_train_critic INFO step=107500 loss=1.9040 bellman=6.2565 cql=-0.8705 q_mean=3.173
+2026-06-06 16:56:22,002 svf_train_critic INFO step=108000 loss=1.7212 bellman=6.2211 cql=-0.9000 q_mean=3.203
+2026-06-06 16:56:28,258 svf_train_critic INFO step=108500 loss=1.7185 bellman=6.2158 cql=-0.8994 q_mean=3.202
+2026-06-06 16:56:34,484 svf_train_critic INFO step=109000 loss=1.7770 bellman=6.2893 cql=-0.9025 q_mean=3.205
+2026-06-06 16:56:40,681 svf_train_critic INFO step=109500 loss=1.6412 bellman=6.2830 cql=-0.9284 q_mean=3.231
+2026-06-06 16:56:47,089 svf_train_critic INFO step=110000 loss=1.8945 bellman=6.2813 cql=-0.8774 q_mean=3.180
+2026-06-06 16:56:53,467 svf_train_critic INFO step=110500 loss=1.7386 bellman=6.1613 cql=-0.8845 q_mean=3.187
+2026-06-06 16:56:59,728 svf_train_critic INFO step=111000 loss=1.8853 bellman=6.2107 cql=-0.8651 q_mean=3.168
+2026-06-06 16:57:05,959 svf_train_critic INFO step=111500 loss=1.8959 bellman=6.2153 cql=-0.8639 q_mean=3.167
+2026-06-06 16:57:12,194 svf_train_critic INFO step=112000 loss=1.6017 bellman=6.2620 cql=-0.9321 q_mean=3.235
+2026-06-06 16:57:18,497 svf_train_critic INFO step=112500 loss=1.7710 bellman=6.2859 cql=-0.9030 q_mean=3.206
+2026-06-06 16:57:24,779 svf_train_critic INFO step=113000 loss=1.5822 bellman=6.2343 cql=-0.9304 q_mean=3.233
+2026-06-06 16:57:31,044 svf_train_critic INFO step=113500 loss=1.7200 bellman=6.3498 cql=-0.9259 q_mean=3.229
+2026-06-06 16:57:37,272 svf_train_critic INFO step=114000 loss=1.9241 bellman=6.2688 cql=-0.8689 q_mean=3.172
+2026-06-06 16:57:43,537 svf_train_critic INFO step=114500 loss=1.7404 bellman=6.1523 cql=-0.8824 q_mean=3.185
+2026-06-06 16:57:49,872 svf_train_critic INFO step=115000 loss=2.0523 bellman=6.3417 cql=-0.8579 q_mean=3.160
+2026-06-06 16:57:56,297 svf_train_critic INFO step=115500 loss=1.7687 bellman=6.2486 cql=-0.8960 q_mean=3.199
+2026-06-06 16:58:02,470 svf_train_critic INFO step=116000 loss=1.7677 bellman=6.3585 cql=-0.9181 q_mean=3.221
+2026-06-06 16:58:08,739 svf_train_critic INFO step=116500 loss=1.9041 bellman=6.2735 cql=-0.8739 q_mean=3.176
+2026-06-06 16:58:14,909 svf_train_critic INFO step=117000 loss=1.8778 bellman=6.1598 cql=-0.8564 q_mean=3.159
+2026-06-06 16:58:21,240 svf_train_critic INFO step=117500 loss=1.8466 bellman=6.2169 cql=-0.8741 q_mean=3.177
+2026-06-06 16:58:27,566 svf_train_critic INFO step=118000 loss=1.6110 bellman=6.2029 cql=-0.9184 q_mean=3.221
+2026-06-06 16:58:33,796 svf_train_critic INFO step=118500 loss=1.6324 bellman=6.2556 cql=-0.9246 q_mean=3.227
+2026-06-06 16:58:40,040 svf_train_critic INFO step=119000 loss=1.7088 bellman=6.2446 cql=-0.9072 q_mean=3.210
+2026-06-06 16:58:46,238 svf_train_critic INFO step=119500 loss=1.7582 bellman=6.2710 cql=-0.9026 q_mean=3.205
+2026-06-06 16:58:52,435 svf_train_critic INFO step=120000 loss=1.8945 bellman=6.2097 cql=-0.8631 q_mean=3.166
+2026-06-06 16:58:58,744 svf_train_critic INFO step=120500 loss=1.7881 bellman=6.3246 cql=-0.9073 q_mean=3.210
+2026-06-06 16:59:04,990 svf_train_critic INFO step=121000 loss=1.8457 bellman=6.2935 cql=-0.8896 q_mean=3.192
+2026-06-06 16:59:11,266 svf_train_critic INFO step=121500 loss=1.8945 bellman=6.2051 cql=-0.8621 q_mean=3.165
+2026-06-06 16:59:17,519 svf_train_critic INFO step=122000 loss=1.7584 bellman=6.2280 cql=-0.8939 q_mean=3.196
+2026-06-06 16:59:23,813 svf_train_critic INFO step=122500 loss=1.7980 bellman=6.2260 cql=-0.8856 q_mean=3.188
+2026-06-06 16:59:30,164 svf_train_critic INFO step=123000 loss=1.6990 bellman=6.2590 cql=-0.9120 q_mean=3.215
+2026-06-06 16:59:36,404 svf_train_critic INFO step=123500 loss=1.7888 bellman=6.2801 cql=-0.8983 q_mean=3.201
+2026-06-06 16:59:42,677 svf_train_critic INFO step=124000 loss=1.7091 bellman=6.3660 cql=-0.9314 q_mean=3.234
+2026-06-06 16:59:48,918 svf_train_critic INFO step=124500 loss=1.9235 bellman=6.2693 cql=-0.8692 q_mean=3.172
+2026-06-06 16:59:55,221 svf_train_critic INFO step=125000 loss=1.7696 bellman=6.2093 cql=-0.8880 q_mean=3.191
+2026-06-06 17:00:01,569 svf_train_critic INFO step=125500 loss=1.6500 bellman=6.2987 cql=-0.9297 q_mean=3.232
+2026-06-06 17:00:07,826 svf_train_critic INFO step=126000 loss=1.8463 bellman=6.3170 cql=-0.8941 q_mean=3.197
+2026-06-06 17:00:14,070 svf_train_critic INFO step=126500 loss=1.7189 bellman=6.3164 cql=-0.9195 q_mean=3.222
+2026-06-06 17:00:20,227 svf_train_critic INFO step=127000 loss=1.8359 bellman=6.2692 cql=-0.8867 q_mean=3.189
+2026-06-06 17:00:26,571 svf_train_critic INFO step=127500 loss=1.8582 bellman=6.2932 cql=-0.8870 q_mean=3.190
+2026-06-06 17:00:32,957 svf_train_critic INFO step=128000 loss=1.7628 bellman=6.2426 cql=-0.8960 q_mean=3.199
+2026-06-06 17:00:39,211 svf_train_critic INFO step=128500 loss=2.0208 bellman=6.2519 cql=-0.8462 q_mean=3.149
+2026-06-06 17:00:44,814 svf_train_critic INFO step=129000 loss=1.8974 bellman=6.1515 cql=-0.8508 q_mean=3.153
+2026-06-06 17:00:49,871 svf_train_critic INFO step=129500 loss=1.6404 bellman=6.2967 cql=-0.9313 q_mean=3.234
+2026-06-06 17:00:55,077 svf_train_critic INFO step=130000 loss=1.6892 bellman=6.2385 cql=-0.9099 q_mean=3.212
+2026-06-06 17:01:00,353 svf_train_critic INFO step=130500 loss=1.7004 bellman=6.2409 cql=-0.9081 q_mean=3.211
+2026-06-06 17:01:05,447 svf_train_critic INFO step=131000 loss=1.7002 bellman=6.2161 cql=-0.9032 q_mean=3.206
+2026-06-06 17:01:11,005 svf_train_critic INFO step=131500 loss=1.7012 bellman=6.2633 cql=-0.9124 q_mean=3.215
+2026-06-06 17:01:17,270 svf_train_critic INFO step=132000 loss=1.6216 bellman=6.1972 cql=-0.9151 q_mean=3.218
+2026-06-06 17:01:23,632 svf_train_critic INFO step=132500 loss=1.7870 bellman=6.2897 cql=-0.9005 q_mean=3.203
+2026-06-06 17:01:29,971 svf_train_critic INFO step=133000 loss=1.9547 bellman=6.2601 cql=-0.8611 q_mean=3.164
+2026-06-06 17:01:36,158 svf_train_critic INFO step=133500 loss=1.5913 bellman=6.2706 cql=-0.9359 q_mean=3.238
+2026-06-06 17:01:42,397 svf_train_critic INFO step=134000 loss=1.8769 bellman=6.3274 cql=-0.8901 q_mean=3.193
+2026-06-06 17:01:48,633 svf_train_critic INFO step=134500 loss=1.7299 bellman=6.2741 cql=-0.9089 q_mean=3.211
+2026-06-06 17:01:54,928 svf_train_critic INFO step=135000 loss=1.6595 bellman=6.2221 cql=-0.9125 q_mean=3.215
+2026-06-06 17:02:01,247 svf_train_critic INFO step=135500 loss=1.9433 bellman=6.2939 cql=-0.8701 q_mean=3.173
+2026-06-06 17:02:07,159 svf_train_critic INFO step=136000 loss=1.8158 bellman=6.2605 cql=-0.8889 q_mean=3.192
+2026-06-06 17:02:13,358 svf_train_critic INFO step=136500 loss=1.8067 bellman=6.1870 cql=-0.8761 q_mean=3.179
+2026-06-06 17:02:19,632 svf_train_critic INFO step=137000 loss=1.8952 bellman=6.2776 cql=-0.8765 q_mean=3.179
+2026-06-06 17:02:26,068 svf_train_critic INFO step=137500 loss=1.7964 bellman=6.2725 cql=-0.8952 q_mean=3.198
+2026-06-06 17:02:32,444 svf_train_critic INFO step=138000 loss=1.7576 bellman=6.2907 cql=-0.9066 q_mean=3.209
+2026-06-06 17:02:38,633 svf_train_critic INFO step=138500 loss=1.6211 bellman=6.2676 cql=-0.9293 q_mean=3.232
+2026-06-06 17:02:44,861 svf_train_critic INFO step=139000 loss=1.6207 bellman=6.2146 cql=-0.9188 q_mean=3.221
+2026-06-06 17:02:51,096 svf_train_critic INFO step=139500 loss=1.7784 bellman=6.2255 cql=-0.8894 q_mean=3.192
+2026-06-06 17:02:57,449 svf_train_critic INFO step=140000 loss=1.7439 bellman=6.2270 cql=-0.8966 q_mean=3.199
+2026-06-06 17:03:03,771 svf_train_critic INFO step=140500 loss=1.8551 bellman=6.3114 cql=-0.8912 q_mean=3.194
+2026-06-06 17:03:10,003 svf_train_critic INFO step=141000 loss=1.4854 bellman=6.2793 cql=-0.9588 q_mean=3.261
+2026-06-06 17:03:16,218 svf_train_critic INFO step=141500 loss=1.7596 bellman=6.2548 cql=-0.8990 q_mean=3.202
+2026-06-06 17:03:22,417 svf_train_critic INFO step=142000 loss=1.6611 bellman=6.2442 cql=-0.9166 q_mean=3.219
+2026-06-06 17:03:28,709 svf_train_critic INFO step=142500 loss=1.7280 bellman=6.2308 cql=-0.9005 q_mean=3.203
+2026-06-06 17:03:35,052 svf_train_critic INFO step=143000 loss=1.7576 bellman=6.2669 cql=-0.9019 q_mean=3.204
+2026-06-06 17:03:41,284 svf_train_critic INFO step=143500 loss=1.7085 bellman=6.2529 cql=-0.9089 q_mean=3.211
+2026-06-06 17:03:47,481 svf_train_critic INFO step=144000 loss=1.7412 bellman=6.3311 cql=-0.9180 q_mean=3.221
+2026-06-06 17:03:53,686 svf_train_critic INFO step=144500 loss=1.8451 bellman=6.2310 cql=-0.8772 q_mean=3.180
+2026-06-06 17:04:00,015 svf_train_critic INFO step=145000 loss=1.5920 bellman=6.1673 cql=-0.9150 q_mean=3.218
+2026-06-06 17:04:06,363 svf_train_critic INFO step=145500 loss=1.7671 bellman=6.2563 cql=-0.8978 q_mean=3.200
+2026-06-06 17:04:12,579 svf_train_critic INFO step=146000 loss=1.8550 bellman=6.2381 cql=-0.8766 q_mean=3.179
+2026-06-06 17:04:18,780 svf_train_critic INFO step=146500 loss=1.9915 bellman=6.2594 cql=-0.8536 q_mean=3.156
+2026-06-06 17:04:24,965 svf_train_critic INFO step=147000 loss=1.8461 bellman=6.3036 cql=-0.8915 q_mean=3.194
+2026-06-06 17:04:31,244 svf_train_critic INFO step=147500 loss=1.7997 bellman=6.3368 cql=-0.9074 q_mean=3.210
+2026-06-06 17:04:37,555 svf_train_critic INFO step=148000 loss=1.6597 bellman=6.2626 cql=-0.9206 q_mean=3.223
+2026-06-06 17:04:43,760 svf_train_critic INFO step=148500 loss=1.8060 bellman=6.2610 cql=-0.8910 q_mean=3.194
+2026-06-06 17:04:49,985 svf_train_critic INFO step=149000 loss=1.8940 bellman=6.2498 cql=-0.8712 q_mean=3.174
+2026-06-06 17:04:56,252 svf_train_critic INFO step=149500 loss=1.6597 bellman=6.2115 cql=-0.9104 q_mean=3.213
+2026-06-06 17:05:02,585 svf_train_critic INFO step=150000 loss=1.8164 bellman=6.2675 cql=-0.8902 q_mean=3.193
+2026-06-06 17:05:08,940 svf_train_critic INFO step=150500 loss=1.6109 bellman=6.2774 cql=-0.9333 q_mean=3.236
+2026-06-06 17:05:15,188 svf_train_critic INFO step=151000 loss=1.6990 bellman=6.2255 cql=-0.9053 q_mean=3.208
+2026-06-06 17:05:21,445 svf_train_critic INFO step=151500 loss=1.7896 bellman=6.1235 cql=-0.8668 q_mean=3.169
+2026-06-06 17:05:27,658 svf_train_critic INFO step=152000 loss=1.6499 bellman=6.2742 cql=-0.9249 q_mean=3.227
+2026-06-06 17:05:34,046 svf_train_critic INFO step=152500 loss=1.8162 bellman=6.1821 cql=-0.8732 q_mean=3.176
+2026-06-06 17:05:40,417 svf_train_critic INFO step=153000 loss=1.8158 bellman=6.2492 cql=-0.8867 q_mean=3.189
+2026-06-06 17:05:46,719 svf_train_critic INFO step=153500 loss=1.6529 bellman=6.2368 cql=-0.9168 q_mean=3.219
+2026-06-06 17:05:53,006 svf_train_critic INFO step=154000 loss=1.7605 bellman=6.3176 cql=-0.9114 q_mean=3.215
+2026-06-06 17:05:59,287 svf_train_critic INFO step=154500 loss=1.7688 bellman=6.2649 cql=-0.8992 q_mean=3.202
+2026-06-06 17:06:05,603 svf_train_critic INFO step=155000 loss=1.7087 bellman=6.2725 cql=-0.9128 q_mean=3.215
+2026-06-06 17:06:11,936 svf_train_critic INFO step=155500 loss=1.8315 bellman=6.1797 cql=-0.8696 q_mean=3.173
+2026-06-06 17:06:18,169 svf_train_critic INFO step=156000 loss=1.7869 bellman=6.2858 cql=-0.8998 q_mean=3.202
+2026-06-06 17:06:24,422 svf_train_critic INFO step=156500 loss=1.7768 bellman=6.2331 cql=-0.8913 q_mean=3.194
+2026-06-06 17:06:30,611 svf_train_critic INFO step=157000 loss=1.7374 bellman=6.3015 cql=-0.9128 q_mean=3.215
+2026-06-06 17:06:36,914 svf_train_critic INFO step=157500 loss=1.6892 bellman=6.1793 cql=-0.8980 q_mean=3.201
+2026-06-06 17:06:43,246 svf_train_critic INFO step=158000 loss=1.9059 bellman=6.2045 cql=-0.8597 q_mean=3.162
+2026-06-06 17:06:49,728 svf_train_critic INFO step=158500 loss=1.7183 bellman=6.2684 cql=-0.9100 q_mean=3.213
+2026-06-06 17:06:56,089 svf_train_critic INFO step=159000 loss=1.8268 bellman=6.2172 cql=-0.8781 q_mean=3.181
+2026-06-06 17:07:02,408 svf_train_critic INFO step=159500 loss=1.6608 bellman=6.2808 cql=-0.9240 q_mean=3.227
+2026-06-06 17:07:08,875 svf_train_critic INFO step=160000 loss=1.7964 bellman=6.2496 cql=-0.8906 q_mean=3.195
+2026-06-06 17:07:15,336 svf_train_critic INFO step=160500 loss=1.6999 bellman=6.3304 cql=-0.9261 q_mean=3.229
+2026-06-06 17:07:21,634 svf_train_critic INFO step=161000 loss=1.6367 bellman=6.2067 cql=-0.9140 q_mean=3.218
+2026-06-06 17:07:27,971 svf_train_critic INFO step=161500 loss=1.6303 bellman=6.2540 cql=-0.9247 q_mean=3.227
+2026-06-06 17:07:34,332 svf_train_critic INFO step=162000 loss=1.8842 bellman=6.2673 cql=-0.8766 q_mean=3.179
+2026-06-06 17:07:40,808 svf_train_critic INFO step=162500 loss=1.5328 bellman=6.2737 cql=-0.9482 q_mean=3.251
+2026-06-06 17:07:47,284 svf_train_critic INFO step=163000 loss=1.9235 bellman=6.3036 cql=-0.8760 q_mean=3.179
+2026-06-06 17:07:53,707 svf_train_critic INFO step=163500 loss=1.8258 bellman=6.2918 cql=-0.8932 q_mean=3.196
+2026-06-06 17:08:00,058 svf_train_critic INFO step=164000 loss=1.7881 bellman=6.3153 cql=-0.9054 q_mean=3.208
+2026-06-06 17:08:06,412 svf_train_critic INFO step=164500 loss=1.7481 bellman=6.2328 cql=-0.8969 q_mean=3.200
+2026-06-06 17:08:12,897 svf_train_critic INFO step=165000 loss=1.7382 bellman=6.2489 cql=-0.9021 q_mean=3.205
+2026-06-06 17:08:19,291 svf_train_critic INFO step=165500 loss=1.6706 bellman=6.1896 cql=-0.9038 q_mean=3.206
+2026-06-06 17:08:25,671 svf_train_critic INFO step=166000 loss=1.7769 bellman=6.2464 cql=-0.8939 q_mean=3.196
+2026-06-06 17:08:31,948 svf_train_critic INFO step=166500 loss=1.4839 bellman=6.2875 cql=-0.9607 q_mean=3.263
+2026-06-06 17:08:38,249 svf_train_critic INFO step=167000 loss=1.6889 bellman=6.2162 cql=-0.9055 q_mean=3.208
+2026-06-06 17:08:44,707 svf_train_critic INFO step=167500 loss=1.9138 bellman=6.1885 cql=-0.8549 q_mean=3.158
+2026-06-06 17:08:51,185 svf_train_critic INFO step=168000 loss=1.6809 bellman=6.2359 cql=-0.9110 q_mean=3.214
+2026-06-06 17:08:57,519 svf_train_critic INFO step=168500 loss=1.8647 bellman=6.2271 cql=-0.8725 q_mean=3.175
+2026-06-06 17:09:03,902 svf_train_critic INFO step=169000 loss=1.8211 bellman=6.0491 cql=-0.8456 q_mean=3.148
+2026-06-06 17:09:10,234 svf_train_critic INFO step=169500 loss=1.9137 bellman=6.1663 cql=-0.8505 q_mean=3.153
+2026-06-06 17:09:16,745 svf_train_critic INFO step=170000 loss=1.6502 bellman=6.2142 cql=-0.9128 q_mean=3.215
+2026-06-06 17:09:23,130 svf_train_critic INFO step=170500 loss=1.6597 bellman=6.2545 cql=-0.9190 q_mean=3.222
+2026-06-06 17:09:29,558 svf_train_critic INFO step=171000 loss=1.8744 bellman=6.2426 cql=-0.8736 q_mean=3.176
+2026-06-06 17:09:35,966 svf_train_critic INFO step=171500 loss=1.8852 bellman=6.2845 cql=-0.8799 q_mean=3.182
+2026-06-06 17:09:42,364 svf_train_critic INFO step=172000 loss=1.7183 bellman=6.2678 cql=-0.9099 q_mean=3.213
+2026-06-06 17:09:48,848 svf_train_critic INFO step=172500 loss=1.7595 bellman=6.2759 cql=-0.9033 q_mean=3.206
+2026-06-06 17:09:55,371 svf_train_critic INFO step=173000 loss=1.8064 bellman=6.1927 cql=-0.8773 q_mean=3.180
+2026-06-06 17:10:01,736 svf_train_critic INFO step=173500 loss=1.8455 bellman=6.2671 cql=-0.8843 q_mean=3.187
+2026-06-06 17:10:08,099 svf_train_critic INFO step=174000 loss=1.6408 bellman=6.2271 cql=-0.9173 q_mean=3.220
+2026-06-06 17:10:14,390 svf_train_critic INFO step=174500 loss=1.5719 bellman=6.2094 cql=-0.9275 q_mean=3.230
+2026-06-06 17:10:20,964 svf_train_critic INFO step=175000 loss=1.9338 bellman=6.2163 cql=-0.8565 q_mean=3.159
+2026-06-06 17:10:27,490 svf_train_critic INFO step=175500 loss=1.7775 bellman=6.3245 cql=-0.9094 q_mean=3.212
+2026-06-06 17:10:33,859 svf_train_critic INFO step=176000 loss=1.7689 bellman=6.2996 cql=-0.9062 q_mean=3.209
+2026-06-06 17:10:40,280 svf_train_critic INFO step=176500 loss=1.7101 bellman=6.2188 cql=-0.9017 q_mean=3.204
+2026-06-06 17:10:46,638 svf_train_critic INFO step=177000 loss=1.9925 bellman=6.2203 cql=-0.8456 q_mean=3.148
+2026-06-06 17:10:53,175 svf_train_critic INFO step=177500 loss=1.9937 bellman=6.2910 cql=-0.8595 q_mean=3.162
+2026-06-06 17:10:59,647 svf_train_critic INFO step=178000 loss=1.8445 bellman=6.2456 cql=-0.8802 q_mean=3.183
+2026-06-06 17:11:06,025 svf_train_critic INFO step=178500 loss=1.8060 bellman=6.2558 cql=-0.8900 q_mean=3.193
+2026-06-06 17:11:12,402 svf_train_critic INFO step=179000 loss=1.5359 bellman=6.2483 cql=-0.9425 q_mean=3.245
+2026-06-06 17:11:18,752 svf_train_critic INFO step=179500 loss=1.8188 bellman=6.1779 cql=-0.8718 q_mean=3.174
+2026-06-06 17:11:25,243 svf_train_critic INFO step=180000 loss=1.6706 bellman=6.2767 cql=-0.9212 q_mean=3.224
+2026-06-06 17:11:31,714 svf_train_critic INFO step=180500 loss=1.7868 bellman=6.2101 cql=-0.8847 q_mean=3.187
+2026-06-06 17:11:38,095 svf_train_critic INFO step=181000 loss=1.7769 bellman=6.2883 cql=-0.9023 q_mean=3.205
+2026-06-06 17:11:44,543 svf_train_critic INFO step=181500 loss=1.8556 bellman=6.2092 cql=-0.8707 q_mean=3.173
+2026-06-06 17:11:50,864 svf_train_critic INFO step=182000 loss=1.6793 bellman=6.2569 cql=-0.9155 q_mean=3.218
+2026-06-06 17:11:57,364 svf_train_critic INFO step=182500 loss=1.9596 bellman=6.2641 cql=-0.8609 q_mean=3.165
+2026-06-06 17:12:03,908 svf_train_critic INFO step=183000 loss=1.6986 bellman=6.2483 cql=-0.9100 q_mean=3.213
+2026-06-06 17:12:10,298 svf_train_critic INFO step=183500 loss=1.7471 bellman=6.2589 cql=-0.9024 q_mean=3.205
+2026-06-06 17:12:16,801 svf_train_critic INFO step=184000 loss=1.6602 bellman=6.2860 cql=-0.9252 q_mean=3.228
+2026-06-06 17:12:23,115 svf_train_critic INFO step=184500 loss=1.7865 bellman=6.2713 cql=-0.8970 q_mean=3.200
+2026-06-06 17:12:29,610 svf_train_critic INFO step=185000 loss=1.7386 bellman=6.2669 cql=-0.9057 q_mean=3.208
+2026-06-06 17:12:36,122 svf_train_critic INFO step=185500 loss=1.8180 bellman=6.2427 cql=-0.8849 q_mean=3.188
+2026-06-06 17:12:42,488 svf_train_critic INFO step=186000 loss=1.8475 bellman=6.2042 cql=-0.8713 q_mean=3.174
+2026-06-06 17:12:48,748 svf_train_critic INFO step=186500 loss=1.8163 bellman=6.2995 cql=-0.8966 q_mean=3.199
+2026-06-06 17:12:54,988 svf_train_critic INFO step=187000 loss=1.7087 bellman=6.3289 cql=-0.9240 q_mean=3.227
+2026-06-06 17:13:01,248 svf_train_critic INFO step=187500 loss=1.6806 bellman=6.2732 cql=-0.9185 q_mean=3.221
+2026-06-06 17:13:07,593 svf_train_critic INFO step=188000 loss=1.7282 bellman=6.1728 cql=-0.8889 q_mean=3.192
+2026-06-06 17:13:13,855 svf_train_critic INFO step=188500 loss=1.8164 bellman=6.2532 cql=-0.8874 q_mean=3.190
+2026-06-06 17:13:20,102 svf_train_critic INFO step=189000 loss=1.8083 bellman=6.3177 cql=-0.9019 q_mean=3.204
+2026-06-06 17:13:26,348 svf_train_critic INFO step=189500 loss=1.7047 bellman=6.3024 cql=-0.9195 q_mean=3.225
+2026-06-06 17:13:32,669 svf_train_critic INFO step=190000 loss=1.8171 bellman=6.2116 cql=-0.8789 q_mean=3.181
+2026-06-06 17:13:39,001 svf_train_critic INFO step=190500 loss=1.7595 bellman=6.2334 cql=-0.8948 q_mean=3.197
+2026-06-06 17:13:45,220 svf_train_critic INFO step=191000 loss=1.8162 bellman=6.2305 cql=-0.8829 q_mean=3.185
+2026-06-06 17:13:51,405 svf_train_critic INFO step=191500 loss=1.7768 bellman=6.2266 cql=-0.8900 q_mean=3.193
+2026-06-06 17:13:57,589 svf_train_critic INFO step=192000 loss=1.7972 bellman=6.2413 cql=-0.8888 q_mean=3.191
+2026-06-06 17:14:03,955 svf_train_critic INFO step=192500 loss=1.9338 bellman=6.2513 cql=-0.8635 q_mean=3.166
+2026-06-06 17:14:10,315 svf_train_critic INFO step=193000 loss=1.8841 bellman=6.2747 cql=-0.8781 q_mean=3.181
+2026-06-06 17:14:16,540 svf_train_critic INFO step=193500 loss=1.6798 bellman=6.2348 cql=-0.9110 q_mean=3.214
+2026-06-06 17:14:22,782 svf_train_critic INFO step=194000 loss=1.7393 bellman=6.2525 cql=-0.9026 q_mean=3.205
+2026-06-06 17:14:29,067 svf_train_critic INFO step=194500 loss=1.8550 bellman=6.2815 cql=-0.8853 q_mean=3.188
+2026-06-06 17:14:35,409 svf_train_critic INFO step=195000 loss=1.8355 bellman=6.2721 cql=-0.8873 q_mean=3.190
+2026-06-06 17:14:41,841 svf_train_critic INFO step=195500 loss=1.8164 bellman=6.2386 cql=-0.8844 q_mean=3.187
+2026-06-06 17:14:48,059 svf_train_critic INFO step=196000 loss=1.6891 bellman=6.2233 cql=-0.9068 q_mean=3.209
+2026-06-06 17:14:53,443 svf_train_critic INFO step=196500 loss=1.8164 bellman=6.1808 cql=-0.8729 q_mean=3.175
+2026-06-06 17:14:58,664 svf_train_critic INFO step=197000 loss=1.8455 bellman=6.2500 cql=-0.8809 q_mean=3.183
+2026-06-06 17:15:03,893 svf_train_critic INFO step=197500 loss=1.7184 bellman=6.2513 cql=-0.9066 q_mean=3.209
+2026-06-06 17:15:09,077 svf_train_critic INFO step=198000 loss=1.9134 bellman=6.2503 cql=-0.8674 q_mean=3.170
+2026-06-06 17:15:14,219 svf_train_critic INFO step=198500 loss=1.7090 bellman=6.2613 cql=-0.9105 q_mean=3.213
+2026-06-06 17:15:19,471 svf_train_critic INFO step=199000 loss=1.9725 bellman=6.1926 cql=-0.8440 q_mean=3.147
+2026-06-06 17:15:25,573 svf_train_critic INFO step=199500 loss=1.8858 bellman=6.2687 cql=-0.8766 q_mean=3.179
+2026-06-06 17:15:32,082 svf_train_critic INFO step=200000 loss=1.6602 bellman=6.1937 cql=-0.9067 q_mean=3.209
+2026-06-06 17:15:32,089 svf_train_critic INFO Wrote checkpoint to checkpoints/svf_coworker_train_g1_0p3_v3_onpolicy.pt
+== sweep seed 0 -> results/svf_sweep_g1_0p3_v3_onpolicy/sweep_dense_seed0.csv ==
+WARNING:svf_threshold_sweep:Overriding env BodySLAM: snapshot trained 'oracle', running env at 'noisy' (use this to match the SVF critic's training-collection mode).
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+== sweep seed 1 -> results/svf_sweep_g1_0p3_v3_onpolicy/sweep_dense_seed1.csv ==
+WARNING:svf_threshold_sweep:Overriding env BodySLAM: snapshot trained 'oracle', running env at 'noisy' (use this to match the SVF critic's training-collection mode).
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+== sweep seed 2 -> results/svf_sweep_g1_0p3_v3_onpolicy/sweep_dense_seed2.csv ==
+WARNING:svf_threshold_sweep:Overriding env BodySLAM: snapshot trained 'oracle', running env at 'noisy' (use this to match the SVF critic's training-collection mode).
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+== sweep done. Picking the knee (seed-averaged, P2 acceptance bar): ==
+# Seed-averaged over 3 CSV(s): sweep_dense_seed0.csv, sweep_dense_seed1.csv, sweep_dense_seed2.csv
+# Acceptance bar: reduction >= 30% at intervention <= 25%
+
+     R    interv   proximity   reduction    mean_q  seeds
+  0.00     0.000      0.1889    baseline     3.346      3
+  1.00     0.078      0.2635      -39.5%     3.057      3
+  1.50     0.128      0.2180      -15.4%     2.930      3
+  2.00     0.128      0.2180      -15.4%     2.930      3
+  2.25     0.048      0.2923      -54.8%     3.123      3
+  2.50     0.522      0.3020      -59.9%     1.654      3
+  2.75     0.650      0.1397      +26.0%     1.528      3
+  3.00     0.712      0.1273      +32.6%     1.397      3
+  3.50     0.796      0.1491      +21.0%     1.608      3
+  4.00     1.000      0.1205      +36.2%     3.188      3
+
+NO QUALIFYING KNEE — no R meets both bars. Options: relax --max-intervention,
+accept a lower --min-reduction, or report the filter as a velocity-axis-only win.
+== Then set snapshots.py::SVF_FILTERS['saucepan_to_hob']='checkpoints/svf_coworker_train_g1_0p3_v3_onpolicy.pt' + 
+   SVF_FILTER_THRESHOLD_R['saucepan_to_hob']=<knee R above>, commit, and re-run E4.1 rows 1/4. ==

@@ -1,0 +1,120 @@
+== E3.2 cost-budget Pareto | TASK=saucepan_to_hob d='0.1' seeds='2' frames=60000 ==
+   OUTDIR=/home/ap2322/Documents/safety_bigym/exp_local/e3_2_cost_budget/e3_2_saucepan_to_hob_20260531_190307  warmstart=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt
+== launch d0p1_seed2 (cost_budget=0.1) -> /home/ap2322/Documents/safety_bigym/exp_local/e3_2_cost_budget/e3_2_saucepan_to_hob_20260531_190307/d0p1_seed2 ==
+[2026-06-02 13:19:44,875][__main__][INFO] - workspace: /home/ap2322/Documents/safety_bigym/exp_local/e3_2_cost_budget/e3_2_saucepan_to_hob_20260531_190307/d0p1_seed2
+[2026-06-02 13:19:44,877][safety_bigym.envs.safety_bigym_factory][INFO] - Forcing disruption_type=COWORKER for every episode.
+[2026-06-02 13:19:44,877][safety_bigym.envs.safety_bigym_factory][INFO] - Creating SafetyBiGymEnv: task=SaucepanToHob, inject_human=True, clips=0
+[2026-06-02 13:19:50,665][safety_bigym.envs.safety_env][INFO] - Human indices: pelvis_id=2, pelvis_mocapid=0, ssm_bodies=14
+[2026-06-02 13:19:50,666][safety_bigym.envs.safety_env][INFO] - Promoted 69 geoms onto human collision channel (human_emit=bit1, robot_emit=bit2); reset 22 human collision geoms onto the cross-paired channel.
+[2026-06-02 13:19:50,667][safety_bigym.envs.safety_env][INFO] - Safety wrapper initialized
+[2026-06-02 13:19:50,667][safety_bigym.envs.safety_env][INFO] - G1 human controller initialized
+[2026-06-02 13:19:50,667][safety_bigym.envs.safety_bigym_factory][INFO] - Inserting BodySLAMWrapper(mode=oracle, occlusion=none).
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/ap2322/.netrc.
+wandb: Currently logged in as: a4ayushpatel (a4ayushpatel-imperial-college-london) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run mod65ngc
+wandb: Tracking run with wandb version 0.25.0
+wandb: Run data is saved locally in /home/ap2322/Documents/safety_bigym/exp_local/e3_2_cost_budget/e3_2_saucepan_to_hob_20260531_190307/d0p1_seed2/wandb/run-20260602_131951-mod65ngc
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run e3_2_d0p1_seed2
+wandb: ⭐️ View project at https://wandb.ai/a4ayushpatel-imperial-college-london/safety-critic
+wandb: 🚀 View run at https://wandb.ai/a4ayushpatel-imperial-college-london/safety-critic/runs/mod65ngc
+MultiViewCNNEncoder(
+  (conv_nets): ModuleList(
+    (0-2): 3 x Sequential(
+      (0): Conv2d(12, 32, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (1): ImgChLayerNorm()
+      (2): SiLU()
+      (3): Conv2d(32, 64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (4): ImgChLayerNorm()
+      (5): SiLU()
+      (6): Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (7): ImgChLayerNorm()
+      (8): SiLU()
+      (9): Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1))
+      (10): ImgChLayerNorm()
+      (11): SiLU()
+    )
+  )
+)
+C2FCritic(
+  (network): C2FCriticNetwork(
+    (adv_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (adv_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (adv_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (adv_gru): GRU(512, 512, batch_first=True)
+    (adv_head): Linear(in_features=512, out_features=8080, bias=True)
+    (value_rgb_encoder): Sequential(
+      (0): Linear(in_features=19200, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+      (6): Linear(in_features=512, out_features=64, bias=False)
+      (7): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (8): Tanh()
+    )
+    (value_low_dim_encoder): Sequential(
+      (0): Linear(in_features=288, out_features=64, bias=False)
+      (1): LayerNorm((64,), eps=1e-05, elementwise_affine=True)
+      (2): Tanh()
+    )
+    (value_net): Sequential(
+      (0): Linear(in_features=163, out_features=512, bias=False)
+      (1): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (2): SiLU()
+      (3): Linear(in_features=512, out_features=512, bias=False)
+      (4): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      (5): SiLU()
+    )
+    (value_gru): GRU(512, 512, batch_first=True)
+    (value_head): Linear(in_features=512, out_features=1616, bias=True)
+  )
+)
+[2026-06-02 13:19:54,529][__main__][INFO] - loading snapshot: /home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt
+[2026-06-02 13:19:54,787][__main__][INFO] - snapshot loaded: trained for 2588 steps / 6 episodes
+[2026-06-02 13:19:54,788][root][INFO] - Loading demos via raw BiGym env (for DemoStore compatibility).
+[2026-06-02 13:19:58,148][root][INFO] - Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+[2026-06-02 13:19:58,149][root][INFO] - Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+[2026-06-02 13:19:58,149][root][INFO] - Demos are cached already: /home/ap2322/.bigym/demonstrations/0.9.0
+[2026-06-02 13:19:59,817][root][INFO] - Loaded 36 demos.
+[2026-06-02 13:20:04,405][safety_bigym.agents.cqn_as.env_adapter][INFO] - Converted 36 demos (29 successful) for CQN-AS.
+Error executing job with overrides: ['env=safety_bigym/saucepan_to_hob', 'env.human_model=g1', 'bodyslam=oracle', 'disruption=coworker_train', 'num_demos=36', 'agent=cqn_as_lagrangian', 'env.safety.add_workspace_penalty=true', 'env.safety.workspace_beta=0.05', 'env.safety.workspace_excess_cap=1.0', 'agent.v_min=-6.0', 'agent.v_max=2.0', 'agent.atoms=101', 'save_snapshot=true', 'save_video=true', 'wandb.use=true', 'agent.cost_budget=0.1', 'seed=2', 'num_train_frames=60000', 'wandb.name=e3_2_d0p1_seed2', '+wandb.tags=[e3_2,method:lagrangian_continuous,d0p1,task:saucepan_to_hob,human:g1,seed:2]', '+snapshot_path=/home/ap2322/Documents/safety_bigym/exp_local/cqn_as_base_curriculum/base_g1_30k_30k_40k_20260529_124749/stage1_easy/snapshot_2588.pt']
+Traceback (most recent call last):
+  File "/home/ap2322/Documents/safety_bigym/train_cqn_as.py", line 945, in main
+    workspace.load_demos()
+  File "/home/ap2322/Documents/safety_bigym/train_cqn_as.py", line 424, in load_demos
+    self.replay_storage.add(time_step)
+  File "/home/ap2322/Documents/safety_bigym/safety_bigym/agents/cqn_as/replay_buffer.py", line 81, in add
+    self._store_episode(episode)
+  File "/home/ap2322/Documents/safety_bigym/safety_bigym/agents/cqn_as/replay_buffer.py", line 107, in _store_episode
+    save_episode(episode, self._replay_dir / eps_fn)
+  File "/home/ap2322/Documents/safety_bigym/safety_bigym/agents/cqn_as/replay_buffer.py", line 25, in save_episode
+    f.write(bs.read())
+OSError: [Errno 28] No space left on device
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33me3_2_d0p1_seed2[0m at: [34mhttps://wandb.ai/a4ayushpatel-imperial-college-london/safety-critic/runs/mod65ngc[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260602_131951-mod65ngc/logs[0m
