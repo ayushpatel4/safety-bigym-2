@@ -57,6 +57,20 @@ removes the instability — all three seeds then behave consistently
 constrained policy whose feasible budget sits at the task cost, a fixed (or
 scheduled) multiplier is preferable to PID auto-tuning.
 
+**The cost-signal *form* is not the operative variable (E3.1).** The same
+feasibility logic explains the cost-form ablation. We compared a continuous graded
+cost (`c_t = min(1, max(c_ssm, c_pfl))`), a binary violation indicator, and a fixed
+reward penalty. At the tight budget **d=0.01 both constrained forms collapse to 0 %
+success**: the task's inherent cost floor is ≈ 0.42 × 0.296 ≈ 0.12 (the exogenous
+fraction of the baseline proximity), an order of magnitude above 0.01, so the
+constraint is infeasible, λ winds up, and the policy abandons the task. This happens
+for *both* forms because the encoding changes the *shape* of `c_t`, not its *scale*
+relative to d — the binding variable is the budget, not the form. (The binary form,
+keyed on the worst-case ISO indicator that fires on ≳ 90 % of steps, is if anything
+the more aggressive.) Honest reading: *the cost form is secondary; the Lagrangian
+budget relative to the task's inherent cost is what matters* — exactly why the
+fixed-λ formulation above is the fix, not a better cost encoding.
+
 The reduction is genuinely constraint-driven, not an artifact of reward shaping or
 checkpoint selection. **(i)** A workspace-distance shaping term in the baseline
 *increases* proximity while improving success (no-shaping 0.75/0.258 vs shaping
@@ -313,11 +327,17 @@ only route to both-axis compliance, with a cost dial tunable through λ and `d_s
   cost is larger (0.92 → 0.70) because λ=0.1, tuned for the harder training coworker,
   over-constrains the gentler one — i.e. the operating point is task/distribution
   specific, but the qualitative result holds out of distribution.
-- **Perception robustness (E3.6).** The policy's avoidance is **not
-  perception-bottlenecked**: under perfect (oracle) vs realistic noisy/lagged
-  perception the proximity is essentially equal (0.236 vs 0.198), so the reduction
-  survives realistic perception noise. (The baseline shows no oracle–noisy gap
-  because it does not avoid.)
+- **Perception robustness (E3.6) — a 2-mode result.** The policy's avoidance is
+  **not perception-bottlenecked**: for the matched checkpoint, proximity is
+  statistically indistinguishable under perfect (oracle) vs realistic noisy/lagged
+  perception (**0.236 vs 0.198**, success 0.82 vs 0.75), both far below baseline
+  ≈0.30. The baseline shows **no oracle–noisy gap** (0.302 vs 0.296) — it does not
+  use the human channel to avoid, so perception can't help it. A third "perception
+  off" mode is **architecturally N/A**: removing the human channel changes the
+  low-dim input (288→264), so the trained weights can't run on it — a genuine
+  no-human-obs condition is a *separately trained* policy (the E1.1 BC ablation),
+  not a knob on this one. So E3.6 is a two-mode (oracle vs noisy) comparison by
+  construction.
 - **Cross-task (E5.3).** The full pipeline (base curriculum → fixed-λ Lagrangian →
   eval) is replicated on `drawers_open_all` and `dishwasher_close` to test
   cross-task generalisation. [Results pending; in training.]

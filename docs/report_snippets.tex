@@ -1,0 +1,94 @@
+% =====================================================================
+% report_snippets.tex — paste-ready LaTeX for report.tex
+% =====================================================================
+% These are finished results-chapter subsections kept in version control so the
+% prose source (docs/results_discussion_draft.md) and the report stay in sync.
+% Copy the blocks into report.tex and wire the \cref{...} placeholders to your
+% actual labels (each block lists the targets it needs).
+%
+% Numbers are the final saucepan_to_hob benchmarks (G1 coworker, noisy/oracle):
+%   baseline (noisy) ............ succ 0.85,  proximity 0.296
+%   policy lambda=0.1 (pooled) .. succ 0.76,  proximity 0.228 [0.194,0.264]  (-22.8%)
+%   E3.6 row3 oracle ............ succ 0.82,  proximity 0.236
+%   E3.6 row3 noisy (seed0) ..... succ 0.75,  proximity 0.198   <- matched checkpoint
+%   E3.6 baseline oracle/noisy .. proximity 0.302 / 0.296       <- no gap (no avoidance)
+%
+% Labels to wire:
+%   E3.1 -> tab:headline, sec:exogenous, fig:lambda-regimes, sec:fixed-lambda
+%   E3.6 -> sec:obs-ablation (the E1.1 / no-human-obs BC ablation)
+% =====================================================================
+
+
+% ---------------------------------------------------------------------
+% E3.1 — cost-signal form ablation (honest reframe, wired to fixed-lambda)
+% ---------------------------------------------------------------------
+\subsection{Cost-signal form is not the operative variable (E3.1)}
+\label{sec:cost-form}
+
+We ablated the form of the per-step safety cost $c_t$ supplied to the constrained
+critic, holding the rest of the agent fixed: a \emph{continuous} graded signal
+($c_t = \min(1,\max(c_\mathrm{ssm},c_\mathrm{pfl})) \in [0,1]$), a \emph{binary}
+indicator ($c_t = 1$ when the worst-case SSM bound is violated, else $0$), and a
+\emph{fixed} reward penalty (a constant subtracted on violation, with no dual
+variable). The hypothesis was that the graded signal would give a smoother
+gradient, and hence a better safety/throughput trade-off, than the binary one.
+
+At the nominal tight budget $d = 0.01$ the comparison is \emph{degenerate}: both
+constrained forms collapse to $0\%$ task success. The cause is feasibility, not
+the cost form. The dual variable evolves as
+$\lambda \leftarrow \lambda + k\,(\bar c - d)$, so it can only stabilise if some
+policy achieves average cost $\bar c \le d$. But the task's \emph{inherent} cost
+lies far above $0.01$: the unconstrained baseline already incurs a
+proximity-violation rate of $0.296$ (\cref{tab:headline}), and roughly $42\%$ of
+that proximity is \emph{exogenous} --- the coworker walks into the robot and no
+robot action can prevent it (\cref{sec:exogenous}). The achievable cost floor is
+therefore $\approx 0.42 \times 0.296 \approx 0.12$, an order of magnitude above
+the budget. With $\bar c \gtrsim 0.12 > d$ on every step the constraint is
+infeasible, $\lambda$ winds up without bound, the $-\lambda Q_c$ term swamps the
+reward objective, and the policy abandons the task to minimise cost. This occurs
+for \emph{both} forms because the encoding changes the \emph{shape} of $c_t$, not
+its \emph{scale} relative to $d$: the binding variable is the budget. (If
+anything the binary form is the more aggressive, since it keys on the worst-case
+ISO indicator, which fires on $\gtrsim 90\%$ of unconstrained steps, so the two
+forms are not even comparable in magnitude.)
+
+The degeneracy is thus not a null to be explained away but the first point on the
+feasibility curve that motivates our final design. Sweeping the budget reveals
+three regimes: for $d \lesssim 0.2$ the constraint is infeasible and the policy
+collapses (above); at $d \approx 0.3$, where the budget \emph{equals} the task's
+inherent cost, the PID-Lagrangian sits on the feasibility boundary and is
+seed-unstable, with $\lambda$ settling at $0$, $0.27$ or $3.86$ across seeds
+(unconstrained / graceful / windup-collapse; \cref{fig:lambda-regimes}); and only
+by \emph{pinning} the dual variable at a fixed $\lambda = 0.1$, removing the
+ill-conditioned budget loop entirely, do we obtain a stable graceful operating
+point (\cref{sec:fixed-lambda}). The cost \emph{form} is not the operative
+variable; the Lagrangian \emph{budget relative to the task's inherent cost} is.
+
+
+% ---------------------------------------------------------------------
+% E3.6 — perception robustness as a 2-mode result (off-mode is N/A)
+% ---------------------------------------------------------------------
+\subsection{The avoidance is robust to perception noise (E3.6)}
+\label{sec:perception}
+
+To test whether the learned avoidance depends on perfect state estimation, we
+re-evaluated the \emph{same} policy under two perception regimes: \emph{oracle}
+(ground-truth human pose) and \emph{noisy} (the realistic BodySLAM estimate with
+measurement noise and latency). The avoidance is not perception-bottlenecked: for
+the matched checkpoint the proximity-violation rate is statistically
+indistinguishable across regimes ($0.236$ oracle vs.\ $0.198$ noisy), both far
+below the unconstrained baseline's $\approx\!0.30$, and task success is comparable
+($0.82$ vs.\ $0.75$). The baseline, by contrast, shows \emph{no} oracle--noisy gap
+($0.302$ vs.\ $0.296$): it does not use the human channel to avoid, so perception
+quality cannot help it. That the policy retains its full reduction under noisy,
+lagged perception --- and is if anything marginally better there --- indicates a
+robust avoidance behaviour rather than one that exploits perfect state.
+
+A third, ``perception-off'' mode is \emph{architecturally inapplicable} and is
+therefore not a degradation of this policy. The CQN-AS policy is trained with the
+human channel in its observation; removing it changes the low-dimensional input
+size ($288 \to 264$), so the trained weights cannot be evaluated on it at all. A
+genuine no-human-observation condition requires a separately trained policy ---
+that is the behaviour-cloning ablation of \cref{sec:obs-ablation} (E1.1), a
+distinct experiment --- not a knob on this one. The perception sweep is thus a
+two-mode (oracle vs.\ noisy) comparison by construction.
