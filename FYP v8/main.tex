@@ -688,7 +688,7 @@ reasons given next.
 demonstrations~\cite{chernyadev2024bigym} are a strong inductive
 prior on long-horizon manipulation, and \cqnas{} is a demo-driven,
 value-based agent that achieves high success on long-horizon
-\bigym{} tasks (we obtain around \result{85}\,\% success on
+\bigym{} tasks (we obtain around $85\,\%$ success on
 \texttt{saucepan\_to\_hob}; Section~\ref{sec:results:baseline}).
 \cqnas{} was evaluated on \bigym{} by its own
 authors~\cite{seo2024cqnas}; the \bigym{} paper itself benchmarked
@@ -1825,8 +1825,10 @@ evaluated on \texttt{noisy} human-state estimates, and on
 ground-truth (\texttt{oracle}) input its $Q$-estimates collapse and it
 intervenes almost everywhere, so all filtered evaluations are reported
 on \texttt{noisy} (Section~\ref{sec:setup:perception-mode}). The exact
-transition count for the current critic is \placeholder{N transitions};
-the authoritative figures are in the Phase~2 results write-up.
+transition count for the current critic is 37{,}883, of which
+$24.95\,\%$ are labelled unsafe ($r^{\mathrm{safe}} = 0$) at the
+$\tau = 0.3$\,m proximity threshold; the full figures are in the
+Phase~2 results write-up.
 
 Each transition is labelled with the binary safety reward
 \begin{equation}
@@ -4458,9 +4460,9 @@ Intervention smoothing & 1 step & multi-step hysteresis is future work \\
 \placeholder{Code repository: \url{https://github.com/ayushpatel4/safety-bigym-2}.
 Exact commit hashes for headline experiments. Dataset versions for
 \bigym{}~\cite{chernyadev2024bigym} (\result{v0.9.0}) and
-AMASS~\cite{mahmood2019amass} (\result{CMU subset, [date]}).
-Hardware: single NVIDIA A100 40\,GB, CUDA \result{12.X}, PyTorch
-\result{2.11}. Step-by-step recipe for reproducing the headline
+AMASS~\cite{mahmood2019amass} (CMU subset, downloaded 18 February 2026).
+Hardware: single NVIDIA A100 40\,GB, CUDA 12.8, PyTorch
+2.10.0. Step-by-step recipe for reproducing the headline
 Table~\ref{tab:e4.1-feature-incremental} including approximate
 wall-clock time per phase. Random seeds: \result{0, 1, 2} for 3-seed
 cells; \result{0, 1, 2, 3, 4} for 5-seed cells. \bigym{} version and
@@ -4548,7 +4550,7 @@ Pre-trained model weights for the headline Lagrangian policy and
 the Phase 2 SVF: \result{[weights URL]} (hosted on \result{[platform]}).
 Dataset shards used to train the Phase 2 SVF: \result{[URL]}
 (v3 snapshot-only collection on \texttt{coworker\_train} under
-\texttt{noisy}; \placeholder{N transitions}, \placeholder{$\sim$Z\,GB}
+\texttt{noisy}; 37{,}883 transitions, \placeholder{$\sim$Z\,GB}
 compressed). \bigym{}
 simulator fork (with the collision-channel and PD-actuator fixes
 from Section~\ref{sec:bench:human}) released as a public fork at
