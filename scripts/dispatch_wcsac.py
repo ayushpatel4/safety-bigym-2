@@ -30,10 +30,11 @@ OUTROOT.mkdir(parents=True, exist_ok=True)
 FRAMES = int(os.environ.get("FRAMES", "150000"))
 EVAL_EVERY = int(os.environ.get("EVAL_EVERY", "10000"))
 NUM_EVAL = int(os.environ.get("NUM_EVAL", "10"))
-SEED = int(os.environ.get("SEED", "0"))
+SEEDS = [int(s) for s in os.environ.get("SEEDS", "0 1 2").split()]
 DEMOS = int(os.environ.get("DEMOS", "0"))
 BUDGETS = [float(b) for b in os.environ.get("BUDGETS", "5 15 30").split()]
-TASKS = os.environ.get("TASKS", "dishwasher_close drawers_open_all").split()
+TASKS = os.environ.get(
+    "TASKS", "dishwasher_close drawers_open_all saucepan_to_hob").split()
 
 FREE_MEM_MB = int(os.environ.get("FREE_MEM_MB", "2000"))  # idle iff mem < this ...
 FREE_UTIL = int(os.environ.get("FREE_UTIL", "25"))        # ... AND util% < this
@@ -46,7 +47,9 @@ def cells():
     out = []
     for task in TASKS:
         for b in BUDGETS:
-            out.append(dict(name=f"wcsac_{task}_b{b:g}_s{SEED}", task=task, budget=b))
+            for seed in SEEDS:
+                out.append(dict(name=f"wcsac_{task}_b{b:g}_s{seed}",
+                                task=task, budget=b, seed=seed))
     return out
 
 
@@ -74,7 +77,7 @@ def build_cmd(c):
         "agent=wcsac", f"agent.cost_budget={c['budget']:g}",
         "bodyslam=oracle", "disruption=coworker_train", f"num_demos={DEMOS}",
         f"num_train_frames={FRAMES}", f"eval_every_frames={EVAL_EVERY}",
-        f"num_eval_episodes={NUM_EVAL}", f"seed={SEED}",
+        f"num_eval_episodes={NUM_EVAL}", f"seed={c['seed']}",
         "save_snapshot=true", "save_video=true",
         "wandb.use=true", "wandb.project=safety-critic", f"wandb.name={c['name']}",
         "+wandb.tags=[phase-3,wcsac,E3.7,external_baseline,"
