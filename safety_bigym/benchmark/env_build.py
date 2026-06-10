@@ -234,9 +234,17 @@ def build_cqn_adapter(cfg, *, num_demos_for_stats: int = 0):
     cfg_n = int(cfg.get("num_demos", 0))
     if num_demos_for_stats and int(num_demos_for_stats) > 0:
         n = min(cfg_n, int(num_demos_for_stats)) if cfg_n > 0 else int(num_demos_for_stats)
+    elif cfg_n > 0:
+        n = cfg_n
     else:
-        n = cfg_n or 5
-    adapter.get_demos(max(n, 1))  # side effect: adapter._action_stats <- demo-derived
+        # Snapshot trained demo-free (e.g. WCSAC with num_demos=0): training never
+        # called get_demos, so the policy was trained under the adapter's DEFAULT
+        # identity action stats (min=-1/max=+1). Forcing demo-derived stats here
+        # would mis-scale the policy's actions at eval -- a train/deploy mismatch.
+        # Keep identity stats (skip get_demos), exactly as train_cqn_as.eval() does.
+        n = 0
+    if n > 0:
+        adapter.get_demos(n)  # side effect: adapter._action_stats <- demo-derived
     return wrapped, adapter
 
 
