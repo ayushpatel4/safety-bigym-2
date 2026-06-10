@@ -134,7 +134,7 @@ sweeps to the GPU box.
 | E3.4 | filter during training | Phase 2 SVF on/off as a training-time veto |
 | E3.5 | architecture | A-value vs B-value-mean vs B-value-CVaR (headline) |
 | E3.6 | observation channel | `bodyslam=off` vs `noisy` (this is where the old E1.4 question lands) |
-| E3.7 | external baseline | WCSAC (distributional safe-RL reference) on the humanoid — ✅ implemented (`agent=wcsac`, `train_cqn_as.py`); GPU runs pending |
+| E3.7 | external baseline | WCSAC (distributional safe-RL reference) on the humanoid — ✅ DONE (`agent=wcsac`); trained+evaluated, results in `docs/wcsac_results.md` |
 | E3.X.workspace | defend β | β ∈ {0.0, 0.05, 0.2, 0.5, 1.0} — pick the knee that prevents evacuation w/o task-success loss |
 
 ### Pre-sweep smoke gates (must pass before any full GPU sweep)

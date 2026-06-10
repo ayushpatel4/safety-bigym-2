@@ -23,7 +23,12 @@ multi-hour launch.
 >   architecture mismatch) and `cost_budget` is a CVaR-of-cost-**return** ceiling,
 >   not the per-step mean the Lagrangian sweeps. From-scratch pixel SAC may
 >   underperform the warm-started value method → the documented §disc:wcsac-honest path.
-> - **Status**: GPU sweep (dish + drawers, budget grid) launched; eval pending.
+> - **Status**: COMPLETE. 6-cell sweep (dish + drawers × budgets {5,15,30}, 150k
+>   frames, from scratch) trained + evaluated (30 ep/cell, cvar95). Results in
+>   `docs/wcsac_results.md`: dishwasher ~0.43–0.47 success @ low proximity-violation;
+>   drawers 0% (hard-task honest-failure). Below the warm-started value Lagrangian,
+>   as expected. (Eval needed an action-stats fix in `benchmark/env_build.py` —
+>   demo-free snapshots must keep identity stats; cross-validated vs train_cqn_as.)
 
 > **2026-05-30 status delta.**
 > - **P1 DONE** — G1 base-policy curriculum ran; stage-2 snapshot in hand
@@ -657,11 +662,13 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   in-training hook, which the oracle-collapse killed.)
 
 ### P9. E3.7: WCSAC external baseline
-- **STATUS (2026-06-09): IMPLEMENTED — `agent=wcsac` on `train_cqn_as.py`.**
-  Faithful Worst-Case SAC (`safety_bigym/agents/wcsac/`, `cfgs/agent/wcsac.yaml`,
-  `tests/test_wcsac_agent.py`, `scripts/wcsac_{smoke,train}.sh`). Unit-tested +
-  env-smoke-verified; GPU sweep running, eval pending. Trains from scratch — the
-  SAC architecture can't load the CQN-AS C2F warm-start snapshots.
+- **STATUS (2026-06-10): DONE — trained + evaluated. Results: `docs/wcsac_results.md`.**
+  Faithful Worst-Case SAC (`agent=wcsac`; `safety_bigym/agents/wcsac/`,
+  `cfgs/agent/wcsac.yaml`, `tests/test_wcsac_agent.py`). 6-cell sweep via
+  `scripts/dispatch_wcsac.py`, evaluated via `scripts/eval_wcsac.sh`
+  (`benchmark_policy.py`, cvar95). dishwasher ~0.47 success / drawers 0%, from
+  scratch (no warm-start: SAC can't load the CQN-AS C2F snapshots) — below the
+  warm-started value Lagrangian, the intended honest external-baseline contrast.
 - **Goal**: place our hybrid against the standard distributional
   safe-RL method. Honest-failure path documented in §disc:wcsac-honest.
 - **Acceptance gate**: reimplementation matches Safety-Gym numbers
