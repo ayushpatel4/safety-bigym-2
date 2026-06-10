@@ -1,0 +1,62 @@
+{
+  "dish_b03": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b03.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b03/snapshot_37590.pt"
+  },
+  "dish_b03_s1": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b03_s1.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b03_s1/snapshot_37568.pt"
+  },
+  "dish_b03_s2": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b03_s2.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b03_s2/snapshot_37707.pt"
+  },
+  "dish_b05": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b05.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b05/snapshot_37649.pt"
+  },
+  "dish_b05_s1": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b05_s1.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b05_s1/snapshot_37536.pt"
+  },
+  "dish_b05_s2": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/dish_b05_s2.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/dish_b05_s2/snapshot_37697.pt"
+  },
+  "drawers_b03": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b03.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b03/snapshot_37724.pt"
+  },
+  "drawers_b03_s1": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b03_s1.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b03_s1/snapshot_37501.pt"
+  },
+  "drawers_b03_s2": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b03_s2.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b03_s2/snapshot_37893.pt"
+  },
+  "drawers_b05": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b05.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b05/snapshot_37909.pt"
+  },
+  "drawers_b05_s1": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b05_s1.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b05_s1/snapshot_37719.pt"
+  },
+  "drawers_b05_s2": {
+    "done": true,
+    "csv": "/home/ap2322/Documents/safety_bigym/results/safety_eval/drawers_b05_s2.csv",
+    "snapshot": "/home/ap2322/Documents/safety_bigym/exp_local/safety/drawers_b05_s2/snapshot_37629.pt"
+  }
+}

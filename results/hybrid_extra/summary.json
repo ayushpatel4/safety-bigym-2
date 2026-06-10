@@ -1,0 +1,58 @@
+[
+  {
+    "name": "pareto_dish_ds0p4_R2p5",
+    "task": "dishwasher_close",
+    "R": 2.5,
+    "d_slow": 0.4,
+    "done": true
+  },
+  {
+    "name": "pareto_dish_ds0p4_R2p75",
+    "task": "dishwasher_close",
+    "R": 2.75,
+    "d_slow": 0.4,
+    "done": true
+  },
+  {
+    "name": "pareto_dish_ds0p6_R2p5",
+    "task": "dishwasher_close",
+    "R": 2.5,
+    "d_slow": 0.6,
+    "done": true
+  },
+  {
+    "name": "pareto_dish_ds0p6_R2p75",
+    "task": "dishwasher_close",
+    "R": 2.75,
+    "d_slow": 0.6,
+    "done": true
+  },
+  {
+    "name": "pareto_dish_ds0p8_R2p5",
+    "task": "dishwasher_close",
+    "R": 2.5,
+    "d_slow": 0.8,
+    "done": true
+  },
+  {
+    "name": "pareto_dish_ds0p8_R2p75",
+    "task": "dishwasher_close",
+    "R": 2.75,
+    "d_slow": 0.8,
+    "done": true
+  },
+  {
+    "name": "row5_dish_lag",
+    "task": "dishwasher_close",
+    "R": 2.75,
+    "d_slow": 0.5,
+    "done": true
+  },
+  {
+    "name": "row5_draw_lag",
+    "task": "drawers_open_all",
+    "R": 2.75,
+    "d_slow": 0.5,
+    "done": true
+  }
+]

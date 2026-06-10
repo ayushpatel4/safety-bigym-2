@@ -1,0 +1,102 @@
+[
+  {
+    "critic": "uncond",
+    "R": 0.4,
+    "success": 0.43333333333333335,
+    "proximity": 0.27614223460802284,
+    "ssm_actual": 0.07241234407834954,
+    "intervention": 0.4412419159617845,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 0.0,
+    "success": 0.7222222222222222,
+    "proximity": 0.27128475630811477,
+    "ssm_actual": 0.1383148356380328,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 1.5,
+    "success": 0.7166666666666667,
+    "proximity": 0.2985769298570416,
+    "ssm_actual": 0.12745230923653905,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 2.0,
+    "success": 0.7055555555555556,
+    "proximity": 0.2951687803846413,
+    "ssm_actual": 0.1252428330273962,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 2.25,
+    "success": 0.7,
+    "proximity": 0.2969086812996028,
+    "ssm_actual": 0.13305937473085683,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 2.5,
+    "success": 0.5666666666666667,
+    "proximity": 0.28154942175285047,
+    "ssm_actual": 0.10540786524375392,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 2.75,
+    "success": 0.4722222222222222,
+    "proximity": 0.27500748615623904,
+    "ssm_actual": 0.10228410241262004,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3",
+    "R": 3.0,
+    "success": 0.4722222222222222,
+    "proximity": 0.28250334617628386,
+    "ssm_actual": 0.08429811055083394,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3op",
+    "R": 2.0,
+    "success": 0.7333333333333333,
+    "proximity": 0.2966363422044828,
+    "ssm_actual": 0.1491636426136389,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  },
+  {
+    "critic": "v3op",
+    "R": 2.5,
+    "success": 0.6444444444444445,
+    "proximity": 0.2788718212169427,
+    "ssm_actual": 0.13003555522291338,
+    "intervention": NaN,
+    "n_seeds": 3,
+    "n_episodes": 180
+  }
+]

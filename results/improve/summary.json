@@ -1,0 +1,26 @@
+[
+  {
+    "name": "draw_R3p0_ds0p5",
+    "done": true
+  },
+  {
+    "name": "draw_R3p0_ds0p8",
+    "done": true
+  },
+  {
+    "name": "draw_R3p0_ds0p8_dt0p25",
+    "done": true
+  },
+  {
+    "name": "draw_R2p75_ds0p8",
+    "done": true
+  },
+  {
+    "name": "dish_R3p0_ds0p4",
+    "done": true
+  },
+  {
+    "name": "dish_R3p0_ds0p5",
+    "done": true
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "name": "dish_R2p25",
+    "task": "dishwasher_close",
+    "R": 2.25,
+    "done": true
+  },
+  {
+    "name": "dish_R2p5",
+    "task": "dishwasher_close",
+    "R": 2.5,
+    "done": true
+  },
+  {
+    "name": "dish_R2p75",
+    "task": "dishwasher_close",
+    "R": 2.75,
+    "done": true
+  },
+  {
+    "name": "dish_R3p0",
+    "task": "dishwasher_close",
+    "R": 3.0,
+    "done": true
+  },
+  {
+    "name": "draw_R2p25",
+    "task": "drawers_open_all",
+    "R": 2.25,
+    "done": true
+  },
+  {
+    "name": "draw_R2p5",
+    "task": "drawers_open_all",
+    "R": 2.5,
+    "done": true
+  },
+  {
+    "name": "draw_R2p75",
+    "task": "drawers_open_all",
+    "R": 2.75,
+    "done": true
+  },
+  {
+    "name": "draw_R3p0",
+    "task": "drawers_open_all",
+    "R": 3.0,
+    "done": true
+  }
+]
