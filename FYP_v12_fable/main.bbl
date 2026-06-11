@@ -21,6 +21,12 @@
 \providecommand{\BIBdecl}{\relax}
 \BIBdecl
 
+\bibitem{yang2021wcsac}
+Q.~Yang, T.~D. Sim{\~a}o, S.~H. Tindemans, and M.~T.~J. Spaan, ``{WCSAC}:
+  Worst-case soft actor critic for safety-constrained reinforcement learning,''
+  in \emph{Proceedings of the AAAI Conference on Artificial Intelligence},
+  vol.~35, no.~12, 2021, pp. 10\,639--10\,646.
+
 \bibitem{zhao2023act}
 T.~Z. Zhao, V.~Kumar, S.~Levine, and C.~Finn, ``Learning fine-grained bimanual
   manipulation with low-cost hardware,'' in \emph{Robotics: Science and Systems
@@ -61,9 +67,9 @@ C.~Sferrazza, D.-M. Huang, X.~Lin, Y.~Lee, and P.~Abbeel, ``{HumanoidBench}:
 \bibitem{unitree_g1}
 \BIBentryALTinterwordspacing
 ------, ``Humanoid robot {G1}: Product specification,'' 2024, 35\,kg (with
-  battery), 23--43 joint motors depending on configuration, height 1.32\,m; not
-  certified as collaborative under ISO standards. [Online]. Available:
-  \url{https://www.unitree.com/g1/}
+  battery), 23--43 joint motors depending on configuration, height 1.32\,m; no
+  collaborative-operation validation under ISO 10218:2025 / ISO/TS 15066.
+  [Online]. Available: \url{https://www.unitree.com/g1/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{iso25785}
@@ -92,16 +98,67 @@ C.~Sferrazza, D.-M. Huang, X.~Lin, Y.~Lee, and P.~Abbeel, ``{HumanoidBench}:
   Available: \url{https://www.iso.org/standard/73933.html}
 \BIBentrySTDinterwordspacing
 
+\bibitem{hartmann2026iso}
+D.~Hartmann, K.~Ham{\v r}{\'\i}kov{\'a}, A.~Vysock{\'y}, V.~Laciok, and
+  A.~Bernat{\'\i}k, ``Evolution of safety requirements in industrial robotics:
+  Comparative analysis of {ISO} 10218-1/2 (2011 vs. 2025) and integration of
+  {ISO/TS} 15066,'' \emph{Results in Engineering}, vol.~30, p. 110486, 2026.
+
+\bibitem{koczi2025humanoidsafety}
+D.~K{\'o}czi and J.~S{\'a}rosi, ``Safety engineering for humanoid robots in
+  everyday life---scoping review,'' \emph{Electronics}, vol.~14, no.~23, p.
+  4734, 2025.
+
+\bibitem{ieee2025pathway}
+{IEEE Humanoid Study Group}, ``A pathway study for future humanoid standards,''
+  IEEE Humanoid Study Group, Tech. Rep., Sep. 2025, technical report (grey
+  literature); DOI 10.13140/RG.2.2.27892.21122.
+
 \bibitem{auditing2021}
 H.~Bharadhwaj, ``Auditing robot learning for safety and compliance during
   deployment,'' \emph{arXiv preprint arXiv:2110.05702}, 2021, blue Sky paper at
   the 5th Conference on Robot Learning (CoRL 2021).
+
+\bibitem{robey2025jailbreaking}
+A.~Robey, Z.~Ravichandran, V.~Kumar, H.~Hassani, and G.~J. Pappas,
+  ``Jailbreaking {LLM}-controlled robots,'' in \emph{IEEE International
+  Conference on Robotics and Automation (ICRA)}, 2025, pp. 11\,948--11\,956.
+
+\bibitem{hundt2025llmrobots}
+A.~Hundt, R.~Azeem, M.~Mansouri, and M.~Brand{\~a}o, ``{LLM}-driven robots risk
+  enacting discrimination, violence, and unlawful actions,''
+  \emph{International Journal of Social Robotics}, vol.~17, no.~11, pp.
+  2663--2711, 2025.
 
 \bibitem{brunke2022safelearning}
 L.~Brunke, M.~Greeff, A.~W. Hall, Z.~Yuan, S.~Zhou, J.~Panerati, and A.~P.
   Schoellig, ``Safe learning in robotics: From learning-based control to safe
   reinforcement learning,'' \emph{Annual Review of Control, Robotics, and
   Autonomous Systems}, vol.~5, pp. 411--444, 2022.
+
+\bibitem{wachi2024constraint}
+A.~Wachi, X.~Shen, and Y.~Sui, ``A survey of constraint formulations in safe
+  reinforcement learning,'' in \emph{Proceedings of the Thirty-Third
+  International Joint Conference on Artificial Intelligence (IJCAI)}, 2024, pp.
+  8262--8271.
+
+\bibitem{ji2023safetygymnasium}
+J.~Ji, B.~Zhang, J.~Zhou, X.~Pan, W.~Huang, R.~Sun, Y.~Geng, Y.~Zhong, J.~Dai,
+  and Y.~Yang, ``Safety {G}ymnasium: A unified safe reinforcement learning
+  benchmark,'' in \emph{Advances in Neural Information Processing Systems
+  (NeurIPS), Datasets and Benchmarks Track}, vol.~36, 2023.
+
+\bibitem{yuan2022safecontrolgym}
+Z.~Yuan, A.~W. Hall, S.~Zhou, L.~Brunke, M.~Greeff, J.~Panerati, and A.~P.
+  Schoellig, ``safe-control-gym: A unified benchmark suite for safe
+  learning-based control and reinforcement learning in robotics,'' \emph{IEEE
+  Robotics and Automation Letters}, vol.~7, no.~4, pp. 11\,142--11\,149, 2022.
+
+\bibitem{thumm2024humanrobotgym}
+J.~Thumm, F.~Trost, and M.~Althoff, ``Human-robot gym: Benchmarking
+  reinforcement learning in human-robot collaboration,'' in \emph{IEEE
+  International Conference on Robotics and Automation (ICRA)}, 2024, pp.
+  7405--7411, arXiv:2310.06208.
 
 \bibitem{shield2025}
 L.~Yang, B.~Werner, R.~K. Cosner, D.~Fridovich-Keil, P.~Culbertson, and A.~D.
@@ -126,18 +183,6 @@ A.~Ray, J.~Achiam, and D.~Amodei, ``Benchmarking safe exploration in deep
   reinforcement learning,'' OpenAI Technical Report, 2019. [Online]. Available:
   \url{https://cdn.openai.com/safexp-short.pdf}
 \BIBentrySTDinterwordspacing
-
-\bibitem{ji2023safetygymnasium}
-J.~Ji, B.~Zhang, J.~Zhou, X.~Pan, W.~Huang, R.~Sun, Y.~Geng, Y.~Zhong, J.~Dai,
-  and Y.~Yang, ``Safety {G}ymnasium: A unified safe reinforcement learning
-  benchmark,'' in \emph{Advances in Neural Information Processing Systems
-  (NeurIPS), Datasets and Benchmarks Track}, vol.~36, 2023.
-
-\bibitem{yuan2022safecontrolgym}
-Z.~Yuan, A.~W. Hall, S.~Zhou, L.~Brunke, M.~Greeff, J.~Panerati, and A.~P.
-  Schoellig, ``safe-control-gym: A unified benchmark suite for safe
-  learning-based control and reinforcement learning in robotics,'' \emph{IEEE
-  Robotics and Automation Letters}, vol.~7, no.~4, pp. 11\,142--11\,149, 2022.
 
 \bibitem{stooke2020pid}
 A.~Stooke, J.~Achiam, and P.~Abbeel, ``Responsive safety in reinforcement
@@ -166,6 +211,12 @@ B.~Thananjeyan, A.~Balakrishna, S.~Nair, M.~Luo, K.~Srinivasan, M.~Hwang, J.~E.
   reinforcement learning with learned recovery zones,'' \emph{IEEE Robotics and
   Automation Letters}, vol.~6, no.~3, pp. 4915--4922, 2021.
 
+\bibitem{thumm2023interventions}
+J.~Thumm, G.~Pelat, and M.~Althoff, ``Reducing safety interventions in provably
+  safe reinforcement learning,'' in \emph{IEEE/RSJ International Conference on
+  Intelligent Robots and Systems (IROS)}, 2023, pp. 7515--7522,
+  arXiv:2303.03339.
+
 \bibitem{svarny2019unified}
 P.~Svarny, M.~Tesar, J.~K. Behrens, and M.~Hoffmann, ``Safe physical {HRI}:
   Toward a unified treatment of speed and separation monitoring together with
@@ -183,10 +234,28 @@ P.~Svarny, J.~Rozlivek, L.~Rustler, and M.~Hoffmann, ``{3D} collision-force-map
   for safe human-robot collaboration,'' in \emph{IEEE International Conference
   on Robotics and Automation (ICRA)}, 2021, pp. 3829--3835, arXiv:2009.01036.
 
+\bibitem{svarny2022softskins}
+P.~Svarny, J.~Rozlivek, L.~Rustler, M.~Sramek, {\"O}.~Deli, M.~Zillich, and
+  M.~Hoffmann, ``Effect of active and passive protective soft skins on
+  collision forces in human-robot collaboration,'' \emph{Robotics and
+  Computer-Integrated Manufacturing}, vol.~78, p. 102363, 2022.
+
+\bibitem{rozlivek2025harmonious}
+J.~Rozlivek, A.~Roncone, U.~Pattacini, and M.~Hoffmann,
+  ``{HARMONIOUS}---human-like reactive motion control and multimodal perception
+  for humanoid robots,'' \emph{IEEE Transactions on Robotics}, vol.~41, pp.
+  378--393, 2025.
+
 \bibitem{achiam2017cpo}
 J.~Achiam, D.~Held, A.~Tamar, and P.~Abbeel, ``Constrained policy
   optimization,'' in \emph{Proceedings of the 34th International Conference on
   Machine Learning (ICML)}, 2017, pp. 22--31.
+
+\bibitem{he2023autocost}
+T.~He, W.~Zhao, and C.~Liu, ``{AutoCost}: Evolving intrinsic cost for
+  zero-violation reinforcement learning,'' in \emph{Proceedings of the AAAI
+  Conference on Artificial Intelligence}, vol.~37, no.~12, 2023, pp.
+  14\,847--14\,855.
 
 \bibitem{bellemare2017c51}
 M.~G. Bellemare, W.~Dabney, and R.~Munos, ``A distributional perspective on
@@ -211,6 +280,17 @@ S.~Narvekar, B.~Peng, M.~Leonetti, J.~Sinapov, M.~E. Taylor, and P.~Stone,
   {R}ubik's cube with a robot hand,'' \emph{arXiv preprint arXiv:1910.07113},
   2019.
 
+\bibitem{rudin2022walkminutes}
+N.~Rudin, D.~Hoeller, P.~Reist, and M.~Hutter, ``Learning to walk in minutes
+  using massively parallel deep reinforcement learning,'' in \emph{Proceedings
+  of the 5th Conference on Robot Learning (CoRL 2021)}, ser. PMLR, vol. 164,
+  2022, pp. 91--100, arXiv:2109.11978.
+
+\bibitem{zhuang2024parkour}
+Z.~Zhuang, S.~Yao, and H.~Zhao, ``Humanoid parkour learning,'' in
+  \emph{Proceedings of the 8th Conference on Robot Learning (CoRL)}, 2024,
+  arXiv:2406.10759.
+
 \bibitem{altman1999constrained}
 E.~Altman, \emph{Constrained {M}arkov decision processes}.\hskip 1em plus 0.5em
   minus 0.4em\relax Chapman and Hall/CRC, 1999.
@@ -220,21 +300,42 @@ J.~Garc{\'\i}a and F.~Fern{\'a}ndez, ``A comprehensive survey on safe
   reinforcement learning,'' \emph{Journal of Machine Learning Research},
   vol.~16, pp. 1437--1480, 2015.
 
-\bibitem{yang2021wcsac}
-Q.~Yang, T.~D. Sim{\~a}o, S.~H. Tindemans, and M.~T.~J. Spaan, ``{WCSAC}:
-  Worst-case soft actor critic for safety-constrained reinforcement learning,''
-  in \emph{Proceedings of the AAAI Conference on Artificial Intelligence},
-  vol.~35, no.~12, 2021, pp. 10\,639--10\,646.
+\bibitem{yang2023wcsacjournal}
+Q.~Yang, T.~D. Sim{\~a}o, S.~H. Tindemans, and M.~T.~J. Spaan,
+  ``Safety-constrained reinforcement learning with a distributional safety
+  critic,'' \emph{Machine Learning}, vol. 112, no.~3, pp. 859--887, 2023.
 
 \bibitem{dabney2018qrdqn}
 W.~Dabney, M.~Rowland, M.~G. Bellemare, and R.~Munos, ``Distributional
   reinforcement learning with quantile regression,'' in \emph{Proceedings of
   the AAAI Conference on Artificial Intelligence}, vol.~32, no.~1, 2018.
 
+\bibitem{konighofer2025shields}
+B.~K{\"o}nighofer, R.~Bloem, N.~Jansen, S.~Junges, and S.~Pranger, ``Shields
+  for safe reinforcement learning,'' \emph{Communications of the ACM}, vol.~68,
+  no.~11, pp. 80--90, 2025.
+
 \bibitem{bansal2017hamilton}
 S.~Bansal, M.~Chen, S.~Herbert, and C.~J. Tomlin, ``{Hamilton-Jacobi}
   reachability: A brief overview and recent advances,'' in \emph{IEEE 56th
   Annual Conference on Decision and Control (CDC)}, 2017, pp. 2242--2253.
+
+\bibitem{ganai2024hjsurvey}
+M.~Ganai, S.~Gao, and S.~Herbert, ``{Hamilton-Jacobi} reachability in
+  reinforcement learning: A survey,'' \emph{IEEE Open Journal of Control
+  Systems}, vol.~3, pp. 310--324, 2024.
+
+\bibitem{wabersich2023datadriven}
+K.~P. Wabersich, A.~J. Taylor, J.~J. Choi, K.~Sreenath, C.~J. Tomlin, A.~D.
+  Ames, and M.~N. Zeilinger, ``Data-driven safety filters: {Hamilton-Jacobi}
+  reachability, control barrier functions, and predictive methods for uncertain
+  systems,'' \emph{IEEE Control Systems Magazine}, vol.~43, no.~5, pp.
+  137--177, 2023.
+
+\bibitem{hsu2024safetyfilter}
+K.-C. Hsu, H.~Hu, and J.~F. Fisac, ``The safety filter: A unified view of
+  safety-critical control in autonomous systems,'' \emph{Annual Review of
+  Control, Robotics, and Autonomous Systems}, vol.~7, pp. 47--72, 2024.
 
 \bibitem{cbfrl2024}
 L.~Yang, B.~Werner, M.~de~Sa, and A.~D. Ames, ``{CBF-RL}: Safety filtering
@@ -246,6 +347,35 @@ L.~Yang, B.~Werner, M.~de~Sa, and A.~D. Ames, ``{CBF-RL}: Safety filtering
 A.~Kumar, A.~Zhou, G.~Tucker, and S.~Levine, ``Conservative {Q}-learning for
   offline reinforcement learning,'' in \emph{Advances in Neural Information
   Processing Systems (NeurIPS)}, vol.~33, 2020, pp. 1179--1191.
+
+\bibitem{khazoom2022selfcollision}
+C.~Khazoom, D.~Gonzalez-Diaz, Y.~Ding, and S.~Kim, ``Humanoid self-collision
+  avoidance using whole-body control with control barrier functions,'' in
+  \emph{IEEE-RAS 21st International Conference on Humanoid Robots (Humanoids)},
+  2022, pp. 558--565, arXiv:2207.00692.
+
+\bibitem{morton2025oscbf}
+D.~Morton and M.~Pavone, ``Safe, task-consistent manipulation with operational
+  space control barrier functions,'' in \emph{IEEE/RSJ International Conference
+  on Intelligent Robots and Systems (IROS)}, 2025, pp. 187--194,
+  arXiv:2503.06736.
+
+\bibitem{bena2025poisson}
+R.~M. Bena, G.~Bahati, B.~Werner, R.~K. Cosner, L.~Yang, and A.~D. Ames,
+  ``Geometry-aware predictive safety filters on humanoids: From {Poisson}
+  safety functions to {CBF} constrained {MPC},'' in \emph{IEEE-RAS 24th
+  International Conference on Humanoid Robots (Humanoids)}, 2025, pp. 1--8,
+  arXiv:2508.11129.
+
+\bibitem{sun2025spark}
+Y.~Sun, R.~Chen, K.~S. Yun, Y.~Fang, S.~Jung, F.~Li, B.~Li, W.~Zhao, and
+  C.~Liu, ``{SPARK}: Safe protective and assistive robot kit,'' 2025, short
+  version presented at the IFAC Symposium on Robotics, 2025.
+
+\bibitem{cai2026humanoidcbf}
+W.~Cai, J.~Abanes, N.~Evangeliou, and A.~Tzes, ``Safe human-to-humanoid motion
+  imitation using control barrier functions,'' 2026, arXiv preprint; simulation
+  only.
 
 \bibitem{nakamura2025latent}
 K.~Nakamura, L.~Peters, and A.~Bajcsy, ``Generalizing safety beyond
@@ -279,6 +409,23 @@ J.~Zhang, Y.~Xu, and V.~Aggarwal, ``Don't freeze, don't crash: Extending the
   safe operating range of neural navigation in dense crowds,'' 2026, arXiv
   preprint.
 
+\bibitem{krasowski2023provablysafe}
+H.~Krasowski, J.~Thumm, M.~M{\"u}ller, L.~Sch{\"a}fer, X.~Wang, and M.~Althoff,
+  ``Provably safe reinforcement learning: Conceptual analysis, survey, and
+  benchmarking,'' \emph{Transactions on Machine Learning Research}, 2023,
+  arXiv:2205.06750.
+
+\bibitem{prudencio2024offlinesurvey}
+R.~F. Prudencio, M.~R. O.~A. Maximo, and E.~L. Colombini, ``A survey on offline
+  reinforcement learning: Taxonomy, review, and open problems,'' \emph{IEEE
+  Transactions on Neural Networks and Learning Systems}, vol.~35, no.~8, pp.
+  10\,237--10\,257, 2024.
+
+\bibitem{xu2022cpq}
+H.~Xu, X.~Zhan, and X.~Zhu, ``Constraints penalized {Q}-learning for safe
+  offline reinforcement learning,'' in \emph{Proceedings of the AAAI Conference
+  on Artificial Intelligence}, vol.~36, no.~8, 2022, pp. 8753--8760.
+
 \bibitem{tobin2017domainrand}
 J.~Tobin, R.~Fong, A.~Ray, J.~Schneider, W.~Zaremba, and P.~Abbeel, ``Domain
   randomization for transferring deep neural networks from simulation to the
@@ -290,24 +437,105 @@ W.~Zhao, J.~P. Queralta, and T.~Westerlund, ``Sim-to-real transfer in deep
   reinforcement learning for robotics: A survey,'' in \emph{IEEE Symposium
   Series on Computational Intelligence (SSCI)}, 2020, pp. 737--744.
 
+\bibitem{muratore2022randomized}
+F.~Muratore, F.~Ramos, G.~Turk, W.~Yu, M.~Gienger, and J.~Peters, ``Robot
+  learning from randomized simulations: A review,'' \emph{Frontiers in Robotics
+  and AI}, vol.~9, p. 799893, 2022.
+
+\bibitem{shin2024wham}
+S.~Shin, J.~Kim, E.~Halilaj, and M.~J. Black, ``{WHAM}: Reconstructing
+  world-grounded humans with accurate {3D} motion,'' in \emph{IEEE/CVF
+  Conference on Computer Vision and Pattern Recognition (CVPR)}, 2024, pp.
+  2070--2080, arXiv:2312.07531.
+
+\bibitem{wang2024tram}
+Y.~Wang, Z.~Wang, L.~Liu, and K.~Daniilidis, ``{TRAM}: Global trajectory and
+  motion of {3D} humans from in-the-wild videos,'' in \emph{European Conference
+  on Computer Vision (ECCV)}, 2024, pp. 467--487, arXiv:2403.17346.
+
+\bibitem{zhang2025safevla}
+B.~Zhang, Y.~Zhang, J.~Ji, Y.~Lei, J.~Dai, Y.~Chen, and Y.~Yang, ``{SafeVLA}:
+  Towards safety alignment of vision-language-action model via constrained
+  learning,'' in \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}, 2025, arXiv:2503.03480. Introduces the Safety-CHORES benchmark.
+
 \bibitem{james2020rlbench}
 S.~James, Z.~Ma, D.~R. Arrojo, and A.~J. Davison, ``{RLBench}: The robot
   learning benchmark \& learning environment,'' \emph{IEEE Robotics and
   Automation Letters}, vol.~5, no.~2, pp. 3019--3026, 2020.
+
+\bibitem{erickson2020assistivegym}
+Z.~Erickson, V.~Gangaram, A.~Kapusta, C.~K. Liu, and C.~C. Kemp, ``Assistive
+  {Gym}: A physics simulation framework for assistive robotics,'' in \emph{IEEE
+  International Conference on Robotics and Automation (ICRA)}, 2020, pp.
+  10\,169--10\,176, arXiv:1910.04700.
+
+\bibitem{ye2022rcareworld}
+R.~Ye, W.~Xu, H.~Fu, R.~K. Jenamani, V.~Nguyen, C.~Lu, K.~Dimitropoulou, and
+  T.~Bhattacharjee, ``{RCareWorld}: A human-centric simulation world for
+  caregiving robots,'' in \emph{IEEE/RSJ International Conference on
+  Intelligent Robots and Systems (IROS)}, 2022, pp. 33--40, arXiv:2210.10821.
+
+\bibitem{puig2024habitat3}
+X.~Puig, E.~Undersander, A.~Szot, M.~Dallaire~Cote, T.-Y. Yang, R.~Partsey
+  \emph{et~al.}, ``Habitat 3.0: A co-habitat for humans, avatars, and robots,''
+  in \emph{International Conference on Learning Representations (ICLR)}, 2024,
+  arXiv:2310.13724.
 
 \bibitem{romero2017smplh}
 J.~Romero, D.~Tzionas, and M.~J. Black, ``Embodied hands: Modeling and
   capturing hands and bodies together,'' \emph{ACM Transactions on Graphics
   (Proc. SIGGRAPH Asia)}, vol.~36, no.~6, pp. 245:1--245:17, 2017.
 
+\bibitem{tian2023meshsurvey}
+Y.~Tian, H.~Zhang, Y.~Liu, and L.~Wang, ``Recovering {3D} human mesh from
+  monocular images: A survey,'' \emph{IEEE Transactions on Pattern Analysis and
+  Machine Intelligence}, vol.~45, no.~12, pp. 15\,406--15\,425, 2023.
+
 \bibitem{mahmood2019amass}
 N.~Mahmood, N.~Ghorbani, N.~F. Troje, G.~Pons-Moll, and M.~J. Black, ``{AMASS}:
   Archive of motion capture as surface shapes,'' in \emph{International
   Conference on Computer Vision (ICCV)}, 2019, pp. 5442--5451.
 
+\bibitem{radosavovic2024humanoid}
+I.~Radosavovic, T.~Xiao, B.~Zhang, T.~Darrell, J.~Malik, and K.~Sreenath,
+  ``Real-world humanoid locomotion with reinforcement learning,'' \emph{Science
+  Robotics}, vol.~9, no.~89, p. eadi9579, 2024.
+
 \bibitem{todorov2012mujoco}
 E.~Todorov, T.~Erez, and Y.~Tassa, ``{MuJoCo}: A physics engine for model-based
   control,'' in \emph{IEEE/RSJ International Conference on Intelligent Robots
   and Systems (IROS)}, 2012, pp. 5026--5033.
+
+\bibitem{acosta2022simvalidation}
+B.~Acosta, W.~Yang, and M.~Posa, ``Validating robotics simulators on real-world
+  impacts,'' \emph{IEEE Robotics and Automation Letters}, vol.~7, no.~3, pp.
+  6471--6478, 2022.
+
+\bibitem{joseph2026mujoco}
+R.~Joseph and A.~Dutta, ``Contact force estimation for a single leg test setup
+  with compliance in {MuJoCo},'' \emph{Proceedings of the Institution of
+  Mechanical Engineers, Part C: Journal of Mechanical Engineering Science},
+  vol. 240, no.~5, pp. 1569--1588, 2026.
+
+\bibitem{schlotzhauer2022pfl}
+A.~Schlotzhauer, T.~Stotz, R.~Awad, and W.~Kraus, ``Virtual validation of power
+  and force limiting setups in human-robot-collaboration,'' \emph{Procedia
+  CIRP}, vol. 107, pp. 845--850, 2022.
+
+\bibitem{kim2022offtrc}
+D.~Kim and S.~Oh, ``Efficient off-policy safe reinforcement learning using
+  trust region conditional value at risk,'' \emph{IEEE Robotics and Automation
+  Letters}, vol.~7, no.~3, pp. 7644--7651, 2022.
+
+\bibitem{kim2023sdac}
+D.~Kim, K.~Lee, and S.~Oh, ``Trust region-based safe distributional
+  reinforcement learning for multiple constraints,'' in \emph{Advances in
+  Neural Information Processing Systems (NeurIPS)}, 2023, arXiv:2301.10923.
+
+\bibitem{kim2024srcpo}
+D.~Kim, T.~Cho, S.~Han, H.~Chung, K.~Lee, and S.~Oh, ``Spectral-risk safe
+  reinforcement learning with convergence guarantees,'' in \emph{Advances in
+  Neural Information Processing Systems (NeurIPS)}, 2024, arXiv:2405.18698.
 
 \end{thebibliography}

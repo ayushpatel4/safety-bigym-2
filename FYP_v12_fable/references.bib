@@ -371,7 +371,7 @@
   title        = {Humanoid robot {G1}: Product specification},
   year         = {2024},
   url          = {https://www.unitree.com/g1/},
-  note         = {35\,kg (with battery), 23--43 joint motors depending on configuration, height 1.32\,m; not certified as collaborative under ISO standards}
+  note         = {35\,kg (with battery), 23--43 joint motors depending on configuration, height 1.32\,m; no collaborative-operation validation under ISO 10218:2025 / ISO/TS 15066}
 }
 
 @misc{unitree_h1,
@@ -473,4 +473,397 @@
   archivePrefix= {arXiv},
   primaryClass = {cs.LG},
   note         = {arXiv preprint}
+}
+
+% -- Reference modernisation, v13 (added 2026-06-11) ===
+%  All entries below double-verified against primary pages (arXiv/DOI/
+%  publisher/proceedings) on 2026-06-11. See REFERENCE_MODERNISATION_PLAN.md.
+
+@inproceedings{thumm2024humanrobotgym,
+  author    = {Thumm, Jakob and Trost, Felix and Althoff, Matthias},
+  title     = {Human-Robot Gym: Benchmarking Reinforcement Learning in Human-Robot Collaboration},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  pages     = {7405--7411},
+  year      = {2024},
+  note      = {arXiv:2310.06208}
+}
+
+@inproceedings{thumm2023interventions,
+  author    = {Thumm, Jakob and Pelat, Guillaume and Althoff, Matthias},
+  title     = {Reducing Safety Interventions in Provably Safe Reinforcement Learning},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  pages     = {7515--7522},
+  year      = {2023},
+  note      = {arXiv:2303.03339}
+}
+
+@article{hartmann2026iso,
+  author  = {Hartmann, Daniel and Ham{\v r}{\'\i}kov{\'a}, Krist{\'y}na and Vysock{\'y}, Ale{\v s} and Laciok, Vendula and Bernat{\'\i}k, Ale{\v s}},
+  title   = {Evolution of safety requirements in industrial robotics: Comparative analysis of {ISO} 10218-1/2 (2011 vs. 2025) and integration of {ISO/TS} 15066},
+  journal = {Results in Engineering},
+  volume  = {30},
+  pages   = {110486},
+  year    = {2026},
+  doi     = {10.1016/j.rineng.2026.110486}
+}
+
+@article{hsu2024safetyfilter,
+  author  = {Hsu, Kai-Chieh and Hu, Haimin and Fisac, Jaime F.},
+  title   = {The safety filter: A unified view of safety-critical control in autonomous systems},
+  journal = {Annual Review of Control, Robotics, and Autonomous Systems},
+  volume  = {7},
+  pages   = {47--72},
+  year    = {2024},
+  doi     = {10.1146/annurev-control-071723-102940}
+}
+
+@inproceedings{khazoom2022selfcollision,
+  author    = {Khazoom, Charles and Gonzalez-Diaz, Daniel and Ding, Yanran and Kim, Sangbae},
+  title     = {Humanoid self-collision avoidance using whole-body control with control barrier functions},
+  booktitle = {IEEE-RAS 21st International Conference on Humanoid Robots (Humanoids)},
+  pages     = {558--565},
+  year      = {2022},
+  note      = {arXiv:2207.00692}
+}
+
+@inproceedings{morton2025oscbf,
+  author    = {Morton, Daniel and Pavone, Marco},
+  title     = {Safe, task-consistent manipulation with operational space control barrier functions},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  pages     = {187--194},
+  year      = {2025},
+  note      = {arXiv:2503.06736}
+}
+
+@inproceedings{puig2024habitat3,
+  author    = {Puig, Xavier and Undersander, Eric and Szot, Andrew and Dallaire Cote, Mikael and Yang, Tsung-Yen and Partsey, Ruslan and others},
+  title     = {Habitat 3.0: A co-habitat for humans, avatars, and robots},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  note      = {arXiv:2310.13724}
+}
+
+@inproceedings{zhang2025safevla,
+  author    = {Zhang, Borong and Zhang, Yuhao and Ji, Jiaming and Lei, Yingshan and Dai, Juntao and Chen, Yuanpei and Yang, Yaodong},
+  title     = {{SafeVLA}: Towards safety alignment of vision-language-action model via constrained learning},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2025},
+  note      = {arXiv:2503.03480. Introduces the Safety-CHORES benchmark}
+}
+
+@inproceedings{he2023autocost,
+  author    = {He, Tairan and Zhao, Weiye and Liu, Changliu},
+  title     = {{AutoCost}: Evolving intrinsic cost for zero-violation reinforcement learning},
+  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume    = {37},
+  number    = {12},
+  pages     = {14847--14855},
+  year      = {2023},
+  doi       = {10.1609/aaai.v37i12.26734}
+}
+
+@article{krasowski2023provablysafe,
+  author  = {Krasowski, Hanna and Thumm, Jakob and M{\"u}ller, Marlon and Sch{\"a}fer, Lukas and Wang, Xiao and Althoff, Matthias},
+  title   = {Provably safe reinforcement learning: Conceptual analysis, survey, and benchmarking},
+  journal = {Transactions on Machine Learning Research},
+  year    = {2023},
+  note    = {arXiv:2205.06750}
+}
+
+@inproceedings{erickson2020assistivegym,
+  author    = {Erickson, Zackory and Gangaram, Vamsee and Kapusta, Ariel and Liu, C. Karen and Kemp, Charles C.},
+  title     = {Assistive {Gym}: A physics simulation framework for assistive robotics},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  pages     = {10169--10176},
+  year      = {2020},
+  note      = {arXiv:1910.04700}
+}
+
+@inproceedings{ye2022rcareworld,
+  author    = {Ye, Ruolin and Xu, Wenqiang and Fu, Haoyuan and Jenamani, Rajat Kumar and Nguyen, Vy and Lu, Cewu and Dimitropoulou, Katherine and Bhattacharjee, Tapomayukh},
+  title     = {{RCareWorld}: A human-centric simulation world for caregiving robots},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+  pages     = {33--40},
+  year      = {2022},
+  note      = {arXiv:2210.10821}
+}
+
+@article{koczi2025humanoidsafety,
+  author  = {K{\'o}czi, D{\'a}vid and S{\'a}rosi, J{\'o}zsef},
+  title   = {Safety engineering for humanoid robots in everyday life---scoping review},
+  journal = {Electronics},
+  volume  = {14},
+  number  = {23},
+  pages   = {4734},
+  year    = {2025},
+  doi     = {10.3390/electronics14234734}
+}
+
+@techreport{ieee2025pathway,
+  author      = {{IEEE Humanoid Study Group}},
+  title       = {A pathway study for future humanoid standards},
+  institution = {IEEE Humanoid Study Group},
+  month       = sep,
+  year        = {2025},
+  note        = {Technical report (grey literature); DOI 10.13140/RG.2.2.27892.21122}
+}
+
+@article{svarny2022softskins,
+  author  = {Svarny, Petr and Rozlivek, Jakub and Rustler, Lukas and Sramek, Martin and Deli, {\"O}zg{\"u}r and Zillich, Michael and Hoffmann, Matej},
+  title   = {Effect of active and passive protective soft skins on collision forces in human-robot collaboration},
+  journal = {Robotics and Computer-Integrated Manufacturing},
+  volume  = {78},
+  pages   = {102363},
+  year    = {2022},
+  doi     = {10.1016/j.rcim.2022.102363}
+}
+
+@article{rozlivek2025harmonious,
+  author  = {Rozlivek, Jakub and Roncone, Alessandro and Pattacini, Ugo and Hoffmann, Matej},
+  title   = {{HARMONIOUS}---Human-like reactive motion control and multimodal perception for humanoid robots},
+  journal = {IEEE Transactions on Robotics},
+  volume  = {41},
+  pages   = {378--393},
+  year    = {2025},
+  doi     = {10.1109/TRO.2024.3502216}
+}
+
+@inproceedings{bena2025poisson,
+  author    = {Bena, Ryan M. and Bahati, Gilbert and Werner, Blake and Cosner, Ryan K. and Yang, Lizhi and Ames, Aaron D.},
+  title     = {Geometry-aware predictive safety filters on humanoids: From {Poisson} safety functions to {CBF} constrained {MPC}},
+  booktitle = {IEEE-RAS 24th International Conference on Humanoid Robots (Humanoids)},
+  pages     = {1--8},
+  year      = {2025},
+  note      = {arXiv:2508.11129}
+}
+
+@misc{sun2025spark,
+  author       = {Sun, Yifan and Chen, Rui and Yun, Kai S. and Fang, Yikuan and Jung, Sebin and Li, Feihan and Li, Bowei and Zhao, Weiye and Liu, Changliu},
+  title        = {{SPARK}: Safe Protective and Assistive Robot Kit},
+  year         = {2025},
+  eprint       = {2502.03132},
+  archivePrefix= {arXiv},
+  note         = {Short version presented at the IFAC Symposium on Robotics, 2025}
+}
+
+@misc{cai2026humanoidcbf,
+  author       = {Cai, Wenqi and Abanes, John and Evangeliou, Nikolaos and Tzes, Anthony},
+  title        = {Safe human-to-humanoid motion imitation using control barrier functions},
+  year         = {2026},
+  eprint       = {2604.11447},
+  archivePrefix= {arXiv},
+  note         = {arXiv preprint; simulation only}
+}
+
+@article{konighofer2025shields,
+  author  = {K{\"o}nighofer, Bettina and Bloem, Roderick and Jansen, Nils and Junges, Sebastian and Pranger, Stefan},
+  title   = {Shields for safe reinforcement learning},
+  journal = {Communications of the ACM},
+  volume  = {68},
+  number  = {11},
+  pages   = {80--90},
+  year    = {2025},
+  doi     = {10.1145/3715958}
+}
+
+@article{ganai2024hjsurvey,
+  author  = {Ganai, Milan and Gao, Sicun and Herbert, Sylvia},
+  title   = {{Hamilton-Jacobi} reachability in reinforcement learning: A survey},
+  journal = {IEEE Open Journal of Control Systems},
+  volume  = {3},
+  pages   = {310--324},
+  year    = {2024},
+  doi     = {10.1109/OJCSYS.2024.3449138}
+}
+
+@article{wabersich2023datadriven,
+  author  = {Wabersich, Kim P. and Taylor, Andrew J. and Choi, Jason J. and Sreenath, Koushil and Tomlin, Claire J. and Ames, Aaron D. and Zeilinger, Melanie N.},
+  title   = {Data-driven safety filters: {Hamilton-Jacobi} reachability, control barrier functions, and predictive methods for uncertain systems},
+  journal = {IEEE Control Systems Magazine},
+  volume  = {43},
+  number  = {5},
+  pages   = {137--177},
+  year    = {2023},
+  doi     = {10.1109/MCS.2023.3291885}
+}
+
+@article{muratore2022randomized,
+  author  = {Muratore, Fabio and Ramos, Fabio and Turk, Greg and Yu, Wenhao and Gienger, Michael and Peters, Jan},
+  title   = {Robot learning from randomized simulations: A review},
+  journal = {Frontiers in Robotics and AI},
+  volume  = {9},
+  pages   = {799893},
+  year    = {2022},
+  doi     = {10.3389/frobt.2022.799893}
+}
+
+@article{radosavovic2024humanoid,
+  author  = {Radosavovic, Ilija and Xiao, Tete and Zhang, Bike and Darrell, Trevor and Malik, Jitendra and Sreenath, Koushil},
+  title   = {Real-world humanoid locomotion with reinforcement learning},
+  journal = {Science Robotics},
+  volume  = {9},
+  number  = {89},
+  pages   = {eadi9579},
+  year    = {2024},
+  doi     = {10.1126/scirobotics.adi9579}
+}
+
+@article{prudencio2024offlinesurvey,
+  author  = {Prudencio, Rafael Figueiredo and Maximo, Marcos R. O. A. and Colombini, Esther Luna},
+  title   = {A survey on offline reinforcement learning: Taxonomy, review, and open problems},
+  journal = {IEEE Transactions on Neural Networks and Learning Systems},
+  volume  = {35},
+  number  = {8},
+  pages   = {10237--10257},
+  year    = {2024},
+  doi     = {10.1109/TNNLS.2023.3250269}
+}
+
+@inproceedings{xu2022cpq,
+  author    = {Xu, Haoran and Zhan, Xianyuan and Zhu, Xiangyu},
+  title     = {Constraints penalized {Q}-learning for safe offline reinforcement learning},
+  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence},
+  volume    = {36},
+  number    = {8},
+  pages     = {8753--8760},
+  year      = {2022},
+  doi       = {10.1609/aaai.v36i8.20855}
+}
+
+@article{tian2023meshsurvey,
+  author  = {Tian, Yating and Zhang, Hongwen and Liu, Yebin and Wang, Limin},
+  title   = {Recovering {3D} human mesh from monocular images: A survey},
+  journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence},
+  volume  = {45},
+  number  = {12},
+  pages   = {15406--15425},
+  year    = {2023},
+  doi     = {10.1109/TPAMI.2023.3298850}
+}
+
+@inproceedings{shin2024wham,
+  author    = {Shin, Soyong and Kim, Juyong and Halilaj, Eni and Black, Michael J.},
+  title     = {{WHAM}: Reconstructing world-grounded humans with accurate {3D} motion},
+  booktitle = {IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  pages     = {2070--2080},
+  year      = {2024},
+  note      = {arXiv:2312.07531}
+}
+
+@inproceedings{wang2024tram,
+  author    = {Wang, Yufu and Wang, Ziyun and Liu, Lingjie and Daniilidis, Kostas},
+  title     = {{TRAM}: Global trajectory and motion of {3D} humans from in-the-wild videos},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  pages     = {467--487},
+  year      = {2024},
+  note      = {arXiv:2403.17346}
+}
+
+@inproceedings{rudin2022walkminutes,
+  author    = {Rudin, Nikita and Hoeller, David and Reist, Philipp and Hutter, Marco},
+  title     = {Learning to walk in minutes using massively parallel deep reinforcement learning},
+  booktitle = {Proceedings of the 5th Conference on Robot Learning (CoRL 2021)},
+  series    = {PMLR},
+  volume    = {164},
+  pages     = {91--100},
+  year      = {2022},
+  note      = {arXiv:2109.11978}
+}
+
+@inproceedings{zhuang2024parkour,
+  author    = {Zhuang, Ziwen and Yao, Shenzhe and Zhao, Hang},
+  title     = {Humanoid parkour learning},
+  booktitle = {Proceedings of the 8th Conference on Robot Learning (CoRL)},
+  year      = {2024},
+  note      = {arXiv:2406.10759}
+}
+
+@article{acosta2022simvalidation,
+  author  = {Acosta, Brian and Yang, William and Posa, Michael},
+  title   = {Validating robotics simulators on real-world impacts},
+  journal = {IEEE Robotics and Automation Letters},
+  volume  = {7},
+  number  = {3},
+  pages   = {6471--6478},
+  year    = {2022},
+  doi     = {10.1109/LRA.2022.3174367}
+}
+
+@article{schlotzhauer2022pfl,
+  author  = {Schlotzhauer, Andreas and Stotz, Til and Awad, Ramez and Kraus, Werner},
+  title   = {Virtual validation of power and force limiting setups in human-robot-collaboration},
+  journal = {Procedia CIRP},
+  volume  = {107},
+  pages   = {845--850},
+  year    = {2022},
+  doi     = {10.1016/j.procir.2022.05.073}
+}
+
+@article{joseph2026mujoco,
+  author  = {Joseph, Ronald and Dutta, Ashish},
+  title   = {Contact force estimation for a single leg test setup with compliance in {MuJoCo}},
+  journal = {Proceedings of the Institution of Mechanical Engineers, Part C: Journal of Mechanical Engineering Science},
+  volume  = {240},
+  number  = {5},
+  pages   = {1569--1588},
+  year    = {2026},
+  doi     = {10.1177/09544062251407012}
+}
+
+@article{yang2023wcsacjournal,
+  author  = {Yang, Qisong and Sim{\~a}o, Thiago D. and Tindemans, Simon H. and Spaan, Matthijs T. J.},
+  title   = {Safety-constrained reinforcement learning with a distributional safety critic},
+  journal = {Machine Learning},
+  volume  = {112},
+  number  = {3},
+  pages   = {859--887},
+  year    = {2023},
+  doi     = {10.1007/s10994-022-06187-8}
+}
+
+@article{kim2022offtrc,
+  author  = {Kim, Dohyeong and Oh, Songhwai},
+  title   = {Efficient off-policy safe reinforcement learning using trust region conditional value at risk},
+  journal = {IEEE Robotics and Automation Letters},
+  volume  = {7},
+  number  = {3},
+  pages   = {7644--7651},
+  year    = {2022},
+  doi     = {10.1109/LRA.2022.3184793}
+}
+
+@inproceedings{kim2023sdac,
+  author    = {Kim, Dohyeong and Lee, Kyungjae and Oh, Songhwai},
+  title     = {Trust region-based safe distributional reinforcement learning for multiple constraints},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2023},
+  note      = {arXiv:2301.10923}
+}
+
+@inproceedings{kim2024srcpo,
+  author    = {Kim, Dohyeong and Cho, Taehyun and Han, Seungyub and Chung, Hojun and Lee, Kyungjae and Oh, Songhwai},
+  title     = {Spectral-risk safe reinforcement learning with convergence guarantees},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  year      = {2024},
+  note      = {arXiv:2405.18698}
+}
+
+@inproceedings{robey2025jailbreaking,
+  author    = {Robey, Alexander and Ravichandran, Zachary and Kumar, Vijay and Hassani, Hamed and Pappas, George J.},
+  title     = {Jailbreaking {LLM}-controlled robots},
+  booktitle = {IEEE International Conference on Robotics and Automation (ICRA)},
+  pages     = {11948--11956},
+  year      = {2025},
+  doi       = {10.1109/ICRA55743.2025.11128119}
+}
+
+@article{hundt2025llmrobots,
+  author  = {Hundt, Andrew and Azeem, Rumaisa and Mansouri, Masoumeh and Brand{\~a}o, Martim},
+  title   = {{LLM}-driven robots risk enacting discrimination, violence, and unlawful actions},
+  journal = {International Journal of Social Robotics},
+  volume  = {17},
+  number  = {11},
+  pages   = {2663--2711},
+  year    = {2025},
+  doi     = {10.1007/s12369-025-01301-x}
 }

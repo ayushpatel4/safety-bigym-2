@@ -257,12 +257,12 @@ and verified in closed form. A 76-degree-of-freedom manipulation policy
 learned from demonstrations satisfies neither assumption: it shares the
 workspace by design, operates in the volume a person reaches into, and
 is a neural policy rather than a hand-derived controller. Safety for
-this class of system is therefore a greenfield problem, and closing it
-is what this project targets.
+this class of system is therefore largely a greenfield problem, and
+closing it is what this project targets.
 
 In particular, the policies these platforms run are largely
 \emph{unaware} of the standard that governs their safety. \iso{}~\cite{iso15066}, now
-integrated into ISO 10218:2025~\cite{iso10218}, defines the two
+integrated into ISO 10218:2025~\cite{iso10218,hartmann2026iso}, defines the two
 normative collaboration mechanisms: Speed and Separation Monitoring
 (\ssm{}), which prescribes a velocity-dependent geometric bound on
 how close the robot may come to a human; and Power and Force
@@ -277,22 +277,38 @@ task-completing trajectory from one that endangers a nearby person.
 Three independent observations frame the problem:
 
 \begin{enumerate}[topsep=2pt,itemsep=2pt]
-\item \emph{Commercial humanoid platforms are not certified
-  collaborative.} The Unitree G1, the most widely deployed humanoid
-  research platform in 2026, is explicitly \emph{not} ISO-certified
-  as a collaborative robot~\cite{unitree_g1}. The H1 likewise
-  requires a safety cage during ``lively testing''. The deployment
-  is happening but the certification is not.
+\item \emph{Commercial humanoid platforms are not validated for
+  collaborative operation.} Under ISO 10218:2025, collaboration is a
+  property of the validated application, not of the
+  robot~\cite{hartmann2026iso}, and no commercial humanoid had been
+  validated for such an application by mid-2026. The Unitree G1, the
+  most widely deployed humanoid research platform in 2026, ships
+  with no collaborative-operation validation~\cite{unitree_g1}, and
+  the H1 requires a safety cage during ``lively testing''.
+  Standards-landscape reviews reach the same verdict: safety
+  standards lag humanoid deployment~\cite{koczi2025humanoidsafety},
+  and the current framework ``is not designed for''
+  humanoids~\cite{ieee2025pathway}. The deployment is happening but
+  the validation is not.\footnote{The nearest milestone to date is
+  machinery-directive conformity, not collaborative-operation
+  validation: AiMOGA announced CE certification of its Mornine
+  humanoid via T\"UV Rheinland in September 2025 (company claim).}
 \item \emph{Robot learning's safety record remains thin at deployment.}
-  Bharadhwaj~\cite{auditing2021} argues that safety and compliance
-  have not received proportional attention in robot-learning
-  evaluation. Brunke et al.~\cite{brunke2022safelearning} and the
-  newer safe-RL survey of Wachi et al.~\cite{wachi2024constraint}
-  show an active field of constrained and safety-filtered learning, but
-  the representative benchmarks remain low-dimensional, abstract-cost,
-  or separate from manipulation with a live human coworker
+  Bharadhwaj~\cite{auditing2021} argued in 2021 that safety and
+  compliance receive too little attention in robot-learning
+  evaluation, and the audits that have since emerged bear this out:
+  jailbreaks have elicited harmful physical actions from a deployed
+  commercial robot~\cite{robey2025jailbreaking}, and every
+  LLM-driven robot model in a recent evaluation failed basic safety
+  criteria~\cite{hundt2025llmrobots}. Brunke et
+  al.~\cite{brunke2022safelearning} and the newer safe-RL survey of
+  Wachi et al.~\cite{wachi2024constraint} show an active field of
+  constrained and safety-filtered learning, but its representative
+  benchmarks remain low-dimensional or abstract-cost
   (e.g.\ Safety-Gymnasium~\cite{ji2023safetygymnasium} and
-  safe-control-gym~\cite{yuan2022safecontrolgym}).
+  safe-control-gym~\cite{yuan2022safecontrolgym}), and the nearest
+  human-co-located exception pairs 6--7-DoF arms with a replayed
+  human under an always-active shield~\cite{thumm2024humanrobotgym}.
 \item \emph{Concurrent humanoid work confirms the runtime-filter need,
   but not this task class.} SHIELD~\cite{shield2025}, demonstrated on
   a Unitree G1, adds a probabilistic CBF safety layer on top of a
@@ -317,9 +333,11 @@ comes from motion capture or simulator ground truth.
 The gap between training-time motion-capture precision and
 deployment-time on-robot perception ($\sim$\,centimetres of
 positional error, with occasional dropouts under occlusion) is where
-many real safety incidents will originate, and is the deployment
-challenge most safe-RL benchmarks~\cite{ray2019safetygym,
-ji2023safetygymnasium,yuan2022safecontrolgym} do not model at all.
+many real safety incidents will originate, and is a deployment
+challenge safe-RL benchmarks rarely model. Most expose ground-truth
+state~\cite{ray2019safetygym,ji2023safetygymnasium,yuan2022safecontrolgym},
+and the one that perturbs human-state measurements does so with
+uncalibrated noise~\cite{thumm2024humanrobotgym}.
 
 \subsection{What This Project Targets}
 \label{sec:intro:mot:targets}
@@ -345,7 +363,11 @@ human-co-located humanoid manipulation:
   but still uses abstract cost budgets. safe-control-gym~\cite{yuan2022safecontrolgym} targets
   low-DOF control. \bigym{}~\cite{chernyadev2024bigym} and
   HumanoidBench~\cite{sferrazza2024humanoidbench} target manipulation
-  and locomotion but include no human coworker. We extend
+  and locomotion but include no human coworker. Human-Robot
+  Gym~\cite{thumm2024humanrobotgym} comes closest, pairing 6--7-DoF
+  arms with a motion-capture human under a provably safe shield, but
+  it exposes no \iso{}-derived cost signal to the learner and no
+  humanoid embodiment. We extend
   \bigym{} with a Unitree G1 humanoid as a sustained human-coworker
   stand-in and surface continuous \iso{}-derived signals.
 \item \textbf{No published work characterises \emph{when} each
@@ -356,10 +378,13 @@ human-co-located humanoid manipulation:
   filtering (shielding~\cite{alshiekh2018shielding},
   CBFs~\cite{ames2019cbf,shield2025}, learned safety
   filters~\cite{srinivasan2020learning,thananjeyan2021recovery}).
-  Each family reports settings where it works, but neither offers a rule
-  for which mechanism to reach for in a given human-robot
-  collaboration setting, or a variable that predicts when a runtime
-  filter will preserve task throughput and when it will destroy it.
+  Cross-family comparisons exist on low-DOF tasks without
+  humans~\cite{yuan2022safecontrolgym} and, closest to this setting,
+  on a single 6-DoF reaching task beside a replayed
+  human~\cite{thumm2023interventions}. None yields a rule for which
+  mechanism to reach for in a given human-robot collaboration
+  setting, or a variable that predicts when a runtime filter will
+  preserve task throughput and when it will destroy it.
   We study both families together on one benchmark and derive exactly
   such a rule: a \emph{regime map} keyed on the human--robot
   co-location pattern.
@@ -569,7 +594,7 @@ as appendices.
 \label{sec:bg:iso}
 
 \iso{}~\cite{iso15066}, recently integrated into ISO
-10218:2025~\cite{iso10218}, is the international standard governing
+10218:2025~\cite{iso10218,hartmann2026iso}, is the international standard governing
 contact safety in collaborative robotics. It defines two normative
 mechanisms relevant to autonomous manipulation.
 
@@ -609,11 +634,14 @@ uncertainty figures.
 \pfl{} caps inadvertent contact forces against per-body-region
 biomechanical thresholds. Annex~A of the standard tabulates
 quasi-static and transient force limits per body region
-(forehead, chest, abdomen, upper arm, forearm, hand, etc.).
+(forehead, chest, abdomen, upper arm, forearm, hand, etc.), carried
+forward into ISO 10218-2:2025 as Annex~M with the \pfl{} requirement
+now normative~\cite{hartmann2026iso}.
 \cite{svarny2020collision} measures these forces experimentally on
 UR10e and KUKA LBR iiwa arms and finds they vary by more than
-$100\,\%$ within the workspace, a finding that motivates the
-force-ratio formulation
+$100\,\%$ within the workspace, a finding confirmed at journal scale
+by the same group's 2{,}250-collision campaign~\cite{svarny2022softskins}
+and one that motivates the force-ratio formulation
 \begin{equation}
   f^{\mathrm{ratio}}_t \;=\; F^{\mathrm{contact}}_t /
                               F^{\mathrm{limit}}_t
@@ -622,7 +650,10 @@ force-ratio formulation
 adopted in Equation~\ref{eq:c-pfl} of the cost signal.
 $f^{\mathrm{ratio}}_t \ge 1.0$ constitutes a \pfl{} violation; the
 anticipatory cost activates at $f^{\mathrm{ratio}}_t > 0.8$, giving
-the policy headroom to react.
+the policy headroom to react. The laboratory behind the unified
+\ssm{}/\pfl{} treatment has since carried the combined pre- and
+post-contact scheme onto a humanoid upper
+body~\cite{rozlivek2025harmonious}.
 
 \subsection{Why \iso{} Is Hard to Target with Generic Safe-RL}
 \label{sec:bg:iso:hard}
@@ -630,7 +661,8 @@ the policy headroom to react.
 Generic safe-RL formulations target a single CMDP cost budget
 $\mathbb{E}_{\pi}[\sum_t c_t] \le d$ on a per-step cost
 \emph{usually treated as a binary indicator}~\cite{ray2019safetygym,
-achiam2017cpo,stooke2020pid}. \iso{} compliance, by contrast, is
+achiam2017cpo,stooke2020pid,he2023autocost,ji2023safetygymnasium}.
+\iso{} compliance, by contrast, is
 both \emph{geometric} (the required separation depends on
 instantaneous velocity) and \emph{distributional} (the standard's
 intent is a worst-case bound on \emph{every} step, not an
@@ -727,8 +759,12 @@ harder variants of a task so that an agent can bootstrap competence
 it could not acquire by training on the hardest setting from
 scratch~\cite{narvekar2020curriculum}. The technique is standard in
 high-dimensional robotics: OpenAI's dexterous-manipulation
-work~\cite{openai2019solving} uses an automatic difficulty
-curriculum to make an otherwise-intractable problem learnable. In
+work~\cite{openai2019solving} used an automatic difficulty
+curriculum to make an otherwise-intractable problem learnable,
+massively parallel legged-robot training rests on a game-inspired
+terrain curriculum~\cite{rudin2022walkminutes}, and current Unitree
+H1 pipelines adjust terrain difficulty on
+success~\cite{zhuang2024parkour}. In
 our setting the difficulty axis is the coworker's intrusiveness:
 direct training of the \cqnas{} backbone on the full
 \coworker{} disruption distribution fails to discover the
@@ -780,8 +816,9 @@ coherent risk measure, typically the Conditional Value at Risk:
   \label{eq:cvar-def}
 \end{equation}
 the expected cost conditional on being in the worst $1-\alpha$
-fraction of outcomes. WCSAC~\cite{yang2021wcsac} parametrises the
-cost return as Gaussian and minimises $\cvar_{\alpha}$ directly;
+fraction of outcomes. WCSAC~\cite{yang2021wcsac,yang2023wcsacjournal}
+parametrises the cost return as Gaussian and minimises
+$\cvar_{\alpha}$ directly;
 quantile critics~\cite{dabney2018qrdqn} are a non-parametric
 alternative. This work adopts \cvar{} \emph{as the evaluation
 metric} (Section~\ref{sec:setup:metrics:tail}), reports \cvar{} for
@@ -794,7 +831,8 @@ the mean-cost-optimised policy as a diagnostic
 \label{sec:bg:safe:recovery}
 
 The runtime-override family has a formal-methods anchor in
-\emph{shielding}~\cite{alshiekh2018shielding}, which synthesises a
+\emph{shielding}~\cite{alshiekh2018shielding,konighofer2025shields},
+which synthesises a
 reactive monitor that overrides any action violating a temporal-logic
 safety specification. Learned variants replace the synthesised shield
 with a value function: Recovery~RL~\cite{thananjeyan2021recovery}
@@ -814,11 +852,14 @@ graded speed reduction does not.
 \section{Safety Filters and Control Barrier Functions on Humanoids}
 \label{sec:bg:cbf}
 
-Hamilton-Jacobi reachability~\cite{bansal2017hamilton} gives the
-theoretical foundation for safety value functions. Practical
-implementations are either hand-engineered Control Barrier Functions
-(CBFs)~\cite{ames2019cbf} or learned safety value
-functions~\cite{srinivasan2020learning,thananjeyan2021recovery}.
+Hamilton-Jacobi reachability~\cite{bansal2017hamilton,ganai2024hjsurvey}
+gives the theoretical foundation for safety value functions.
+Practical implementations span hand-engineered Control Barrier
+Functions (CBFs)~\cite{ames2019cbf}, predictive
+filters~\cite{wabersich2023datadriven}, and learned safety value
+functions~\cite{srinivasan2020learning,thananjeyan2021recovery}, a
+spectrum unified under a single safety-filter view by Hsu et
+al.~\cite{hsu2024safetyfilter}.
 Recent CBF-RL hybrids~\cite{cbfrl2024} apply CBF-style filtering
 during RL training so the deployed policy needs no filter.
 SHIELD~\cite{shield2025}, demonstrated on a Unitree G1, applies a
@@ -829,16 +870,28 @@ Our Phase~2 safety filter (Section~\ref{sec:method:filter}) is in
 this learned-value-function family but is trained offline with
 \textsc{CQL}~\cite{kumar2020cql} rather than via online HJ
 reachability iteration. The trade-off is explicitness versus
-data efficiency: HJ methods provide tighter formal guarantees;
-\textsc{CQL}-trained filters scale to higher-DOF observation spaces
-without solving a constrained optimisation at every step.
-Constructing and solving a CBF quadratic program over every
-human-link / robot-link pair at the control rate is substantially
-more expensive on a 76-DOF humanoid than a single forward pass of a
-learned value function, and scaling a hand-engineered CBF-QP to an
-embodiment of this dimensionality is itself an open research
-problem. This practical consideration, alongside the data-efficiency
-argument above, is why we adopt the learned-value-function path.
+data efficiency: HJ and CBF methods provide tighter formal
+guarantees, while \textsc{CQL}-trained filters scale to higher-DOF
+observation spaces without solving a constrained optimisation at
+every step. Solver cost alone no longer rules out CBF-QPs at
+moderate scale. A whole-body CBF-QP with 15 collision pairs solves
+in $\sim$0.2\,ms on a 24-DOF humanoid in
+simulation~\cite{khazoom2022selfcollision}, and operational-space
+formulations sustain hundreds of constraints at kilohertz rates on a
+7-DOF arm~\cite{morton2025oscbf}. The combination posed here remains
+undemonstrated, however. Hardware humanoid filters to date restrict
+themselves to reduced-order models with a single
+constraint~\cite{bena2025poisson,shield2025} or to safe-set control
+of an upper-body subspace~\cite{sun2025spark}, and the most direct
+attempt at human-link $\times$ robot-link CBF filtering on a
+humanoid is simulation-only, commands an 8-DoF upper-body subspace,
+and solves its 72 capsule constraints at $\sim$33\,Hz on a
+GPU~\cite{cai2026humanoidcbf}, below this benchmark's control rate
+and before certified barrier synthesis under exogenous human motion
+is even addressed. A learned value function reduces the runtime
+decision to one forward pass at any embodiment dimension. This
+practical consideration, alongside the data-efficiency argument
+above, is why we adopt the learned-value-function path.
 
 \subsection{Filter Conservatism and the Freeze-versus-Flee Limit}
 \label{sec:bg:cbf:conservatism}
@@ -888,26 +941,36 @@ crowds~\cite{dontfreeze2026}.
 
 What the literature does \emph{not} provide, on either side, is a
 characterisation of \emph{when} each mechanism helps. The
-constrained-RL line reports tasks where a cost budget is feasible;
-the shielding and filtering line reports settings where interventions
-are rare enough to be cheap; neither names the variable that
-separates its successes from its failures, and no work tests both
-families on the same human-co-located manipulation benchmark. These
-results frame the central empirical question of
-Chapter~\ref{ch:eval}: not only \emph{whether} a reactive filter can
-add safety at acceptable task cost against an approaching coworker,
-but \emph{under what observable conditions}, a question which, to our
-knowledge, no prior work has answered for a high-DOF manipulator
-under \iso{}. The regime map of Section~\ref{sec:results:boundary} is
-this report's answer.
+constrained-RL line reports tasks where a cost budget is feasible,
+and the shielding and filtering line reports settings where
+interventions are rare enough to be cheap. The nearest cross-family
+evidence is a single 6-DoF reaching task beside a replayed human, on
+which Thumm et al.~\cite{thumm2023interventions} found a
+PID-Lagrangian agent ``unable to learn a suitable policy'' while
+their always-on shield held violations at zero, an observation the
+intermittent-regime results here reproduce independently at 76 DOF
+(Section~\ref{sec:results:wcsac}). Within the filter family,
+Krasowski et al.~\cite{krasowski2023provablysafe} offer guidance on
+choosing an intervention type, but no work selects between the
+families, names the variable that separates their successes from
+their failures, or tests both across co-location regimes on a
+high-DOF manipulator under \iso{}. These results frame the central
+empirical question of Chapter~\ref{ch:eval}: not only \emph{whether}
+a reactive filter can add safety at acceptable task cost against an
+approaching coworker, but \emph{under what observable conditions}.
+The regime map of Section~\ref{sec:results:boundary} is this
+report's answer.
 
 \section{Conservative Q-Learning}
 \label{sec:bg:cql}
 
-\textsc{CQL}~\cite{kumar2020cql} is the standard pessimistic
-offline-RL method. The regulariser pushes down Q-values for
-out-of-distribution actions, preventing a safety filter from
-falsely certifying unseen actions as safe. A bounded-output network
+\textsc{CQL}~\cite{kumar2020cql} is a standard pessimistic
+offline-RL method~\cite{prudencio2024offlinesurvey}. The regulariser
+pushes down Q-values for out-of-distribution actions, preventing a
+safety filter from falsely certifying unseen actions as safe.
+Applying the same pessimism to a cost critic is established practice
+in safe offline RL~\cite{xu2022cpq}, and the safety critic here
+follows that pattern. A bounded-output network
 (scaled sigmoid to $[0, 1/(1-\gamma)]$) provides additional
 protection against overestimation. See
 Section~\ref{sec:method:filter} for the full safety-critic
@@ -920,7 +983,8 @@ treatment.
 \label{sec:bg:sim2real:dyn-perc}
 
 Most sim-to-real literature focuses on the \emph{dynamics
-gap}~\cite{tobin2017domainrand,zhao2020sim2real}, that is, the
+gap}~\cite{tobin2017domainrand,zhao2020sim2real,muratore2022randomized},
+that is, the
 mismatch between simulated and real-world physics: contact and
 friction modelling, actuator response, mass and inertia estimates,
 and control latency. The deployment
@@ -945,7 +1009,10 @@ occlusion. The mock-\bodyslampp{} noise model
 published characteristics: Ornstein-Uhlenbeck temporally correlated
 position noise, a 3-step latency buffer matching the 15\,Hz
 perception clock, and stochastic dropout matching reported tracking
-failures.
+failures. Newer world-grounded estimators
+(WHAM~\cite{shin2024wham}, TRAM~\cite{wang2024tram}) are more
+accurate but run offline on GPUs, so the noise model stays
+calibrated to the on-robot CPU estimator.
 
 \section{Benchmark Landscape}
 \label{sec:bg:bench}
@@ -954,10 +1021,10 @@ failures.
 \centering
 \caption{Existing benchmarks in robot learning and safe RL,
 positioned against the needs of evaluating \iso{}-compliant
-humanoid manipulation under sustained co-working. \sbigym{} fills
-the (high-DOF) $\times$ (live human) $\times$ (\iso{} signals)
-$\times$ (perception noise) intersection that no prior benchmark
-covers.}
+humanoid manipulation under sustained co-working. No prior
+benchmark combines all five axes. Human-Robot Gym comes closest but
+enforces \ssm{}/\pfl{} through an always-active shield on 6--7-DoF
+arms, rather than exposing graded cost signals to the learner.}
 \label{tab:bench-landscape}
 \small
 \resizebox{\textwidth}{!}{%
@@ -968,25 +1035,37 @@ Benchmark & High-DOF & Live human & \iso{} signals & Perception noise & Sustaine
 Safety-Gym~\cite{ray2019safetygym}             & \xmark & static obstacles & \xmark & \xmark & \xmark \\
 Safety-Gymnasium~\cite{ji2023safetygymnasium}  & \xmark & static obstacles & \xmark & \xmark & \xmark \\
 safe-control-gym~\cite{yuan2022safecontrolgym} & \xmark & \xmark           & \xmark & \xmark & \xmark \\
+Safety-CHORES~\cite{zhang2025safevla}          & \xmark & \xmark           & \xmark & \cmark (egocentric) & \xmark \\
 RLBench~\cite{james2020rlbench}                & \xmark & \xmark           & \xmark & \xmark & \xmark \\
 \bigym{}~\cite{chernyadev2024bigym}            & \cmark & \xmark           & \xmark & \xmark & \xmark \\
 HumanoidBench~\cite{sferrazza2024humanoidbench}& \cmark & \xmark           & \xmark & \xmark & \xmark \\
+Assistive Gym~\cite{erickson2020assistivegym}  & \xmark & \cmark (seated)  & \xmark & \xmark & \cmark \\
+RCareWorld~\cite{ye2022rcareworld}             & \xmark & \cmark (care)    & \xmark & \xmark & \cmark \\
+Habitat 3.0~\cite{puig2024habitat3}            & \xmark & \cmark (kinematic) & \xmark & \xmark & partial \\
+Human-Robot Gym~\cite{thumm2024humanrobotgym}  & \xmark & \cmark (mocap)   & shield & \cmark (optional) & \cmark \\
 \textbf{\sbigym{} (this work)} & \cmark & \cmark (G1) & \cmark & \cmark & \cmark \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
-The landscape splits along two axes: \textbf{safety-axis}
+The landscape splits along three axes. \textbf{Safety-axis}
 benchmarks (Safety-Gym~\cite{ray2019safetygym},
 Safety-Gymnasium~\cite{ji2023safetygymnasium},
-safe-control-gym~\cite{yuan2022safecontrolgym}) expose generic cost
-budgets on low-dimensional embodiments without humans;
-\textbf{manipulation-axis} benchmarks
+safe-control-gym~\cite{yuan2022safecontrolgym}, and most recently
+Safety-CHORES~\cite{zhang2025safevla}) expose cost budgets without
+human coworkers. \textbf{Manipulation-axis} benchmarks
 (RLBench~\cite{james2020rlbench}, \bigym{}~\cite{chernyadev2024bigym},
 HumanoidBench~\cite{sferrazza2024humanoidbench}) expose realistic
-tasks without safety constraints or co-located humans. No existing
-benchmark covers the intersection.
+tasks without safety constraints. \textbf{Human-axis} benchmarks
+place a simulated person beside the robot, from assistive care
+(Assistive Gym~\cite{erickson2020assistivegym},
+RCareWorld~\cite{ye2022rcareworld}) to social navigation
+(Habitat~3.0~\cite{puig2024habitat3}), and Human-Robot
+Gym~\cite{thumm2024humanrobotgym} adds an ISO-grounded shield with
+optional measurement noise on 6--7-DoF arms. None exposes
+\iso{}-derived continuous cost signals on a high-DOF humanoid, and
+the intersection this work targets remains uncovered.
 
 \section{Positioning of This Work}
 \label{sec:bg:positioning}
@@ -1121,7 +1200,7 @@ We adopt \bigym{}'s 76-DOF Unitree~H1 humanoid as the manipulating
 robot, with the \textbf{bi-manual} action mode ($\mathcal{A}_{\mathrm{bm}}
 \in \mathbb{R}^{16}$, with a 4-DOF floating base). Whole-body
 locomotion adds a substantial learning challenge orthogonal to the
-safety question this project targets; bi-manual mode isolates the
+safety question this project targets. Bi-manual mode isolates the
 manipulation-near-human problem and is the mode \bigym{}'s authors
 themselves benchmark on. The proprioceptive observation is
 $s_{\mathrm{proprio}}^{\mathrm{bm}} \in \mathbb{R}^{64}$.
@@ -1144,8 +1223,9 @@ MuJoCo contact and dynamics model as the robot, so separations and
 contact forces are computed consistently for both bodies.
 
 \paragraph{(ii) The safety-relevant properties are biomechanical, not specifically human.}
-SMPL-H~\cite{romero2017smplh} and similar parametric models are the
-standard for human-pose research, but the quantities driving an
+SMPL-H~\cite{romero2017smplh} and similar parametric models remain
+the standard for human-pose research~\cite{tian2023meshsurvey}, but
+the quantities driving an
 \iso{}~\ssm{}/\pfl{} assessment (velocity, geometric extent, contact
 response) are functions of mass and articulated degrees of freedom,
 not of human appearance. The limits are applied to the stand-in
@@ -1177,8 +1257,7 @@ embodiments are supplementary
   to the safety wrapper at the control timestep.
 \item \textbf{Cross-paired collision channels.}
   The collision-channel scheme was redesigned so that the G1
-  coworker emits contact on MuJoCo channel bit 1 and accepts bit 2;
-  the manipulating H1 and the static scene emit bit 2 and accept
+  coworker emits contact on MuJoCo channel bit 1 and accepts bit 2. The manipulating H1 and the static scene emit bit 2 and accept
   bit 1. This eliminates G1-self-collision between adjacent body
   segments (originally producing $\sim$220\,kN spurious forces and
   crashing the simulator within $\sim$1\,s) and G1--scene
@@ -1194,8 +1273,7 @@ embodiments are supplementary
 \section{The \cqnas{} Adapter Layer}
 \label{sec:bench:adapter}
 
-\bigym{} exposes a Gym-style \texttt{step}/\texttt{reset} API;
-\cqnas{}~\cite{seo2024cqnas} consumes a \texttt{dm\_env}-style
+\bigym{} exposes a Gym-style \texttt{step}/\texttt{reset} API. \cqnas{}~\cite{seo2024cqnas} consumes a \texttt{dm\_env}-style
 \texttt{ExtendedTimeStep} API. The adapter bridges these and carries
 per-key frame-stack deques, a bidirectional action normaliser for
 \cqnas{}'s discrete bin centres, and a safety-payload extractor that
@@ -2066,8 +2144,8 @@ Section~\ref{sec:results:boundary}.
 
 To position the value-based Lagrangian against the published safe-RL
 state of the art rather than only against our own ablations, we
-faithfully reimplement WCSAC~\cite{yang2021wcsac}, the canonical
-distributional safe actor-critic, on the same 76-DOF tasks
+faithfully reimplement WCSAC~\cite{yang2021wcsac,yang2023wcsacjournal},
+the canonical distributional safe actor-critic, on the same 76-DOF tasks
 (\texttt{agent=wcsac} on the same training stack). WCSAC maintains a
 Gaussian distributional cost critic and constrains
 $\cvar_{\alpha}$ of the discounted cost return ($\alpha = 0.9$) to a
@@ -4595,8 +4673,8 @@ Section~\ref{sec:method:curriculum}. Direct training on the full
 \coworker{} disruption collapses to evacuation; every headline
 result generalises only to settings where a comparable staged
 curriculum is feasible. This is not a fatal limit (curriculum
-learning is the standard solution to long-horizon sparse-reward
-RL~\cite{narvekar2020curriculum,openai2019solving}), but it
+learning is a standard solution to long-horizon sparse-reward
+RL~\cite{narvekar2020curriculum,openai2019solving,rudin2022walkminutes}), but it
 should temper any reading of the architecture as ``trainable from
 scratch on arbitrary human-co-located tasks.''
 
@@ -4608,13 +4686,24 @@ against published characteristics~\cite{henning2023bodyslampp} but
 is not real perception; a rendered-image run feeding a real
 estimator is the natural closure
 (Section~\ref{sec:fw:realbody}). \textbf{Dynamics:} MuJoCo's H1
-differs from the real platform in unmeasured ways; domain
-randomisation~\cite{tobin2017domainrand,zhao2020sim2real} is the
-standard follow-up, and the gap must be acknowledged before any
-real-world claim. \textbf{Contact fidelity:}
-MuJoCo~\cite{todorov2012mujoco} forces are not safety-validated
-against real collision measurements~\cite{svarny2020collision},
-even once the \pfl{} detection limitation is resolved.
+differs from the real platform in unmeasured ways. Domain
+randomisation~\cite{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
+is the standard follow-up and remains the deployed recipe for
+real-world humanoid RL~\cite{radosavovic2024humanoid}, and the gap
+must be acknowledged before any real-world claim. \textbf{Contact
+fidelity:} we found no validation of any rigid-body engine's contact
+forces against measured human--robot collision forces.
+Simulator validation on real impacts is trajectory-level only and
+finds MuJoCo~\cite{todorov2012mujoco} nearly insensitive to its
+contact-stiffness parameter~\cite{acosta2022simvalidation},
+force-level MuJoCo validation exists only outside
+HRC~\cite{joseph2026mujoco}, and industrial \pfl{} validation relies
+on physical biofidelic measurement precisely because simulating
+constrained contacts is considered
+unreliable~\cite{schlotzhauer2022pfl,svarny2020collision}. The
+benchmark's contact forces are therefore safety-shaped rather than
+safety-validated, even once the \pfl{} detection limitation is
+resolved.
 
 \subsection{The Runtime Filter's Role Is Axis- and Regime-Conditional}
 \label{sec:disc:filter-role}
@@ -4909,7 +4998,12 @@ Lift the mean-cost B-value-mean to an explicit distributional cost
 critic (Section~\ref{sec:method:lagrangian:Bcvar}): Gaussian
 parametrisation (WCSAC-style~\cite{yang2021wcsac}; cheap, assumes
 unimodality) or quantile head (QR-DQN-style~\cite{dabney2018qrdqn};
-distribution-free, more data-hungry). The cost critic is already
+distribution-free, more data-hungry). Ready instruments exist:
+off-policy trust-region CVaR constraints~\cite{kim2022offtrc} fit
+this replay-based critic-only pipeline most directly, with
+distributional multi-constraint and spectral-risk
+methods~\cite{kim2023sdac,kim2024srcpo} as on-policy alternatives.
+The cost critic is already
 C51-shaped, so a parallel cost head slots in cleanly, subject to the
 support invariant of Proposition~\ref{lem:support-bound} holding for
 the cost distribution. The motivating scenario is a cost
@@ -4926,7 +5020,7 @@ exogenous and no risk measure can move it
 Our geometric dodge and speed-scaling filters demonstrate
 velocity-axis behaviour empirically but certify nothing. A CBF-QP
 with a certified barrier or an HJ-reachability
-filter~\cite{bansal2017hamilton} would add provable
+filter~\cite{bansal2017hamilton,hsu2024safetyfilter} would add provable
 separation/velocity guarantees; the concrete obstacles are a
 control-affine dynamics model under \emph{exogenous} human motion
 and the curse of dimensionality at 76 DOF, and the well-posed target
@@ -4936,8 +5030,8 @@ Section~\ref{sec:bg:cbf:conservatism}, combines confidence-aware
 fallback~\cite{tian2022confidence} with this report's override
 finding: an \emph{anticipatory filter whose conservative fallback is
 graded slow-down rather than freeze}, trusting a human-motion model
-only under online misspecification monitoring. No published work
-measures that combination. Two smaller items complete this thread:
+only under online misspecification monitoring. We found no published
+work that measures that combination. Two smaller items complete this thread:
 a proportional-damping fallback to replace zero-velocity braking
 where a veto is unavoidable, and the implemented-but-unrun
 filter-during-training ablation
@@ -5000,7 +5094,8 @@ Under
 constrained RL finds no feasible budget. When its multiplier binds,
 the robot gets \emph{faster}, not safer; the from-scratch
 WCSAC~\cite{yang2021wcsac} reference corroborates the trainability
-difficulty. A binary veto breaks chunked-policy coherence (max velocity
+difficulty, as does the PID-Lagrangian failure reported beside a
+simulated human at 6 DoF~\cite{thumm2023interventions}. A binary veto breaks chunked-policy coherence (max velocity
 $2.46 \to 6.03$\,m/s), and the working mechanism is a learned critic
 \emph{gating} an \iso{} speed-scaling backstop: $-50\,\%$
 \ssm{}-violation at $-0.10$ success on dishwasher, $-22\,\%$ at
@@ -5014,8 +5109,9 @@ controllable; the single closest approach is not.
 
 \noindent
 As humanoid platforms move from research labs into commercial
-deployment (and the Unitree G1's deployment without ISO
-certification~\cite{unitree_g1} is a representative data point),
+deployment (and the Unitree G1's deployment without
+collaborative-operation validation~\cite{unitree_g1,hartmann2026iso}
+is a representative data point),
 principled methods for safety under imperfect perception and
 sustained human co-presence are urgently needed. The most useful
 output of this work is a decision rule where the field had only a
@@ -5221,7 +5317,9 @@ rejected by the ablations of
 Section~\ref{sec:results:r2-ablations}.
 
 \paragraph{WCSAC external baseline.}
-Faithful reimplementation of~\cite{yang2021wcsac}: Gaussian
+Faithful reimplementation of~\cite{yang2021wcsac} (the Gaussian
+variant; the journal extension adds a quantile-regression
+critic~\cite{yang2023wcsacjournal}): Gaussian
 distributional cost critic, $\cvar{}_{\alpha}$ constraint with
 $\alpha = 0.9$, budgets $d \in \{5, 15, 30\}$ on the discounted cost
 return, adaptive multiplier ($\lambda_{\max} = 100$); trained from

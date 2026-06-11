@@ -2,8 +2,9 @@
 
 Reframing per `docs/report_reframing_plan.md` (2026-06-10), targeting the
 markscheme in `report guide/`. Backups: `main_v12_backup.tex`,
-`references_v12_backup.bib`. Final state: **83 PDF pages, 59 content pages
-(chapters 1–8, printed pp. 11–69) — within the 60-page limit**; clean
+`references_v12_backup.bib`. Final state after the 2026-06-11 reference
+modernisation (see last section): **87 PDF pages, 60 content pages
+(chapters 1–8, printed pp. 11–70) — at the 60-page limit, not over**; clean
 pdflatex+bibtex build, zero undefined references/citations, zero bibtex
 warnings, every figure/table referenced in text, no draft markers.
 
@@ -400,3 +401,95 @@ mark-scheme-facing elements from `FYP_v12_gpt`.
   `load-bearing`, `byte-for-byte`, or `else-branch`.
 - Generated `.aux/.lof/.lot` files may still contain old wording until the next
   PDF compile.
+
+## Reference modernisation (2026-06-11)
+
+Per `REFERENCE_MODERNISATION_PLAN.md`: every pre-2022 reference was checked
+against the 2022–2026 literature (14 claim-cluster web sweeps + adversarial
+refutation of the negative-existence claims + double verification of all new
+sources against primary pages). 40 entries added to `references.bib`
+(52 → 92, all cited in text). Net content growth: +1 page (59 → 60, at the
+limit).
+
+### Claims that changed (overclaims corrected)
+
+- **"No work tests both safe-RL families on the same human-co-located
+  manipulation benchmark"** — refuted as written by Thumm, Pelat & Althoff
+  (IROS 2023): PID-Lagrangian + provably safe shield on a 6-DoF reaching task
+  beside a replayed human. Intro bullet 2 and §2.4.1 now cite it as the
+  nearest cross-family evidence, scope the gap to "across co-location regimes
+  on a high-DOF manipulator under ISO 15066", and use their PID-Lagrangian
+  failure as independent corroboration of the intermittent-regime result
+  (also added to the conclusion).
+- **Benchmark gap (Table 2.1 + prose)** — five rows added (Safety-CHORES,
+  Assistive Gym, RCareWorld, Habitat 3.0, Human-Robot Gym). Human-Robot Gym
+  (ICRA 2024) breaks the blanket "separate from manipulation with a live
+  human coworker" and "do not model perception at all" phrasings — both
+  rewritten with it named as the nearest exception (mocap human, shield-mode
+  SSM/PFL, optional uncalibrated noise, 6–7-DoF arms). The five-axis
+  intersection claim survives and is now stated against the strongest
+  near-miss. §2.7 prose reorganised into three axes (safety / manipulation /
+  human).
+- **"Scaling a hand-engineered CBF-QP to 76 DOF is an open research
+  problem"** — too strong. §2.4 now concedes solver cost at moderate scale
+  (Khazoom 2022: 15 pairs, ~0.2 ms, 24-DOF sim; Morton & Pavone 2025:
+  hundreds of constraints at kHz on a 7-DOF arm) and re-anchors the argument
+  on what remains undemonstrated: every human-link × robot-link pair on a
+  humanoid at control rate (Bena 2025 reduced-order; SPARK upper-body
+  safe-set; Cai 2026 sim-only 72 constraints at ~33 Hz). Mirrored in §7.5.
+- **"Not ISO-certified as a collaborative robot"** — category abolished by
+  ISO 10218:2025 (collaboration is a property of the validated application;
+  Hartmann et al. 2026). Intro bullet 1, conclusion, and the `unitree_g1` bib
+  note rephrased to "validated for collaborative operation", with the
+  Kóczi & Sárosi scoping review and the IEEE Humanoid Study Group pathway
+  report as citable backing and an AiMOGA CE-certification footnote
+  (company claim) to pre-empt the obvious objection.
+- **"MuJoCo forces are not safety-validated against real collision
+  measurements"** — narrowed to "we found no validation … against measured
+  human–robot collision forces", with the actual evidence cited: Acosta 2022
+  (trajectory-level only, MuJoCo stiffness-insensitive), Joseph & Dutta 2026
+  (force-level but leg–terrain, outside HRC), Schlotzhauer 2022 (industrial
+  PFL validation uses physical biofidelic measurement, distrusts simulated
+  constrained contacts).
+- **"Either hand-engineered CBFs or learned safety value functions"** —
+  incomplete dichotomy. §2.4 now lists predictive filters as the third family
+  (Wabersich 2023) and cites Hsu/Hu/Fisac 2024 as the unifying review.
+
+### Claims that held (modern citations added, wording minimally touched)
+
+- Binary-indicator cost convention (+AutoCost AAAI 2023, Safety-Gymnasium).
+- Shielding anchor (+Könighofer CACM 2025), HJ foundation (+Ganai 2024).
+- Sim-to-real dynamics-gap framing (+Muratore 2022, Radosavovic 2024).
+- Curriculum standardness (+Rudin PMLR 164, Humanoid Parkour CoRL 2024 — the
+  latter on the same Unitree H1 platform). "The standard solution" → "a
+  standard solution".
+- CQL "the standard" → "a standard" (+Prudencio TNNLS 2024) and the
+  cost-critic pessimism design grounded as established practice (+CPQ AAAI
+  2022).
+- SMPL standardness (+Tian TPAMI 2023); BodySLAM++ design choice defended
+  against the newer world-grounded wave (WHAM, TRAM: offline GPU pipelines).
+- WCSAC canonical-baseline status (+journal extension, Yang et al. MLJ 2023,
+  also cited at the reimplementation and in Appendix A).
+- CVaR future work reframed from literature gap to pipeline-specific gap with
+  named instruments (OffTRC, SDAC, SRCPO).
+- Safety-evaluation-attention claim (Bharadhwaj 2021) now backed by 2025
+  audits (RoboPAIR ICRA 2025, Hundt et al. IJSR 2025).
+- SSM/PFL measurement lineage extended (Svarny RCIM 2022 2,250-collision
+  campaign; HARMONIOUS T-RO 2025 humanoid successor; ISO/TS 15066 → ISO
+  10218-2:2025 Annex M absorption noted at the PFL table).
+
+### Style
+
+- Zero new semicolons introduced; two removed (§2.4.1 gap paragraph).
+- Two "to our knowledge" hedges avoided in favour of "we found no …"
+  (the phrase is on the stale-terms list from the v13 validation pass).
+- UK English throughout; all new sources double-verified against primary
+  pages before entering `references.bib` (see plan, Part D).
+
+### Validation (2026-06-11)
+
+- pdflatex + bibtex + pdflatex ×2: zero errors, zero undefined
+  references/citations, zero bibtex warnings.
+- Stale-terms grep (`to our knowledge|load-bearing|byte-for-byte|
+  else-branch|working draft|VERIFY`): zero matches in `main.tex`.
+- 92/92 bibliography entries cited in text. Content pp. 11–70 (60/60).

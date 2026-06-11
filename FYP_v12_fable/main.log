@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.16)  10 JUN 2026 21:28
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.5.16)  11 JUN 2026 12:47
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -1178,7 +1178,7 @@ File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 {/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texmf/fonts/enc/
 dvips/lm/lm-ec.enc}]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 1
-54.
+57.
  (/usr/share/texmf/tex/latex/lm/t1lmtt.fd
 File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -1190,13 +1190,13 @@ Package microtype Info: Character `029' is missing
 (microtype)             in font `T1/lmr/m/sc/10.95'.
 (microtype)             Ignoring protrusion settings for this character.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10.95> on input line 159.
+(Font)              <10.95> on input line 173.
 
 pdfTeX warning (ext4): destination with the same identifier (name{page.1}) has 
 been already used, duplicate ignored
 <to be read again> 
                    \relax 
-l.191 \end{abstract}
+l.188 \end{abstract}
                      [1{/usr/share/texmf/fonts/enc/dvips/lm/lm-mathsy.enc}{/usr
 /share/texmf/fonts/enc/dvips/lm/lm-rm.enc}{/usr/share/texmf/fonts/enc/dvips/lm/
 lm-mathit.enc}] (./main.toc
@@ -1238,11 +1238,15 @@ lmsy/m/n/10.95 ^^F$ \T1/lmr/m/n/10.95 (+20) 95%
 
 ]
 Chapter 1.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <9> on input line 295.
+LaTeX Font Info:    External font `lmex10' loaded for size
+(Font)              <5> on input line 295.
 [11
 
 ]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 3
-41.
+60.
  (/usr/share/texmf/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 ) [12{/usr/share/texmf/fonts/enc/dvips/lm/lm-ts1.enc}] [13] [14] [15]
@@ -1251,57 +1255,53 @@ Chapter 2.
 
 {/usr/share/texmf/fonts/enc/dvips/lm/lm-mathex.enc}] [17] [18] [19]
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10> on input line 991.
+(Font)              <10> on input line 1049.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <7> on input line 991.
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <5> on input line 991.
+(Font)              <7> on input line 1049.
 Package microtype Info: Character `029' is missing
 (microtype)             in font `T1/lmr/m/sc/10'.
 (microtype)             Ignoring protrusion settings for this character.
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <10> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1008.
-LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <9> on input line 1053.
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1049.
  [20]
 [21]
 Chapter 3.
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <20.74> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1080.
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 1128.
 
 LaTeX Font Warning: Font shape `T1/lmr/bx/sc' undefined
-(Font)              using `T1/lmr/bx/n' instead on input line 1126.
+(Font)              using `T1/lmr/bx/n' instead on input line 1174.
 
 [22
 
 ]
-Underfull \hbox (badness 1194) in paragraph at lines 1228--1239
+Underfull \hbox (badness 1194) in paragraph at lines 1276--1286
 \T1/lmr/m/sc/10.95 (+20) BiGym \T1/lmr/m/n/10.95 (+20) ex-poses a Gym-style \T1
 /lmtt/m/n/10.95 step\T1/lmr/m/n/10.95 (+20) /\T1/lmtt/m/n/10.95 reset \T1/lmr/m
-/n/10.95 (+20) API; CQN-AS [[]] con-sumes a \T1/lmtt/m/n/10.95 dm_env\T1/lmr/m/
+/n/10.95 (+20) API. CQN-AS [[]] con-sumes a \T1/lmtt/m/n/10.95 dm_env\T1/lmr/m/
 n/10.95 (+20) -style
  []
 
 [23]
-Underfull \hbox (badness 1122) in paragraph at lines 1273--1284
+Underfull \hbox (badness 1122) in paragraph at lines 1320--1331
 \T1/lmr/m/n/10.95 (+20) A prac-ti-cal bench-mark needs a re-pro-ducible eval-u-
 a-tion pipeline. The \T1/lmtt/m/n/10.95 safety_bigym
  []
 
 [24]
-<separation_render_grid.png, id=1477, 469.755pt x 286.7805pt>
+<separation_render_grid.png, id=1565, 469.755pt x 286.7805pt>
 File: separation_render_grid.png Graphic file (type png)
 <use separation_render_grid.png>
-Package pdftex.def Info: separation_render_grid.png  used on input line 1370.
+Package pdftex.def Info: separation_render_grid.png  used on input line 1417.
 (pdftex.def)             Requested size: 364.19667pt x 222.33572pt.
  [25 <./separation_render_grid.png>] [26] [27]
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\kernel@ifnextchar' on input line 1661.
+(hyperref)                removing `\kernel@ifnextchar' on input line 1708.
 
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\@ifnextchar' on input line 1661.
+(hyperref)                removing `\@ifnextchar' on input line 1708.
 
 [28] [29]
 Chapter 4.
@@ -1312,33 +1312,33 @@ Package microtype Info: Character `029' is missing
 
 ] [31] [32] [33] [34] [35] [36]
 Package hyperref Info: bookmark level for unknown algorithm defaults to 0 on in
-put line 2411.
- [37]
-Underfull \hbox (badness 1137) in paragraph at lines 2493--2499
+put line 2486.
+
+Underfull \hbox (badness 1137) in paragraph at lines 2568--2574
 \T1/lmtt/m/n/10.95 human_pos_estimate \T1/lmr/m/n/10.95 (+20) would be empty. T
 he wrap-per's \T1/lmtt/m/n/10.95 demo_replay \T1/lmr/m/n/10.95 (+20) mode in-je
 cts an
  []
 
-[38] [39]
+[37] [38] [39]
 Chapter 5.
 [40
 
 ]
-<fig4_exogenous_proximity.pdf, id=1747, 460.11522pt x 310.72899pt>
+<fig4_exogenous_proximity.pdf, id=1836, 460.11522pt x 310.72899pt>
 File: fig4_exogenous_proximity.pdf Graphic file (type pdf)
 <use fig4_exogenous_proximity.pdf>
-Package pdftex.def Info: fig4_exogenous_proximity.pdf  used on input line 2732.
+Package pdftex.def Info: fig4_exogenous_proximity.pdf  used on input line 2807.
 
 (pdftex.def)             Requested size: 309.56265pt x 209.06448pt.
- [41 <./fig4_exogenous_proximity.pdf>] [42] [43]
-Underfull \hbox (badness 1997) in paragraph at lines 3022--3032
+ [41 <./fig4_exogenous_proximity.pdf>] [42] [43] [44]
+Underfull \hbox (badness 1997) in paragraph at lines 3129--3139
 [] []\T1/lmr/bx/sc/10.95 (+20) In-ter-mit-ten-t--co-lo-ca-tion base-lines.[] \T
 1/lmr/m/n/10.95 (+20) The same cur-ricu-lum recipe yields com-pe-tent
  []
 
 
-Underfull \hbox (badness 2158) in paragraph at lines 3022--3032
+Underfull \hbox (badness 2158) in paragraph at lines 3129--3139
 \T1/lmtt/m/n/10.95 dishwasher_close \T1/lmr/m/n/10.95 (+20) reaches $\OT1/lmr/m
 /n/10.95 (+20) 0\OML/lmm/m/it/10.95 :\OT1/lmr/m/n/10.95 (+20) 77$ \T1/lmr/m/n/1
 0.95 (+20) suc-cess with SSM-actual $\OT1/lmr/m/n/10.95 (+20) 0\OML/lmm/m/it/10
@@ -1347,160 +1347,161 @@ Underfull \hbox (badness 2158) in paragraph at lines 3022--3032
 r/m/n/10.95 (+20) ;
  []
 
-[44]
+[45]
 LaTeX Font Info:    Font shape `T1/lmtt/bx/n' in size <14.4> not available
-(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 3132.
- [45] [46]
-<d0p3_3seed_lambda_regimes.png, id=1885, 549.252pt x 462.528pt>
+(Font)              Font shape `T1/lmtt/b/n' tried instead on input line 3239.
+ [46]
+<d0p3_3seed_lambda_regimes.png, id=1973, 549.252pt x 462.528pt>
 File: d0p3_3seed_lambda_regimes.png Graphic file (type png)
 <use d0p3_3seed_lambda_regimes.png>
-Package pdftex.def Info: d0p3_3seed_lambda_regimes.png  used on input line 3248
+Package pdftex.def Info: d0p3_3seed_lambda_regimes.png  used on input line 3355
 .
 (pdftex.def)             Requested size: 273.14923pt x 230.01422pt.
- [47 <./d0p3_3seed_lambda_regimes.png>] [48]
-<fixlam0p1_3seed_floor075.png, id=1916, 549.252pt x 462.528pt>
+ [47] [48 <./d0p3_3seed_lambda_regimes.png>]
+<fixlam0p1_3seed_floor075.png, id=2004, 549.252pt x 462.528pt>
 File: fixlam0p1_3seed_floor075.png Graphic file (type png)
 <use fixlam0p1_3seed_floor075.png>
-Package pdftex.def Info: fixlam0p1_3seed_floor075.png  used on input line 3437.
+Package pdftex.def Info: fixlam0p1_3seed_floor075.png  used on input line 3544.
 
 (pdftex.def)             Requested size: 273.14923pt x 230.01422pt.
- [49 <./fixlam0p1_3seed_floor075.png>] [50] [51]
-<velocity_axis.png, id=1956, 578.16pt x 419.166pt>
+ [49] [50 <./fixlam0p1_3seed_floor075.png>] [51]
+<velocity_axis.png, id=2045, 578.16pt x 419.166pt>
 File: velocity_axis.png Graphic file (type png)
 <use velocity_axis.png>
-Package pdftex.def Info: velocity_axis.png  used on input line 3647.
+Package pdftex.def Info: velocity_axis.png  used on input line 3752.
 (pdftex.def)             Requested size: 218.51521pt x 158.42128pt.
-<joint_coverage.png, id=1957, 592.614pt x 433.62pt>
+<joint_coverage.png, id=2046, 592.614pt x 433.62pt>
 File: joint_coverage.png Graphic file (type png)
 <use joint_coverage.png>
-Package pdftex.def Info: joint_coverage.png  used on input line 3656.
+Package pdftex.def Info: joint_coverage.png  used on input line 3761.
 (pdftex.def)             Requested size: 218.51521pt x 159.88771pt.
- [52 <./velocity_axis.png> <./joint_coverage.png>]
-[53] [54] [55]
-<fig1_method_comparison.pdf, id=2007, 787.3691pt x 341.88504pt>
+ [52] [53 <./velocity_axis.png> <./joint_coverage.png>]
+[54] [55] [56]
+<fig1_method_comparison.pdf, id=2101, 787.3691pt x 341.88504pt>
 File: fig1_method_comparison.pdf Graphic file (type pdf)
 <use fig1_method_comparison.pdf>
-Package pdftex.def Info: fig1_method_comparison.pdf  used on input line 4078.
+Package pdftex.def Info: fig1_method_comparison.pdf  used on input line 4183.
 (pdftex.def)             Requested size: 386.96027pt x 168.02594pt.
-<fig2_tradeoff_curve.pdf, id=2012, 785.48271pt x 341.88504pt>
+<fig2_tradeoff_curve.pdf, id=2106, 785.48271pt x 341.88504pt>
 File: fig2_tradeoff_curve.pdf Graphic file (type pdf)
 <use fig2_tradeoff_curve.pdf>
-Package pdftex.def Info: fig2_tradeoff_curve.pdf  used on input line 4099.
+Package pdftex.def Info: fig2_tradeoff_curve.pdf  used on input line 4204.
 (pdftex.def)             Requested size: 355.08984pt x 154.55632pt.
- [56] [57 <./fig1_method_comparison.pdf>]
-<fig5_cross_task_boundary.pdf, id=2102, 512.77383pt x 366.47992pt>
+ [57 <./fig1_method_comparison.pdf>] [58 <./fig2_tradeoff_curve.pdf>]
+<fig5_cross_task_boundary.pdf, id=2253, 512.77383pt x 366.47992pt>
 File: fig5_cross_task_boundary.pdf Graphic file (type pdf)
 <use fig5_cross_task_boundary.pdf>
-Package pdftex.def Info: fig5_cross_task_boundary.pdf  used on input line 4225.
+Package pdftex.def Info: fig5_cross_task_boundary.pdf  used on input line 4330.
 
 (pdftex.def)             Requested size: 364.19667pt x 260.29762pt.
- [58 <./fig2_tradeoff_curve.pdf>]
-<fig7_gate_activity.pdf, id=2166, 512.26106pt x 337.53429pt>
+ [59 <./fig5_cross_task_boundary.pdf>]
+<fig7_gate_activity.pdf, id=2319, 512.26106pt x 337.53429pt>
 File: fig7_gate_activity.pdf Graphic file (type pdf)
 <use fig7_gate_activity.pdf>
-Package pdftex.def Info: fig7_gate_activity.pdf  used on input line 4271.
+Package pdftex.def Info: fig7_gate_activity.pdf  used on input line 4376.
 (pdftex.def)             Requested size: 282.24911pt x 185.9792pt.
- [59 <./fig5_cross_task_boundary.pdf>] [60 <./fig7_gate_activity.pdf>]
-<fig3_reduction_bars.pdf, id=2344, 787.36719pt x 329.12926pt>
+ [60 <./fig7_gate_activity.pdf>]
+[61]
+<fig3_reduction_bars.pdf, id=2437, 787.36719pt x 329.12926pt>
 File: fig3_reduction_bars.pdf Graphic file (type pdf)
 <use fig3_reduction_bars.pdf>
-Package pdftex.def Info: fig3_reduction_bars.pdf  used on input line 4431.
+Package pdftex.def Info: fig3_reduction_bars.pdf  used on input line 4537.
 (pdftex.def)             Requested size: 355.08984pt x 148.43323pt.
-[61 <./fig3_reduction_bars.pdf>]
+ [62 <./fig3_reduction_bars.pdf>]
 Chapter 6.
-[62
+[63
 
 ]
 
 LaTeX Font Warning: Font shape `T1/lmr/m/scit' undefined
-(Font)              using `T1/lmr/m/scsl' instead on input line 4557.
+(Font)              using `T1/lmr/m/scsl' instead on input line 4663.
 
-[63] [64] [65] [66]
+[64] [65] [66] [67]
 Chapter 7.
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <14.4> on input line 4850.
-[67
+(Font)              <14.4> on input line 4994.
+[68
 
-] [68]
+] [69]
 Chapter 8.
-[69
+[70
 
-] [70
+] [71
 
 
 ] (./main.bbl
-Overfull \hbox (0.84511pt too wide) in paragraph at lines 35--38
+Overfull \hbox (0.84511pt too wide) in paragraph at lines 41--44
 []\T1/lmr/m/n/10.95 (-20) Y. Seo, J. Uruç, and S. James, ``Continuous control w
 ith coarse-to-fine reinforcement learning,''
  []
 
-[71
+[72
 
 
-] [72] [73]) [74]
+] [73] [74] [75] [76] [77]) [78]
 Appendix A.
 
-Overfull \hbox (53.5974pt too wide) in paragraph at lines 5061--5076
+Overfull \hbox (53.5974pt too wide) in paragraph at lines 5206--5221
  [][] 
  []
 
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 5085.
+(hyperref)                removing `math shift' on input line 5230.
 
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\lambda' on input line 5085.
+(hyperref)                removing `\lambda' on input line 5230.
 
 
 Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 5085.
+(hyperref)                removing `math shift' on input line 5230.
 
 
-Overfull \hbox (51.1166pt too wide) in paragraph at lines 5105--5123
+Overfull \hbox (51.1166pt too wide) in paragraph at lines 5250--5268
  [][] 
  []
 
-[75
+[79
 
-] [76]
+] [80]
 Appendix B.
 
-Underfull \hbox (badness 10000) in paragraph at lines 5220--5235
+Underfull \hbox (badness 10000) in paragraph at lines 5367--5382
 \T1/lmtt/m/n/10.95 results/{svf_sweep, speedscale, gated_sweep, improve, antici
 patory_sweep,
  []
 
 
-Underfull \hbox (badness 3019) in paragraph at lines 5220--5235
+Underfull \hbox (badness 3019) in paragraph at lines 5367--5382
 \T1/lmtt/m/n/10.95 dagger_sweep}/\T1/lmr/m/n/10.95 (+20) ; the bound-ary sweep 
 via \T1/lmtt/m/n/10.95 scripts/dispatch_gated_saucepan.py
  []
 
 
-Underfull \hbox (badness 1354) in paragraph at lines 5220--5235
+Underfull \hbox (badness 1354) in paragraph at lines 5367--5382
 \T1/lmr/m/n/10.95 (+20) (un-der \T1/lmtt/m/n/10.95 results/e4_1/gated_saucepan/
 \T1/lmr/m/n/10.95 (+20) ); WC-SAC via \T1/lmtt/m/n/10.95 scripts/dispatch_wcsac
 .py
  []
 
-[77
+[81
 
 ]
 Appendix C.
-[78
+[82
 
 ]
 Appendix D.
-[79
+[83
 
 ]
 Appendix E.
-[80
+[84
 
 ]
 Appendix F.
-[81
+[85
 
 ] (./main.aux)
  ***********
@@ -1512,16 +1513,16 @@ L3 programming layer <2024-01-22>
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
 Package rerunfilecheck Info: File `main.out' has not changed.
-(rerunfilecheck)             Checksum: C8374875966794128D4F868BC19B74BF;36608.
+(rerunfilecheck)             Checksum: 91E91643D2596AA3BA34096C604ABAE5;37062.
  ) 
 Here is how much of TeX's memory you used:
- 43070 strings out of 476182
- 957192 string characters out of 5795595
- 1966975 words of memory out of 5000000
- 63325 multiletter control sequences out of 15000+600000
- 738769 words of font info for 445 fonts, out of 8000000 for 9000
+ 43252 strings out of 476182
+ 961637 string characters out of 5795595
+ 1962975 words of memory out of 5000000
+ 63455 multiletter control sequences out of 15000+600000
+ 738938 words of font info for 447 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 84i,19n,87p,1138b,2296s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 84i,19n,87p,1163b,2296s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/share/texmf/fonts/type1/public/lm/lmbx10.pfb></usr/share/texmf/fonts/ty
 pe1/public/lm/lmbx12.pfb></usr/share/texmf/fonts/type1/public/lm/lmbx8.pfb></us
 r/share/texmf/fonts/type1/public/lm/lmbxi10.pfb></usr/share/texmf/fonts/type1/p
@@ -1544,10 +1545,10 @@ re/texmf/fonts/type1/public/lm/lmtt10.pfb></usr/share/texmf/fonts/type1/public/
 lm/lmtt9.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols
 /msam10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/
 msbm10.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/zapfding/uzdr.pfb>
-Output written on main.pdf (83 pages, 2642451 bytes).
+Output written on main.pdf (87 pages, 2683992 bytes).
 PDF statistics:
- 2878 PDF objects out of 2984 (max. 8388607)
- 2302 compressed objects within 24 object streams
- 448 named destinations out of 1000 (max. 500000)
- 100100 words of extra memory for PDF output out of 106986 (max. 10000000)
+ 3008 PDF objects out of 3580 (max. 8388607)
+ 2427 compressed objects within 25 object streams
+ 496 named destinations out of 1000 (max. 500000)
+ 100108 words of extra memory for PDF output out of 106986 (max. 10000000)
 

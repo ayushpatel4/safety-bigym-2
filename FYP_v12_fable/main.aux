@@ -17,12 +17,20 @@
 \citation{unitree_g1}
 \citation{iso25785}
 \citation{iso15066}
-\citation{iso10218}
+\citation{iso10218,hartmann2026iso}
 \citation{chernyadev2024bigym}
+\citation{hartmann2026iso}
 \citation{unitree_g1}
+\citation{koczi2025humanoidsafety}
+\citation{ieee2025pathway}
 \citation{auditing2021}
+\citation{robey2025jailbreaking}
+\citation{hundt2025llmrobots}
 \citation{brunke2022safelearning}
-\citation{shield2025}
+\citation{wachi2024constraint}
+\citation{ji2023safetygymnasium}
+\citation{yuan2022safecontrolgym}
+\citation{thumm2024humanrobotgym}
 \@writefile{toc}{\contentsline {chapter}{\numberline {1}Introduction}{11}{chapter.1}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
@@ -37,18 +45,22 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.1.2}Most Learned Policies Are Not Safe Near Humans}{11}{subsection.1.1.2}\protected@file@percent }
 \newlabel{sec:intro:mot:unsafe}{{1.1.2}{11}{Most Learned Policies Are Not Safe Near Humans}{subsection.1.1.2}{}}
 \newlabel{sec:intro:mot:unsafe@cref}{{[subsection][2][1,1]1.1.2}{[1][11][]11}}
+\citation{shield2025}
 \citation{henning2023bodyslampp}
 \citation{henning2022bodyslam}
 \citation{ray2019safetygym,ji2023safetygymnasium,yuan2022safecontrolgym}
-\citation{ray2019safetygym}
-\citation{ji2023safetygymnasium}
+\citation{thumm2024humanrobotgym}
+\citation{ray2019safetygym,ji2023safetygymnasium}
 \citation{yuan2022safecontrolgym}
 \citation{chernyadev2024bigym}
 \citation{sferrazza2024humanoidbench}
+\citation{thumm2024humanrobotgym}
 \citation{ray2019safetygym,stooke2020pid}
 \citation{alshiekh2018shielding}
 \citation{ames2019cbf,shield2025}
 \citation{srinivasan2020learning,thananjeyan2021recovery}
+\citation{yuan2022safecontrolgym}
+\citation{thumm2023interventions}
 \@writefile{toc}{\contentsline {subsection}{\numberline {1.1.3}Perception Adds Distribution Shift}{12}{subsection.1.1.3}\protected@file@percent }
 \newlabel{sec:intro:mot:perception}{{1.1.3}{12}{Perception Adds Distribution Shift}{subsection.1.1.3}{}}
 \newlabel{sec:intro:mot:perception@cref}{{[subsection][3][1,1]1.1.3}{[1][12][]12}}
@@ -60,9 +72,9 @@
 \@writefile{toc}{\contentsline {section}{\numberline {1.2}Problem Statement}{13}{section.1.2}\protected@file@percent }
 \newlabel{sec:intro:problem}{{1.2}{13}{Problem Statement}{section.1.2}{}}
 \newlabel{sec:intro:problem@cref}{{[section][2][1]1.2}{[1][13][]13}}
-\@writefile{toc}{\contentsline {section}{\numberline {1.3}Research Questions}{13}{section.1.3}\protected@file@percent }
-\newlabel{sec:intro:rqs}{{1.3}{13}{Research Questions}{section.1.3}{}}
-\newlabel{sec:intro:rqs@cref}{{[section][3][1]1.3}{[1][13][]13}}
+\@writefile{toc}{\contentsline {section}{\numberline {1.3}Research Questions}{14}{section.1.3}\protected@file@percent }
+\newlabel{sec:intro:rqs}{{1.3}{14}{Research Questions}{section.1.3}{}}
+\newlabel{sec:intro:rqs@cref}{{[section][3][1]1.3}{[1][14][]14}}
 \@writefile{toc}{\contentsline {section}{\numberline {1.4}Contributions}{14}{section.1.4}\protected@file@percent }
 \newlabel{sec:intro:contributions}{{1.4}{14}{Contributions}{section.1.4}{}}
 \newlabel{sec:intro:contributions@cref}{{[section][4][1]1.4}{[1][14][]14}}
@@ -70,10 +82,13 @@
 \newlabel{sec:intro:outline}{{1.5}{15}{Report Outline}{section.1.5}{}}
 \newlabel{sec:intro:outline@cref}{{[section][5][1]1.5}{[1][15][]15}}
 \citation{iso15066}
-\citation{iso10218}
+\citation{iso10218,hartmann2026iso}
 \citation{iso15066,svarny2019unified,marvel2017implementing}
+\citation{hartmann2026iso}
 \citation{svarny2020collision}
-\citation{ray2019safetygym,achiam2017cpo,stooke2020pid}
+\citation{svarny2022softskins}
+\citation{rozlivek2025harmonious}
+\citation{ray2019safetygym,achiam2017cpo,stooke2020pid,he2023autocost,ji2023safetygymnasium}
 \@writefile{toc}{\contentsline {chapter}{\numberline {2}Background and Related Work}{16}{chapter.2}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
@@ -95,9 +110,6 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1.3}Why ISO~15066{} Is Hard to Target with Generic Safe-RL}{16}{subsection.2.1.3}\protected@file@percent }
 \newlabel{sec:bg:iso:hard}{{2.1.3}{16}{Why \iso {} Is Hard to Target with Generic Safe-RL}{subsection.2.1.3}{}}
 \newlabel{sec:bg:iso:hard@cref}{{[subsection][3][2,1]2.1.3}{[1][16][]16}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.2}Reinforcement Learning Fundamentals}{16}{section.2.2}\protected@file@percent }
-\newlabel{sec:bg:rl}{{2.2}{16}{Reinforcement Learning Fundamentals}{section.2.2}{}}
-\newlabel{sec:bg:rl@cref}{{[section][2][2]2.2}{[1][16][]16}}
 \citation{bellemare2017c51}
 \citation{zhao2023act}
 \citation{chi2023diffusion}
@@ -114,39 +126,49 @@
 \citation{chi2023diffusion}
 \citation{narvekar2020curriculum}
 \citation{openai2019solving}
-\citation{altman1999constrained,ray2019safetygym}
+\citation{rudin2022walkminutes}
+\citation{zhuang2024parkour}
+\@writefile{toc}{\contentsline {section}{\numberline {2.2}Reinforcement Learning Fundamentals}{17}{section.2.2}\protected@file@percent }
+\newlabel{sec:bg:rl}{{2.2}{17}{Reinforcement Learning Fundamentals}{section.2.2}{}}
+\newlabel{sec:bg:rl@cref}{{[section][2][2]2.2}{[1][16][]17}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2.1}Why CQN-AS{} (Choice of Backbone)}{17}{subsection.2.2.1}\protected@file@percent }
 \newlabel{sec:bg:rl:cqnas}{{2.2.1}{17}{Why \cqnas {} (Choice of Backbone)}{subsection.2.2.1}{}}
 \newlabel{sec:bg:rl:cqnas@cref}{{[subsection][1][2,2]2.2.1}{[1][17][]17}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2.2}Curriculum Learning for Long-Horizon RL}{17}{subsection.2.2.2}\protected@file@percent }
 \newlabel{sec:bg:rl:curriculum}{{2.2.2}{17}{Curriculum Learning for Long-Horizon RL}{subsection.2.2.2}{}}
 \newlabel{sec:bg:rl:curriculum@cref}{{[subsection][2][2,2]2.2.2}{[1][17][]17}}
+\citation{altman1999constrained,ray2019safetygym}
 \citation{ray2019safetygym,achiam2017cpo}
 \citation{stooke2020pid}
 \citation{garcia2015comprehensive}
 \citation{brunke2022safelearning}
-\citation{yang2021wcsac}
+\citation{wachi2024constraint}
+\citation{yang2021wcsac,yang2023wcsacjournal}
 \citation{dabney2018qrdqn}
-\citation{alshiekh2018shielding}
+\citation{alshiekh2018shielding,konighofer2025shields}
 \citation{thananjeyan2021recovery}
 \citation{srinivasan2020learning}
-\citation{bansal2017hamilton}
+\citation{bansal2017hamilton,ganai2024hjsurvey}
 \citation{ames2019cbf}
+\citation{wabersich2023datadriven}
 \citation{srinivasan2020learning,thananjeyan2021recovery}
+\citation{hsu2024safetyfilter}
 \citation{cbfrl2024}
 \citation{shield2025}
 \citation{kumar2020cql}
-\citation{nakamura2025latent}
-\citation{latentcbf2025}
-\citation{permissivefilter2025}
+\citation{khazoom2022selfcollision}
+\citation{morton2025oscbf}
+\citation{bena2025poisson,shield2025}
+\citation{sun2025spark}
+\citation{cai2026humanoidcbf}
 \@writefile{toc}{\contentsline {section}{\numberline {2.3}Safe Reinforcement Learning}{18}{section.2.3}\protected@file@percent }
 \newlabel{sec:bg:safe}{{2.3}{18}{Safe Reinforcement Learning}{section.2.3}{}}
-\newlabel{sec:bg:safe@cref}{{[section][3][2]2.3}{[1][17][]18}}
+\newlabel{sec:bg:safe@cref}{{[section][3][2]2.3}{[1][18][]18}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.3.1}Lagrangian Constrained MDPs}{18}{subsection.2.3.1}\protected@file@percent }
 \newlabel{sec:bg:safe:lagr}{{2.3.1}{18}{Lagrangian Constrained MDPs}{subsection.2.3.1}{}}
-\newlabel{sec:bg:safe:lagr@cref}{{[subsection][1][2,3]2.3.1}{[1][17][]18}}
+\newlabel{sec:bg:safe:lagr@cref}{{[subsection][1][2,3]2.3.1}{[1][18][]18}}
 \newlabel{eq:cmdp}{{2.3}{18}{Lagrangian Constrained MDPs}{equation.2.3.3}{}}
-\newlabel{eq:cmdp@cref}{{[equation][3][2]2.3}{[1][17][]18}}
+\newlabel{eq:cmdp@cref}{{[equation][3][2]2.3}{[1][18][]18}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.3.2}Distributional and Tail-Aware Safe RL}{18}{subsection.2.3.2}\protected@file@percent }
 \newlabel{sec:bg:safe:distr}{{2.3.2}{18}{Distributional and Tail-Aware Safe RL}{subsection.2.3.2}{}}
 \newlabel{sec:bg:safe:distr@cref}{{[subsection][2][2,3]2.3.2}{[1][18][]18}}
@@ -158,37 +180,66 @@
 \@writefile{toc}{\contentsline {section}{\numberline {2.4}Safety Filters and Control Barrier Functions on Humanoids}{18}{section.2.4}\protected@file@percent }
 \newlabel{sec:bg:cbf}{{2.4}{18}{Safety Filters and Control Barrier Functions on Humanoids}{section.2.4}{}}
 \newlabel{sec:bg:cbf@cref}{{[section][4][2]2.4}{[1][18][]18}}
+\citation{nakamura2025latent}
+\citation{latentcbf2025}
+\citation{permissivefilter2025}
 \citation{tian2022confidence}
 \citation{trautman2010freezing}
 \citation{dontfreeze2026}
-\citation{kumar2020cql}
-\citation{tobin2017domainrand,zhao2020sim2real}
+\citation{thumm2023interventions}
+\citation{krasowski2023provablysafe}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.4.1}Filter Conservatism and the Freeze-versus-Flee Limit}{19}{subsection.2.4.1}\protected@file@percent }
 \newlabel{sec:bg:cbf:conservatism}{{2.4.1}{19}{Filter Conservatism and the Freeze-versus-Flee Limit}{subsection.2.4.1}{}}
-\newlabel{sec:bg:cbf:conservatism@cref}{{[subsection][1][2,4]2.4.1}{[1][18][]19}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.5}Conservative Q-Learning}{19}{section.2.5}\protected@file@percent }
-\newlabel{sec:bg:cql}{{2.5}{19}{Conservative Q-Learning}{section.2.5}{}}
-\newlabel{sec:bg:cql@cref}{{[section][5][2]2.5}{[1][19][]19}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.6}Sim-to-Real for Human-Aware Robotics}{19}{section.2.6}\protected@file@percent }
-\newlabel{sec:bg:sim2real}{{2.6}{19}{Sim-to-Real for Human-Aware Robotics}{section.2.6}{}}
-\newlabel{sec:bg:sim2real@cref}{{[section][6][2]2.6}{[1][19][]19}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.1}Dynamics vs.\ Perception Sim-to-Real}{19}{subsection.2.6.1}\protected@file@percent }
-\newlabel{sec:bg:sim2real:dyn-perc}{{2.6.1}{19}{Dynamics vs.\ Perception Sim-to-Real}{subsection.2.6.1}{}}
-\newlabel{sec:bg:sim2real:dyn-perc@cref}{{[subsection][1][2,6]2.6.1}{[1][19][]19}}
+\newlabel{sec:bg:cbf:conservatism@cref}{{[subsection][1][2,4]2.4.1}{[1][19][]19}}
+\citation{kumar2020cql}
+\citation{prudencio2024offlinesurvey}
+\citation{xu2022cpq}
+\citation{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
 \citation{henning2023bodyslampp}
 \citation{henning2022bodyslam}
+\citation{shin2024wham}
+\citation{wang2024tram}
 \citation{ray2019safetygym}
 \citation{ji2023safetygymnasium}
 \citation{yuan2022safecontrolgym}
+\citation{zhang2025safevla}
 \citation{james2020rlbench}
 \citation{chernyadev2024bigym}
 \citation{sferrazza2024humanoidbench}
+\citation{erickson2020assistivegym}
+\citation{ye2022rcareworld}
+\citation{puig2024habitat3}
+\citation{thumm2024humanrobotgym}
 \citation{ray2019safetygym}
 \citation{ji2023safetygymnasium}
 \citation{yuan2022safecontrolgym}
+\citation{zhang2025safevla}
 \citation{james2020rlbench}
 \citation{chernyadev2024bigym}
 \citation{sferrazza2024humanoidbench}
+\citation{erickson2020assistivegym}
+\citation{ye2022rcareworld}
+\citation{puig2024habitat3}
+\citation{thumm2024humanrobotgym}
+\@writefile{toc}{\contentsline {section}{\numberline {2.5}Conservative Q-Learning}{20}{section.2.5}\protected@file@percent }
+\newlabel{sec:bg:cql}{{2.5}{20}{Conservative Q-Learning}{section.2.5}{}}
+\newlabel{sec:bg:cql@cref}{{[section][5][2]2.5}{[1][20][]20}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.6}Sim-to-Real for Human-Aware Robotics}{20}{section.2.6}\protected@file@percent }
+\newlabel{sec:bg:sim2real}{{2.6}{20}{Sim-to-Real for Human-Aware Robotics}{section.2.6}{}}
+\newlabel{sec:bg:sim2real@cref}{{[section][6][2]2.6}{[1][20][]20}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.1}Dynamics vs.\ Perception Sim-to-Real}{20}{subsection.2.6.1}\protected@file@percent }
+\newlabel{sec:bg:sim2real:dyn-perc}{{2.6.1}{20}{Dynamics vs.\ Perception Sim-to-Real}{subsection.2.6.1}{}}
+\newlabel{sec:bg:sim2real:dyn-perc@cref}{{[subsection][1][2,6]2.6.1}{[1][20][]20}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.2}Human Pose Estimation in Co-Located Settings}{20}{subsection.2.6.2}\protected@file@percent }
+\newlabel{sec:bg:sim2real:pose}{{2.6.2}{20}{Human Pose Estimation in Co-Located Settings}{subsection.2.6.2}{}}
+\newlabel{sec:bg:sim2real:pose@cref}{{[subsection][2][2,6]2.6.2}{[1][20][]20}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.7}Benchmark Landscape}{20}{section.2.7}\protected@file@percent }
+\newlabel{sec:bg:bench}{{2.7}{20}{Benchmark Landscape}{section.2.7}{}}
+\newlabel{sec:bg:bench@cref}{{[section][7][2]2.7}{[1][20][]20}}
+\@writefile{lot}{\contentsline {table}{\numberline {2.1}{\ignorespaces Existing benchmarks in robot learning and safe RL, positioned against the needs of evaluating ISO~15066{}-compliant humanoid manipulation under sustained co-working. No prior benchmark combines all five axes. Human-Robot Gym comes closest but enforces SSM{}/PFL{} through an always-active shield on 6--7-DoF arms, rather than exposing graded cost signals to the learner.}}{20}{table.caption.6}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{tab:bench-landscape}{{2.1}{20}{Existing benchmarks in robot learning and safe RL, positioned against the needs of evaluating \iso {}-compliant humanoid manipulation under sustained co-working. No prior benchmark combines all five axes. Human-Robot Gym comes closest but enforces \ssm {}/\pfl {} through an always-active shield on 6--7-DoF arms, rather than exposing graded cost signals to the learner}{table.caption.6}{}}
+\newlabel{tab:bench-landscape@cref}{{[table][1][2]2.1}{[1][20][]20}}
 \citation{ray2019safetygym}
 \citation{yang2021wcsac}
 \citation{thananjeyan2021recovery}
@@ -199,22 +250,12 @@
 \citation{cbfrl2024}
 \citation{shield2025}
 \citation{thananjeyan2021recovery}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.2}Human Pose Estimation in Co-Located Settings}{20}{subsection.2.6.2}\protected@file@percent }
-\newlabel{sec:bg:sim2real:pose}{{2.6.2}{20}{Human Pose Estimation in Co-Located Settings}{subsection.2.6.2}{}}
-\newlabel{sec:bg:sim2real:pose@cref}{{[subsection][2][2,6]2.6.2}{[1][20][]20}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.7}Benchmark Landscape}{20}{section.2.7}\protected@file@percent }
-\newlabel{sec:bg:bench}{{2.7}{20}{Benchmark Landscape}{section.2.7}{}}
-\newlabel{sec:bg:bench@cref}{{[section][7][2]2.7}{[1][20][]20}}
-\@writefile{lot}{\contentsline {table}{\numberline {2.1}{\ignorespaces Existing benchmarks in robot learning and safe RL, positioned against the needs of evaluating ISO~15066{}-compliant humanoid manipulation under sustained co-working. \texttt  {safety\_bigym}{} fills the (high-DOF) $\times $ (live human) $\times $ (ISO~15066{} signals) $\times $ (perception noise) intersection that no prior benchmark covers.}}{20}{table.caption.6}\protected@file@percent }
-\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{tab:bench-landscape}{{2.1}{20}{Existing benchmarks in robot learning and safe RL, positioned against the needs of evaluating \iso {}-compliant humanoid manipulation under sustained co-working. \sbigym {} fills the (high-DOF) $\times $ (live human) $\times $ (\iso {} signals) $\times $ (perception noise) intersection that no prior benchmark covers}{table.caption.6}{}}
-\newlabel{tab:bench-landscape@cref}{{[table][1][2]2.1}{[1][20][]20}}
-\@writefile{toc}{\contentsline {section}{\numberline {2.8}Positioning of This Work}{20}{section.2.8}\protected@file@percent }
-\newlabel{sec:bg:positioning}{{2.8}{20}{Positioning of This Work}{section.2.8}{}}
-\newlabel{sec:bg:positioning@cref}{{[section][8][2]2.8}{[1][20][]20}}
-\@writefile{lot}{\contentsline {table}{\numberline {2.2}{\ignorespaces Positioning of this work's two-arm architecture (the Hybrid Safety Critic) against representative safe-RL methods. ``Tail-aware'' indicates whether the method targets a coherent risk measure (\ensuremath  {\mathrm  {CVaR}}{}, VaR) rather than expected cost. ``Dual critic'' separates the task-value and cost-value estimators to avoid the non-stationarity of single-critic Lagrangian. ``Runtime guar.'' indicates whether a deployment-time mechanism (not just a training-time bound) is provided. ``High-DOF'' indicates evaluation on a $\ge $~16-DOF embodiment. The contribution of this work is the \emph  {combination} of all five columns on a 76-DOF humanoid with a live G1 humanoid coworker.}}{20}{table.caption.7}\protected@file@percent }
-\newlabel{tab:related-work-comparison}{{2.2}{20}{Positioning of this work's two-arm architecture (the Hybrid Safety Critic) against representative safe-RL methods. ``Tail-aware'' indicates whether the method targets a coherent risk measure (\cvar {}, VaR) rather than expected cost. ``Dual critic'' separates the task-value and cost-value estimators to avoid the non-stationarity of single-critic Lagrangian. ``Runtime guar.'' indicates whether a deployment-time mechanism (not just a training-time bound) is provided. ``High-DOF'' indicates evaluation on a $\ge $~16-DOF embodiment. The contribution of this work is the \emph {combination} of all five columns on a 76-DOF humanoid with a live G1 humanoid coworker}{table.caption.7}{}}
-\newlabel{tab:related-work-comparison@cref}{{[table][2][2]2.2}{[1][20][]20}}
+\@writefile{toc}{\contentsline {section}{\numberline {2.8}Positioning of This Work}{21}{section.2.8}\protected@file@percent }
+\newlabel{sec:bg:positioning}{{2.8}{21}{Positioning of This Work}{section.2.8}{}}
+\newlabel{sec:bg:positioning@cref}{{[section][8][2]2.8}{[1][21][]21}}
+\@writefile{lot}{\contentsline {table}{\numberline {2.2}{\ignorespaces Positioning of this work's two-arm architecture (the Hybrid Safety Critic) against representative safe-RL methods. ``Tail-aware'' indicates whether the method targets a coherent risk measure (\ensuremath  {\mathrm  {CVaR}}{}, VaR) rather than expected cost. ``Dual critic'' separates the task-value and cost-value estimators to avoid the non-stationarity of single-critic Lagrangian. ``Runtime guar.'' indicates whether a deployment-time mechanism (not just a training-time bound) is provided. ``High-DOF'' indicates evaluation on a $\ge $~16-DOF embodiment. The contribution of this work is the \emph  {combination} of all five columns on a 76-DOF humanoid with a live G1 humanoid coworker.}}{21}{table.caption.7}\protected@file@percent }
+\newlabel{tab:related-work-comparison}{{2.2}{21}{Positioning of this work's two-arm architecture (the Hybrid Safety Critic) against representative safe-RL methods. ``Tail-aware'' indicates whether the method targets a coherent risk measure (\cvar {}, VaR) rather than expected cost. ``Dual critic'' separates the task-value and cost-value estimators to avoid the non-stationarity of single-critic Lagrangian. ``Runtime guar.'' indicates whether a deployment-time mechanism (not just a training-time bound) is provided. ``High-DOF'' indicates evaluation on a $\ge $~16-DOF embodiment. The contribution of this work is the \emph {combination} of all five columns on a 76-DOF humanoid with a live G1 humanoid coworker}{table.caption.7}{}}
+\newlabel{tab:related-work-comparison@cref}{{[table][2][2]2.2}{[1][21][]21}}
 \citation{chernyadev2024bigym}
 \citation{chernyadev2024bigym}
 \citation{zhao2023act}
@@ -238,6 +279,7 @@
 \newlabel{sec:bench:embodiment@cref}{{[section][3][3]3.3}{[1][22][]22}}
 \citation{unitree_g1}
 \citation{romero2017smplh}
+\citation{tian2023meshsurvey}
 \citation{unitree_g1}
 \citation{seo2024cqnas}
 \citation{romero2017smplh}
@@ -363,7 +405,7 @@
 \newlabel{sec:method:filter:speedscale@cref}{{[subsection][1][4,3]4.3.1}{[1][32][]32}}
 \newlabel{eq:speed-scale}{{4.4}{32}{Graded \iso {} Speed-Scaling}{equation.4.3.4}{}}
 \newlabel{eq:speed-scale@cref}{{[equation][4][4]4.4}{[1][32][]32}}
-\citation{yang2021wcsac}
+\citation{yang2021wcsac,yang2023wcsacjournal}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Model-Based Geometric Dodge}{33}{subsection.4.3.2}\protected@file@percent }
 \newlabel{sec:method:filter:dodge}{{4.3.2}{33}{Model-Based Geometric Dodge}{subsection.4.3.2}{}}
 \newlabel{sec:method:filter:dodge@cref}{{[subsection][2][4,3]4.3.2}{[1][33][]33}}
@@ -379,48 +421,47 @@
 \citation{ray2019safetygym,stooke2020pid}
 \citation{yang2021wcsac}
 \citation{dabney2018qrdqn}
-\citation{bellemare2017c51}
 \newlabel{sec:method:lagrangian}{{4.4}{34}{External Baseline: Worst-Case SAC}{section.4.4}{}}
 \newlabel{sec:method:lagrangian@cref}{{[section][4][4]4.4}{[1][33][]34}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.1}Why Value-Based}{34}{subsection.4.4.1}\protected@file@percent }
 \newlabel{sec:method:lagrangian:why}{{4.4.1}{34}{Why Value-Based}{subsection.4.4.1}{}}
 \newlabel{sec:method:lagrangian:why@cref}{{[subsection][1][4,4]4.4.1}{[1][34][]34}}
+\newlabel{eq:cmdp-objective}{{4.6}{34}{Why Value-Based}{equation.4.4.6}{}}
+\newlabel{eq:cmdp-objective@cref}{{[equation][6][4]4.6}{[1][34][]34}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.2}Option A-value: Shaped-Reward Single Critic}{34}{subsection.4.4.2}\protected@file@percent }
 \newlabel{sec:method:lagrangian:A}{{4.4.2}{34}{Option A-value: Shaped-Reward Single Critic}{subsection.4.4.2}{}}
 \newlabel{sec:method:lagrangian:A@cref}{{[subsection][2][4,4]4.4.2}{[1][34][]34}}
-\newlabel{eq:option-A}{{4.6}{34}{Option A-value: Shaped-Reward Single Critic}{equation.4.4.6}{}}
-\newlabel{eq:option-A@cref}{{[equation][6][4]4.6}{[1][34][]34}}
+\newlabel{eq:option-A}{{4.7}{34}{Option A-value: Shaped-Reward Single Critic}{equation.4.4.7}{}}
+\newlabel{eq:option-A@cref}{{[equation][7][4]4.7}{[1][34][]34}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.3}Option B-value-mean: Dual Q-Functions on Mean Cost (Headline)}{34}{subsection.4.4.3}\protected@file@percent }
 \newlabel{sec:method:lagrangian:Bmean}{{4.4.3}{34}{Option B-value-mean: Dual Q-Functions on Mean Cost (Headline)}{subsection.4.4.3}{}}
 \newlabel{sec:method:lagrangian:Bmean@cref}{{[subsection][3][4,4]4.4.3}{[1][34][]34}}
-\newlabel{eq:Bmean-select}{{4.9}{34}{Option B-value-mean: Dual Q-Functions on Mean Cost (Headline)}{equation.4.4.9}{}}
-\newlabel{eq:Bmean-select@cref}{{[equation][9][4]4.9}{[1][34][]34}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.4}Option B-value-CVaR: Distributional Cost Critic (future work)}{34}{subsection.4.4.4}\protected@file@percent }
-\newlabel{sec:method:lagrangian:Bcvar}{{4.4.4}{34}{Option B-value-CVaR: Distributional Cost Critic (future work)}{subsection.4.4.4}{}}
-\newlabel{sec:method:lagrangian:Bcvar@cref}{{[subsection][4][4,4]4.4.4}{[1][34][]34}}
+\newlabel{eq:Bmean-select}{{4.10}{34}{Option B-value-mean: Dual Q-Functions on Mean Cost (Headline)}{equation.4.4.10}{}}
+\newlabel{eq:Bmean-select@cref}{{[equation][10][4]4.10}{[1][34][]34}}
+\citation{bellemare2017c51}
 \citation{stooke2020pid}
-\citation{stooke2020pid}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.4}Option B-value-CVaR: Distributional Cost Critic (future work)}{35}{subsection.4.4.4}\protected@file@percent }
+\newlabel{sec:method:lagrangian:Bcvar}{{4.4.4}{35}{Option B-value-CVaR: Distributional Cost Critic (future work)}{subsection.4.4.4}{}}
+\newlabel{sec:method:lagrangian:Bcvar@cref}{{[subsection][4][4,4]4.4.4}{[1][34][]35}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.5}The C51 Value-Support Invariant}{35}{subsection.4.4.5}\protected@file@percent }
 \newlabel{sec:method:lagrangian:support}{{4.4.5}{35}{The C51 Value-Support Invariant}{subsection.4.4.5}{}}
-\newlabel{sec:method:lagrangian:support@cref}{{[subsection][5][4,4]4.4.5}{[1][34][]35}}
+\newlabel{sec:method:lagrangian:support@cref}{{[subsection][5][4,4]4.4.5}{[1][35][]35}}
 \newlabel{lem:support-bound}{{4.1}{35}{Support-bounding invariant}{theorem.4.1}{}}
 \newlabel{lem:support-bound@cref}{{[proposition][1][4]4.1}{[1][35][]35}}
-\newlabel{eq:support-invariant}{{4.11}{35}{Support-bounding invariant}{equation.4.4.11}{}}
-\newlabel{eq:support-invariant@cref}{{[equation][11][4]4.11}{[1][35][]35}}
+\newlabel{eq:support-invariant}{{4.12}{35}{Support-bounding invariant}{equation.4.4.12}{}}
+\newlabel{eq:support-invariant@cref}{{[equation][12][4]4.12}{[1][35][]35}}
 \@writefile{toc}{\contentsline {paragraph}{Consequence.}{35}{paragraph*.23}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.6}Per-Env-Step Cost Backup}{35}{subsection.4.4.6}\protected@file@percent }
 \newlabel{sec:method:lagrangian:per-step}{{4.4.6}{35}{Per-Env-Step Cost Backup}{subsection.4.4.6}{}}
 \newlabel{sec:method:lagrangian:per-step@cref}{{[subsection][6][4,4]4.4.6}{[1][35][]35}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.7}PID Lagrange Multiplier Update}{35}{subsection.4.4.7}\protected@file@percent }
-\newlabel{sec:method:lagrangian:pid}{{4.4.7}{35}{PID Lagrange Multiplier Update}{subsection.4.4.7}{}}
-\newlabel{sec:method:lagrangian:pid@cref}{{[subsection][7][4,4]4.4.7}{[1][35][]35}}
-\newlabel{eq:pid-lambda}{{4.13}{35}{PID Lagrange Multiplier Update}{equation.4.4.13}{}}
-\newlabel{eq:pid-lambda@cref}{{[equation][13][4]4.13}{[1][35][]35}}
-\@writefile{toc}{\contentsline {paragraph}{PID auto-tuning is seed-unstable at the feasibility boundary; a fixed multiplier is the fix.}{35}{paragraph*.24}\protected@file@percent }
+\citation{stooke2020pid}
 \citation{cbfrl2024,shield2025}
-\citation{narvekar2020curriculum}
-\citation{tobin2017domainrand}
-\citation{narvekar2020curriculum,openai2019solving}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4.7}PID Lagrange Multiplier Update}{36}{subsection.4.4.7}\protected@file@percent }
+\newlabel{sec:method:lagrangian:pid}{{4.4.7}{36}{PID Lagrange Multiplier Update}{subsection.4.4.7}{}}
+\newlabel{sec:method:lagrangian:pid@cref}{{[subsection][7][4,4]4.4.7}{[1][35][]36}}
+\newlabel{eq:pid-lambda}{{4.14}{36}{PID Lagrange Multiplier Update}{equation.4.4.14}{}}
+\newlabel{eq:pid-lambda@cref}{{[equation][14][4]4.14}{[1][35][]36}}
+\@writefile{toc}{\contentsline {paragraph}{PID auto-tuning is seed-unstable at the feasibility boundary; a fixed multiplier is the fix.}{36}{paragraph*.24}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {4.4.8}Filter During Training (optional)}{36}{subsection.4.4.8}\protected@file@percent }
 \newlabel{sec:method:lagrangian:filter-train}{{4.4.8}{36}{Filter During Training (optional)}{subsection.4.4.8}{}}
 \newlabel{sec:method:lagrangian:filter-train@cref}{{[subsection][8][4,4]4.4.8}{[1][36][]36}}
@@ -430,26 +471,29 @@
 \@writefile{toc}{\contentsline {section}{\numberline {4.5}The Base-Policy Curriculum}{36}{section.4.5}\protected@file@percent }
 \newlabel{sec:method:curriculum}{{4.5}{36}{The Base-Policy Curriculum}{section.4.5}{}}
 \newlabel{sec:method:curriculum@cref}{{[section][5][4]4.5}{[1][36][]36}}
-\newlabel{tab:curriculum-stages}{{4.5}{36}{The Base-Policy Curriculum}{section.4.5}{}}
-\newlabel{tab:curriculum-stages@cref}{{[section][5][4]4.5}{[1][36][]36}}
+\citation{narvekar2020curriculum}
+\citation{tobin2017domainrand}
+\citation{narvekar2020curriculum,openai2019solving}
 \citation{seo2024cqnas}
 \citation{seo2024cqnas}
+\citation{mahmood2019amass}
+\newlabel{tab:curriculum-stages}{{4.5}{37}{The Base-Policy Curriculum}{section.4.5}{}}
+\newlabel{tab:curriculum-stages@cref}{{[section][5][4]4.5}{[1][37][]37}}
 \@writefile{toc}{\contentsline {paragraph}{Why a curriculum (against alternatives).}{37}{paragraph*.25}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {4.6}Algorithm}{37}{section.4.6}\protected@file@percent }
 \newlabel{sec:method:algorithm}{{4.6}{37}{Algorithm}{section.4.6}{}}
 \newlabel{sec:method:algorithm@cref}{{[section][6][4]4.6}{[1][37][]37}}
-\@writefile{loa}{\contentsline {algorithm}{\numberline {4.1}{\ignorespaces Value-based Lagrangian constrained-RL training loop (headline: Option~B-value-mean).}}{37}{algorithm.4.1}\protected@file@percent }
-\newlabel{alg:constrained-rl}{{4.1}{37}{Value-based Lagrangian constrained-RL training loop (headline: Option~B-value-mean)}{algorithm.4.1}{}}
-\newlabel{alg:constrained-rl@cref}{{[algorithm][1][4]4.1}{[1][37][]37}}
 \@writefile{toc}{\contentsline {section}{\numberline {4.7}Software Architecture}{37}{section.4.7}\protected@file@percent }
 \newlabel{sec:impl:arch}{{4.7}{37}{Software Architecture}{section.4.7}{}}
 \newlabel{sec:impl:arch@cref}{{[section][7][4]4.7}{[1][37][]37}}
-\citation{mahmood2019amass}
-\@writefile{toc}{\contentsline {section}{\numberline {4.8}CQN-AS{} Vendor Integration}{38}{section.4.8}\protected@file@percent }
-\newlabel{sec:impl:integration}{{4.8}{38}{\cqnas {} Vendor Integration}{section.4.8}{}}
-\newlabel{sec:impl:integration@cref}{{[section][8][4]4.8}{[1][37][]38}}
-\@writefile{toc}{\contentsline {paragraph}{Demo distribution gap.}{38}{paragraph*.26}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Demo--live action-stat sharing.}{38}{paragraph*.27}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.8}CQN-AS{} Vendor Integration}{37}{section.4.8}\protected@file@percent }
+\newlabel{sec:impl:integration}{{4.8}{37}{\cqnas {} Vendor Integration}{section.4.8}{}}
+\newlabel{sec:impl:integration@cref}{{[section][8][4]4.8}{[1][37][]37}}
+\@writefile{toc}{\contentsline {paragraph}{Demo distribution gap.}{37}{paragraph*.26}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Demo--live action-stat sharing.}{37}{paragraph*.27}\protected@file@percent }
+\@writefile{loa}{\contentsline {algorithm}{\numberline {4.1}{\ignorespaces Value-based Lagrangian constrained-RL training loop (headline: Option~B-value-mean).}}{38}{algorithm.4.1}\protected@file@percent }
+\newlabel{alg:constrained-rl}{{4.1}{38}{Value-based Lagrangian constrained-RL training loop (headline: Option~B-value-mean)}{algorithm.4.1}{}}
+\newlabel{alg:constrained-rl@cref}{{[algorithm][1][4]4.1}{[1][37][]38}}
 \@writefile{toc}{\contentsline {paragraph}{C51 projection CUDA overflow.}{38}{paragraph*.28}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Other gotchas.}{38}{paragraph*.29}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {4.9}Making the Offline Filter Deployment-Faithful}{38}{section.4.9}\protected@file@percent }
@@ -513,398 +557,446 @@
 \@writefile{toc}{\contentsline {section}{\numberline {5.8}Experiment Index}{43}{section.5.8}\protected@file@percent }
 \newlabel{sec:setup:exp-index}{{5.8}{43}{Experiment Index}{section.5.8}{}}
 \newlabel{sec:setup:exp-index@cref}{{[section][8][5]5.8}{[1][43][]43}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.9}Baseline ISO 15066 Compliance}{43}{section.5.9}\protected@file@percent }
-\newlabel{sec:results:baseline}{{5.9}{43}{Baseline ISO 15066 Compliance}{section.5.9}{}}
-\newlabel{sec:results:baseline@cref}{{[section][9][5]5.9}{[1][43][]43}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.9}Ablation Map: What Each Component Proves}{43}{section.5.9}\protected@file@percent }
+\newlabel{sec:results:ablation-map}{{5.9}{43}{Ablation Map: What Each Component Proves}{section.5.9}{}}
+\newlabel{sec:results:ablation-map@cref}{{[section][9][5]5.9}{[1][43][]43}}
 \citation{seo2024cqnas}
 \@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Experiment index. Each is identified by a phase-prefixed code (E$n.m$) and reported in Chapter~\ref {ch:eval}; R1 = persistent co-location (\texttt  {saucepan\_to\_hob}), R2 = intermittent co-location (\texttt  {dishwasher\_close}, \texttt  {drawers\_open\_all}), R3 = the cross-task boundary condition.}}{44}{table.caption.34}\protected@file@percent }
 \newlabel{tab:experiment-index}{{5.1}{44}{Experiment index. Each is identified by a phase-prefixed code (E$n.m$) and reported in Chapter~\ref {ch:eval}; R1 = persistent co-location (\texttt {saucepan\_to\_hob}), R2 = intermittent co-location (\texttt {dishwasher\_close}, \texttt {drawers\_open\_all}), R3 = the cross-task boundary condition}{table.caption.34}{}}
 \newlabel{tab:experiment-index@cref}{{[table][1][5]5.1}{[1][43][]44}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Baseline ISO~15066{} compliance for the unconstrained CQN-AS{} policy on \texttt  {saucepan\_to\_hob} under the \texttt  {coworker\_train} distribution (means $\pm $ 95\,\% bootstrap CI, 3 seeds $\times $ 20 episodes). This is the ``before'' picture and the floor against which every later result is measured: the policy is task-competent yet violates proximity on a large fraction of episodes, because nothing in its objective represents the human.}}{44}{table.caption.35}\protected@file@percent }
-\newlabel{tab:results:baseline}{{5.2}{44}{Baseline \iso {} compliance for the unconstrained \cqnas {} policy on \texttt {saucepan\_to\_hob} under the \texttt {coworker\_train} distribution (means $\pm $ 95\,\% bootstrap CI, 3 seeds $\times $ 20 episodes). This is the ``before'' picture and the floor against which every later result is measured: the policy is task-competent yet violates proximity on a large fraction of episodes, because nothing in its objective represents the human}{table.caption.35}{}}
-\newlabel{tab:results:baseline@cref}{{[table][2][5]5.2}{[1][44][]44}}
-\@writefile{toc}{\contentsline {paragraph}{Intermittent-co-location baselines.}{44}{paragraph*.36}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.10}RQ1: The Human-State Observation Channel}{45}{section.5.10}\protected@file@percent }
-\newlabel{sec:results:obs}{{5.10}{45}{RQ1: The Human-State Observation Channel}{section.5.10}{}}
-\newlabel{sec:results:obs@cref}{{[section][10][5]5.10}{[1][44][]45}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.10.1}E1.1: Behaviour Cloning under No Penalty (Negative)}{45}{subsection.5.10.1}\protected@file@percent }
-\newlabel{sec:results:obs-bc}{{5.10.1}{45}{E1.1: Behaviour Cloning under No Penalty (Negative)}{subsection.5.10.1}{}}
-\newlabel{sec:results:obs-bc@cref}{{[subsection][1][5,10]5.10.1}{[1][44][]45}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.10}Baseline ISO 15066 Compliance}{44}{section.5.10}\protected@file@percent }
+\newlabel{sec:results:baseline}{{5.10}{44}{Baseline ISO 15066 Compliance}{section.5.10}{}}
+\newlabel{sec:results:baseline@cref}{{[section][10][5]5.10}{[1][44][]44}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Baseline ISO~15066{} compliance for the unconstrained CQN-AS{} policy on \texttt  {saucepan\_to\_hob} under the \texttt  {coworker\_train} distribution (means $\pm $ 95\,\% bootstrap CI, 3 seeds $\times $ 20 episodes). This is the ``before'' picture and the floor against which every later result is measured: the policy is task-competent yet violates proximity on a large fraction of episodes, because nothing in its objective represents the human.}}{45}{table.caption.35}\protected@file@percent }
+\newlabel{tab:results:baseline}{{5.2}{45}{Baseline \iso {} compliance for the unconstrained \cqnas {} policy on \texttt {saucepan\_to\_hob} under the \texttt {coworker\_train} distribution (means $\pm $ 95\,\% bootstrap CI, 3 seeds $\times $ 20 episodes). This is the ``before'' picture and the floor against which every later result is measured: the policy is task-competent yet violates proximity on a large fraction of episodes, because nothing in its objective represents the human}{table.caption.35}{}}
+\newlabel{tab:results:baseline@cref}{{[table][2][5]5.2}{[1][44][]45}}
+\@writefile{toc}{\contentsline {paragraph}{Intermittent-co-location baselines.}{45}{paragraph*.36}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.11}RQ1: The Human-State Observation Channel}{45}{section.5.11}\protected@file@percent }
+\newlabel{sec:results:obs}{{5.11}{45}{RQ1: The Human-State Observation Channel}{section.5.11}{}}
+\newlabel{sec:results:obs@cref}{{[section][11][5]5.11}{[1][45][]45}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.1}E1.1: Behaviour Cloning under No Penalty (Negative)}{45}{subsection.5.11.1}\protected@file@percent }
+\newlabel{sec:results:obs-bc}{{5.11.1}{45}{E1.1: Behaviour Cloning under No Penalty (Negative)}{subsection.5.11.1}{}}
+\newlabel{sec:results:obs-bc@cref}{{[subsection][1][5,11]5.11.1}{[1][45][]45}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces Experiment E1.1. ACT BC under no penalty across four tasks and three observation modes. SSM-violation rate averaged across six legacy disruption types per cell. None of the cells clears the 20\,\% improvement criterion; oracle is worse than off on three of four tasks.}}{45}{table.caption.37}\protected@file@percent }
 \newlabel{tab:e1.1-bc-ablation}{{5.3}{45}{Experiment E1.1. ACT BC under no penalty across four tasks and three observation modes. SSM-violation rate averaged across six legacy disruption types per cell. None of the cells clears the 20\,\% improvement criterion; oracle is worse than off on three of four tasks}{table.caption.37}{}}
 \newlabel{tab:e1.1-bc-ablation@cref}{{[table][3][5]5.3}{[1][45][]45}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.10.2}E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{45}{subsection.5.10.2}\protected@file@percent }
-\newlabel{sec:results:obs-rl}{{5.10.2}{45}{E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{subsection.5.10.2}{}}
-\newlabel{sec:results:obs-rl@cref}{{[subsection][2][5,10]5.10.2}{[1][45][]45}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt  {oracle} and \texttt  {noisy} perception (\texttt  {saucepan\_to\_hob}, \texttt  {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt  {noisy} numbers.}}{45}{table.caption.38}\protected@file@percent }
-\newlabel{tab:e3.6-obs-rl}{{5.4}{45}{Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt {oracle} and \texttt {noisy} perception (\texttt {saucepan\_to\_hob}, \texttt {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt {noisy} numbers}{table.caption.38}{}}
-\newlabel{tab:e3.6-obs-rl@cref}{{[table][4][5]5.4}{[1][45][]45}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.11}R1 --- Persistent Co-location: \texttt  {saucepan\_to\_hob}}{46}{section.5.11}\protected@file@percent }
-\newlabel{sec:results:r1}{{5.11}{46}{R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{section.5.11}{}}
-\newlabel{sec:results:r1@cref}{{[section][11][5]5.11}{[1][45][]46}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.11.1}\protected@file@percent }
-\newlabel{sec:results:cost-signal}{{5.11.1}{46}{E3.1: Cost-Signal Form Is Not the Operative Variable}{subsection.5.11.1}{}}
-\newlabel{sec:results:cost-signal@cref}{{[subsection][1][5,11]5.11.1}{[1][46][]46}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces Experiment E3.1. Cost-signal form under the same B-value-mean backbone on \texttt  {saucepan\_to\_hob} at the tight budget $d = 0.01$. Both dual-variable forms (continuous, binary) collapse to zero success: the budget sits an order of magnitude below the task's inherent cost, so the constraint is infeasible and the multiplier winds up regardless of cost-signal shape. The cost form is not the operative variable; the budget relative to the task's inherent cost is.}}{46}{table.caption.39}\protected@file@percent }
-\newlabel{tab:e3.1-cost-signal}{{5.5}{46}{Experiment E3.1. Cost-signal form under the same B-value-mean backbone on \texttt {saucepan\_to\_hob} at the tight budget $d = 0.01$. Both dual-variable forms (continuous, binary) collapse to zero success: the budget sits an order of magnitude below the task's inherent cost, so the constraint is infeasible and the multiplier winds up regardless of cost-signal shape. The cost form is not the operative variable; the budget relative to the task's inherent cost is}{table.caption.39}{}}
-\newlabel{tab:e3.1-cost-signal@cref}{{[table][5][5]5.5}{[1][46][]46}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.2}E3.2: Cost Budget Sweep and the Feasibility Boundary}{46}{subsection.5.11.2}\protected@file@percent }
-\newlabel{sec:results:budget}{{5.11.2}{46}{E3.2: Cost Budget Sweep and the Feasibility Boundary}{subsection.5.11.2}{}}
-\newlabel{sec:results:budget@cref}{{[subsection][2][5,11]5.11.2}{[1][46][]46}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Experiment E3.2 / RQ2. PID-Lagrangian at the only feasible budget $d = 0.3$, three seeds. Top: deployment proximity-violation rate ($\tau = 0.3$\,m) versus training step; bottom: task success. The seeds converge to $\lambda = 0.000$ (seed~1, unconstrained, flat at the baseline $\approx $0.30), $\lambda = 0.267$ (seed~0, a graceful sub-0.26 avoidance basin), and $\lambda = 3.855$ (seed~2, windup collapse, success $\to 0$). Because $d = 0.3$ coincides with the task's inherent cost, the dual variable carries too little signal to auto-tune stably, motivating the fixed-$\lambda $ headline.}}{47}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:lambda-regimes}{{5.2}{47}{Experiment E3.2 / RQ2. PID-Lagrangian at the only feasible budget $d = 0.3$, three seeds. Top: deployment proximity-violation rate ($\tau = 0.3$\,m) versus training step; bottom: task success. The seeds converge to $\lambda = 0.000$ (seed~1, unconstrained, flat at the baseline $\approx $0.30), $\lambda = 0.267$ (seed~0, a graceful sub-0.26 avoidance basin), and $\lambda = 3.855$ (seed~2, windup collapse, success $\to 0$). Because $d = 0.3$ coincides with the task's inherent cost, the dual variable carries too little signal to auto-tune stably, motivating the fixed-$\lambda $ headline}{figure.caption.40}{}}
-\newlabel{fig:lambda-regimes@cref}{{[figure][2][5]5.2}{[1][47][]47}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.3}Filter Pareto Frontier (E2.1--E2.3)}{47}{subsection.5.11.3}\protected@file@percent }
-\newlabel{sec:results:filter-pareto}{{5.11.3}{47}{Filter Pareto Frontier (E2.1--E2.3)}{subsection.5.11.3}{}}
-\newlabel{sec:results:filter-pareto@cref}{{[subsection][3][5,11]5.11.3}{[1][47][]47}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.2}E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{45}{subsection.5.11.2}\protected@file@percent }
+\newlabel{sec:results:obs-rl}{{5.11.2}{45}{E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{subsection.5.11.2}{}}
+\newlabel{sec:results:obs-rl@cref}{{[subsection][2][5,11]5.11.2}{[1][45][]45}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt  {oracle} and \texttt  {noisy} perception (\texttt  {saucepan\_to\_hob}, \texttt  {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt  {noisy} numbers.}}{46}{table.caption.38}\protected@file@percent }
+\newlabel{tab:e3.6-obs-rl}{{5.4}{46}{Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt {oracle} and \texttt {noisy} perception (\texttt {saucepan\_to\_hob}, \texttt {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt {noisy} numbers}{table.caption.38}{}}
+\newlabel{tab:e3.6-obs-rl@cref}{{[table][4][5]5.4}{[1][46][]46}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.12}R1 --- Persistent Co-location: \texttt  {saucepan\_to\_hob}}{46}{section.5.12}\protected@file@percent }
+\newlabel{sec:results:r1}{{5.12}{46}{R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{section.5.12}{}}
+\newlabel{sec:results:r1@cref}{{[section][12][5]5.12}{[1][46][]46}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.12.1}\protected@file@percent }
+\newlabel{sec:results:cost-signal}{{5.12.1}{46}{E3.1: Cost-Signal Form Is Not the Operative Variable}{subsection.5.12.1}{}}
+\newlabel{sec:results:cost-signal@cref}{{[subsection][1][5,12]5.12.1}{[1][46][]46}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces Experiment E3.1. Cost-signal form under the same B-value-mean backbone on \texttt  {saucepan\_to\_hob} at the tight budget $d = 0.01$. Both dual-variable forms (continuous, binary) collapse to zero success: the budget sits an order of magnitude below the task's inherent cost, so the constraint is infeasible and the multiplier winds up regardless of cost-signal shape. The cost form is not the operative variable; the budget relative to the task's inherent cost is.}}{47}{table.caption.39}\protected@file@percent }
+\newlabel{tab:e3.1-cost-signal}{{5.5}{47}{Experiment E3.1. Cost-signal form under the same B-value-mean backbone on \texttt {saucepan\_to\_hob} at the tight budget $d = 0.01$. Both dual-variable forms (continuous, binary) collapse to zero success: the budget sits an order of magnitude below the task's inherent cost, so the constraint is infeasible and the multiplier winds up regardless of cost-signal shape. The cost form is not the operative variable; the budget relative to the task's inherent cost is}{table.caption.39}{}}
+\newlabel{tab:e3.1-cost-signal@cref}{{[table][5][5]5.5}{[1][47][]47}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.2}E3.2: Cost Budget Sweep and the Feasibility Boundary}{47}{subsection.5.12.2}\protected@file@percent }
+\newlabel{sec:results:budget}{{5.12.2}{47}{E3.2: Cost Budget Sweep and the Feasibility Boundary}{subsection.5.12.2}{}}
+\newlabel{sec:results:budget@cref}{{[subsection][2][5,12]5.12.2}{[1][47][]47}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.3}Filter Pareto Frontier (E2.1--E2.3)}{47}{subsection.5.12.3}\protected@file@percent }
+\newlabel{sec:results:filter-pareto}{{5.12.3}{47}{Filter Pareto Frontier (E2.1--E2.3)}{subsection.5.12.3}{}}
+\newlabel{sec:results:filter-pareto@cref}{{[subsection][3][5,12]5.12.3}{[1][47][]47}}
 \@writefile{toc}{\contentsline {paragraph}{The reactive-fallback dilemma.}{47}{paragraph*.41}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Experiment E3.2 / RQ2. PID-Lagrangian at the only feasible budget $d = 0.3$, three seeds. Top: deployment proximity-violation rate ($\tau = 0.3$\,m) versus training step; bottom: task success. The seeds converge to $\lambda = 0.000$ (seed~1, unconstrained, flat at the baseline $\approx $0.30), $\lambda = 0.267$ (seed~0, a graceful sub-0.26 avoidance basin), and $\lambda = 3.855$ (seed~2, windup collapse, success $\to 0$). Because $d = 0.3$ coincides with the task's inherent cost, the dual variable carries too little signal to auto-tune stably, motivating the fixed-$\lambda $ headline.}}{48}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:lambda-regimes}{{5.2}{48}{Experiment E3.2 / RQ2. PID-Lagrangian at the only feasible budget $d = 0.3$, three seeds. Top: deployment proximity-violation rate ($\tau = 0.3$\,m) versus training step; bottom: task success. The seeds converge to $\lambda = 0.000$ (seed~1, unconstrained, flat at the baseline $\approx $0.30), $\lambda = 0.267$ (seed~0, a graceful sub-0.26 avoidance basin), and $\lambda = 3.855$ (seed~2, windup collapse, success $\to 0$). Because $d = 0.3$ coincides with the task's inherent cost, the dual variable carries too little signal to auto-tune stably, motivating the fixed-$\lambda $ headline}{figure.caption.40}{}}
+\newlabel{fig:lambda-regimes@cref}{{[figure][2][5]5.2}{[1][47][]48}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces Reactive-filter fallback sub-study on the unconstrained baseline policy (v3 G1 SVF, \textsc  {coworker}{} distribution, \texttt  {noisy} observations; 60 evaluation episodes per row). No reactive fallback reduces geometric proximity at acceptable success and robot speed. Zero-velocity braking is a velocity backstop only; an aggressive retreat buys separation by abandoning the task and accelerating, which worsens the SSM{}-actual rate.}}{48}{table.caption.42}\protected@file@percent }
 \newlabel{tab:filter-fallback}{{5.6}{48}{Reactive-filter fallback sub-study on the unconstrained baseline policy (v3 G1 SVF, \coworker {} distribution, \texttt {noisy} observations; 60 evaluation episodes per row). No reactive fallback reduces geometric proximity at acceptable success and robot speed. Zero-velocity braking is a velocity backstop only; an aggressive retreat buys separation by abandoning the task and accelerating, which worsens the \ssm {}-actual rate}{table.caption.42}{}}
 \newlabel{tab:filter-fallback@cref}{{[table][6][5]5.6}{[1][48][]48}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.4}E4.1: The Headline Comparison}{48}{subsection.5.11.4}\protected@file@percent }
-\newlabel{sec:results:headline-feature-table}{{5.11.4}{48}{E4.1: The Headline Comparison}{subsection.5.11.4}{}}
-\newlabel{sec:results:headline-feature-table@cref}{{[subsection][4][5,11]5.11.4}{[1][48][]48}}
-\@writefile{toc}{\contentsline {paragraph}{The proactive policy reduces proximity, reproducibly.}{48}{paragraph*.43}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Operating-point selection must be safety-aware.}{48}{paragraph*.45}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.4}E4.1: The Headline Comparison}{49}{subsection.5.12.4}\protected@file@percent }
+\newlabel{sec:results:headline-feature-table}{{5.12.4}{49}{E4.1: The Headline Comparison}{subsection.5.12.4}{}}
+\newlabel{sec:results:headline-feature-table@cref}{{[subsection][4][5,12]5.12.4}{[1][48][]49}}
+\@writefile{toc}{\contentsline {paragraph}{The proactive policy reduces proximity, reproducibly.}{49}{paragraph*.43}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {5.7}{\ignorespaces Experiment E4.1 (\textbf  {the headline}). The division of labour between the proactive policy and a complementary-axis runtime filter on \texttt  {saucepan\_to\_hob} under \texttt  {coworker\_train}, \texttt  {noisy} perception. Rows 1 and 3 evaluate the single stage-2 baseline policy over 60 episodes (3 evaluation seeds $\times $ 20); rows 2 and 4 pool three independently trained seeds (180 episodes). Brackets are 95\,\% bootstrap CIs. The policy owns the geometric-proximity axis ($\tau = 0.3$\,m); the graded speed-scaling filter owns the velocity-adaptive SSM{}-actual axis; only their composition reduces both at once, at a multiplicative success cost. $\Delta $ columns are relative to the unconstrained baseline (negative is safer). The two SVF-veto configurations are in Table~\ref {tab:filter-taxonomy}.}}{49}{table.caption.44}\protected@file@percent }
 \newlabel{tab:e4.1-feature-incremental}{{5.7}{49}{Experiment E4.1 (\textbf {the headline}). The division of labour between the proactive policy and a complementary-axis runtime filter on \texttt {saucepan\_to\_hob} under \texttt {coworker\_train}, \texttt {noisy} perception. Rows 1 and 3 evaluate the single stage-2 baseline policy over 60 episodes (3 evaluation seeds $\times $ 20); rows 2 and 4 pool three independently trained seeds (180 episodes). Brackets are 95\,\% bootstrap CIs. The policy owns the geometric-proximity axis ($\tau = 0.3$\,m); the graded speed-scaling filter owns the velocity-adaptive \ssm {}-actual axis; only their composition reduces both at once, at a multiplicative success cost. $\Delta $ columns are relative to the unconstrained baseline (negative is safer). The two SVF-veto configurations are in Table~\ref {tab:filter-taxonomy}}{table.caption.44}{}}
-\newlabel{tab:e4.1-feature-incremental@cref}{{[table][7][5]5.7}{[1][48][]49}}
+\newlabel{tab:e4.1-feature-incremental@cref}{{[table][7][5]5.7}{[1][49][]49}}
+\@writefile{toc}{\contentsline {paragraph}{Operating-point selection must be safety-aware.}{49}{paragraph*.45}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{The basin is constraint-driven, not selection noise.}{49}{paragraph*.46}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces The fixed-$\lambda = 0.1$ policy across three seeds (stars mark the safety-aware operating point at a success floor of $0.75$). Top: deployment proximity-violation rate; bottom: success. Unlike the PID runs (Figure~\ref {fig:lambda-regimes}), all three seeds behave consistently and each reaches a sub-baseline proximity basin in mid-training, giving the pooled $0.228$ at $0.76$ success. Fixing $\lambda $ removes the ill-conditioned budget loop that made the PID controller seed-unstable.}}{49}{figure.caption.47}\protected@file@percent }
-\newlabel{fig:fixlam}{{5.3}{49}{The fixed-$\lambda = 0.1$ policy across three seeds (stars mark the safety-aware operating point at a success floor of $0.75$). Top: deployment proximity-violation rate; bottom: success. Unlike the PID runs (Figure~\ref {fig:lambda-regimes}), all three seeds behave consistently and each reaches a sub-baseline proximity basin in mid-training, giving the pooled $0.228$ at $0.76$ success. Fixing $\lambda $ removes the ill-conditioned budget loop that made the PID controller seed-unstable}{figure.caption.47}{}}
-\newlabel{fig:fixlam@cref}{{[figure][3][5]5.3}{[1][49][]49}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces The fixed-$\lambda = 0.1$ policy across three seeds (stars mark the safety-aware operating point at a success floor of $0.75$). Top: deployment proximity-violation rate; bottom: success. Unlike the PID runs (Figure~\ref {fig:lambda-regimes}), all three seeds behave consistently and each reaches a sub-baseline proximity basin in mid-training, giving the pooled $0.228$ at $0.76$ success. Fixing $\lambda $ removes the ill-conditioned budget loop that made the PID controller seed-unstable.}}{50}{figure.caption.47}\protected@file@percent }
+\newlabel{fig:fixlam}{{5.3}{50}{The fixed-$\lambda = 0.1$ policy across three seeds (stars mark the safety-aware operating point at a success floor of $0.75$). Top: deployment proximity-violation rate; bottom: success. Unlike the PID runs (Figure~\ref {fig:lambda-regimes}), all three seeds behave consistently and each reaches a sub-baseline proximity basin in mid-training, giving the pooled $0.228$ at $0.76$ success. Fixing $\lambda $ removes the ill-conditioned budget loop that made the PID controller seed-unstable}{figure.caption.47}{}}
+\newlabel{fig:fixlam@cref}{{[figure][3][5]5.3}{[1][49][]50}}
 \@writefile{toc}{\contentsline {paragraph}{Controlling for the workspace-shaping confound.}{50}{paragraph*.48}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{The velocity axis is the filter's, and only a graded filter reaches it.}{50}{paragraph*.49}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{The composition is the only both-axis-compliant configuration, and it costs success.}{50}{paragraph*.50}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Sim-to-real perception.}{50}{paragraph*.51}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.5}The Reactive-Filter Taxonomy: Freeze versus Flee}{50}{subsection.5.11.5}\protected@file@percent }
-\newlabel{sec:results:reactive-taxonomy}{{5.11.5}{50}{The Reactive-Filter Taxonomy: Freeze versus Flee}{subsection.5.11.5}{}}
-\newlabel{sec:results:reactive-taxonomy@cref}{{[subsection][5][5,11]5.11.5}{[1][50][]50}}
+\@writefile{toc}{\contentsline {paragraph}{Sim-to-real perception.}{51}{paragraph*.51}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.5}The Reactive-Filter Taxonomy: Freeze versus Flee}{51}{subsection.5.12.5}\protected@file@percent }
+\newlabel{sec:results:reactive-taxonomy}{{5.12.5}{51}{The Reactive-Filter Taxonomy: Freeze versus Flee}{subsection.5.12.5}{}}
+\newlabel{sec:results:reactive-taxonomy@cref}{{[subsection][5][5,12]5.12.5}{[1][51][]51}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.8}{\ignorespaces The reactive-filter taxonomy on \texttt  {saucepan\_to\_hob} (\textsc  {coworker}{}, \texttt  {noisy}); every row is 60 evaluation episodes, and rows involving the constrained policy use the seed-0 trained policy (the pooled three-trained-seed policy numbers are in Table~\ref {tab:e4.1-feature-incremental}). Every reactive modality, learned or model-based, is bounded by the freeze-versus-flee dilemma: it either freezes (and proximity does not fall) or flees (and task success collapses). None reaches the proactive policy's frontier (success $0.75$, proximity $0.198$ at seed~0; $0.76$/$0.228$ pooled). The SVF veto applied to the \emph  {policy} (the architecture's original composition design) is worse than the policy alone.}}{51}{table.caption.52}\protected@file@percent }
 \newlabel{tab:filter-taxonomy}{{5.8}{51}{The reactive-filter taxonomy on \texttt {saucepan\_to\_hob} (\coworker {}, \texttt {noisy}); every row is 60 evaluation episodes, and rows involving the constrained policy use the seed-0 trained policy (the pooled three-trained-seed policy numbers are in Table~\ref {tab:e4.1-feature-incremental}). Every reactive modality, learned or model-based, is bounded by the freeze-versus-flee dilemma: it either freezes (and proximity does not fall) or flees (and task success collapses). None reaches the proactive policy's frontier (success $0.75$, proximity $0.198$ at seed~0; $0.76$/$0.228$ pooled). The SVF veto applied to the \emph {policy} (the architecture's original composition design) is worse than the policy alone}{table.caption.52}{}}
 \newlabel{tab:filter-taxonomy@cref}{{[table][8][5]5.8}{[1][51][]51}}
 \@writefile{toc}{\contentsline {paragraph}{The learned veto freezes.}{51}{paragraph*.53}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{The model-based filter flees.}{51}{paragraph*.54}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.6}Joint ISO Coverage: The Composition and Its Ceiling}{51}{subsection.5.11.6}\protected@file@percent }
-\newlabel{sec:results:joint-coverage}{{5.11.6}{51}{Joint ISO Coverage: The Composition and Its Ceiling}{subsection.5.11.6}{}}
-\newlabel{sec:results:joint-coverage@cref}{{[subsection][6][5,11]5.11.6}{[1][51][]51}}
-\newlabel{fig:velocity-axis}{{5.4a}{52}{The velocity (\ssm {}-actual) axis: the graded speed-scaling filter is the specialist; the policy also reduces it via avoidance; the veto does not maintain the graded margin and leaves it at baseline}{figure.caption.55}{}}
-\newlabel{fig:velocity-axis@cref}{{[subfigure][1][5,4]5.4a}{[1][52][]52}}
-\newlabel{sub@fig:velocity-axis}{{a}{52}{The velocity (\ssm {}-actual) axis: the graded speed-scaling filter is the specialist; the policy also reduces it via avoidance; the veto does not maintain the graded margin and leaves it at baseline}{figure.caption.55}{}}
-\newlabel{sub@fig:velocity-axis@cref}{{[subfigure][1][5,4]5.4a}{[1][52][]52}}
-\newlabel{fig:joint-coverage}{{5.4b}{52}{Joint coverage: proximity ($x$, policy's axis) vs.\^^M\ssm {}-actual ($y$, filter's axis). Only the composition reaches the both-safe corner, at success $0.44$; it beats neither specialist on that specialist's own axis}{figure.caption.55}{}}
-\newlabel{fig:joint-coverage@cref}{{[subfigure][2][5,4]5.4b}{[1][52][]52}}
-\newlabel{sub@fig:joint-coverage}{{b}{52}{Joint coverage: proximity ($x$, policy's axis) vs.\^^M\ssm {}-actual ($y$, filter's axis). Only the composition reaches the both-safe corner, at success $0.44$; it beats neither specialist on that specialist's own axis}{figure.caption.55}{}}
-\newlabel{sub@fig:joint-coverage@cref}{{[subfigure][2][5,4]5.4b}{[1][52][]52}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces The two-axis division of labour on \texttt  {saucepan\_to\_hob} and what composing the specialists buys.}}{52}{figure.caption.55}\protected@file@percent }
-\newlabel{fig:axis-division}{{5.4}{52}{The two-axis division of labour on \texttt {saucepan\_to\_hob} and what composing the specialists buys}{figure.caption.55}{}}
-\newlabel{fig:axis-division@cref}{{[figure][4][5]5.4}{[1][52][]52}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.11.7}E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{52}{subsection.5.11.7}\protected@file@percent }
-\newlabel{sec:results:interaction}{{5.11.7}{52}{E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{subsection.5.11.7}{}}
-\newlabel{sec:results:interaction@cref}{{[subsection][7][5,11]5.11.7}{[1][52][]52}}
+\@writefile{toc}{\contentsline {paragraph}{The model-based filter flees.}{52}{paragraph*.54}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.6}Joint ISO Coverage: The Composition and Its Ceiling}{52}{subsection.5.12.6}\protected@file@percent }
+\newlabel{sec:results:joint-coverage}{{5.12.6}{52}{Joint ISO Coverage: The Composition and Its Ceiling}{subsection.5.12.6}{}}
+\newlabel{sec:results:joint-coverage@cref}{{[subsection][6][5,12]5.12.6}{[1][52][]52}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.7}E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{52}{subsection.5.12.7}\protected@file@percent }
+\newlabel{sec:results:interaction}{{5.12.7}{52}{E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{subsection.5.12.7}{}}
+\newlabel{sec:results:interaction@cref}{{[subsection][7][5,12]5.12.7}{[1][52][]52}}
+\newlabel{fig:velocity-axis}{{5.4a}{53}{The velocity (\ssm {}-actual) axis: the graded speed-scaling filter is the specialist; the policy also reduces it via avoidance; the veto does not maintain the graded margin and leaves it at baseline}{figure.caption.55}{}}
+\newlabel{fig:velocity-axis@cref}{{[subfigure][1][5,4]5.4a}{[1][52][]53}}
+\newlabel{sub@fig:velocity-axis}{{a}{53}{The velocity (\ssm {}-actual) axis: the graded speed-scaling filter is the specialist; the policy also reduces it via avoidance; the veto does not maintain the graded margin and leaves it at baseline}{figure.caption.55}{}}
+\newlabel{sub@fig:velocity-axis@cref}{{[subfigure][1][5,4]5.4a}{[1][52][]53}}
+\newlabel{fig:joint-coverage}{{5.4b}{53}{Joint coverage: proximity ($x$, policy's axis) vs.\^^M\ssm {}-actual ($y$, filter's axis). Only the composition reaches the both-safe corner, at success $0.44$; it beats neither specialist on that specialist's own axis}{figure.caption.55}{}}
+\newlabel{fig:joint-coverage@cref}{{[subfigure][2][5,4]5.4b}{[1][52][]53}}
+\newlabel{sub@fig:joint-coverage}{{b}{53}{Joint coverage: proximity ($x$, policy's axis) vs.\^^M\ssm {}-actual ($y$, filter's axis). Only the composition reaches the both-safe corner, at success $0.44$; it beats neither specialist on that specialist's own axis}{figure.caption.55}{}}
+\newlabel{sub@fig:joint-coverage@cref}{{[subfigure][2][5,4]5.4b}{[1][52][]53}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces The two-axis division of labour on \texttt  {saucepan\_to\_hob} and what composing the specialists buys.}}{53}{figure.caption.55}\protected@file@percent }
+\newlabel{fig:axis-division}{{5.4}{53}{The two-axis division of labour on \texttt {saucepan\_to\_hob} and what composing the specialists buys}{figure.caption.55}{}}
+\newlabel{fig:axis-division@cref}{{[figure][4][5]5.4}{[1][52][]53}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Experiment E4.3. The SVF veto's intervention rate on the constrained policy does \emph  {not} fall during training; it stays at $\sim $40--60\,\% (blue), above the $\sim $15\,\% it requires on the unconstrained baseline (red dashed). A complementary filter would show a falling curve; this flat, elevated curve is direct evidence that the baseline-collected critic is out of distribution on the avoiding policy and over-vetoes, the mechanism behind the counterproductive SVF-veto composition (Section~\ref {sec:results:reactive-taxonomy}).}}{53}{figure.caption.56}\protected@file@percent }
 \newlabel{fig:e4.3-internalisation}{{5.5}{53}{Experiment E4.3. The SVF veto's intervention rate on the constrained policy does \emph {not} fall during training; it stays at $\sim $40--60\,\% (blue), above the $\sim $15\,\% it requires on the unconstrained baseline (red dashed). A complementary filter would show a falling curve; this flat, elevated curve is direct evidence that the baseline-collected critic is out of distribution on the avoiding policy and over-vetoes, the mechanism behind the counterproductive SVF-veto composition (Section~\ref {sec:results:reactive-taxonomy})}{figure.caption.56}{}}
 \newlabel{fig:e4.3-internalisation@cref}{{[figure][5][5]5.5}{[1][52][]53}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.12}RQ4: Tail Risk and OOD Generalisation}{53}{section.5.12}\protected@file@percent }
-\newlabel{sec:results:rq4}{{5.12}{53}{RQ4: Tail Risk and OOD Generalisation}{section.5.12}{}}
-\newlabel{sec:results:rq4@cref}{{[section][12][5]5.12}{[1][52][]53}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.1}E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{53}{subsection.5.12.1}\protected@file@percent }
-\newlabel{sec:results:tail}{{5.12.1}{53}{E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{subsection.5.12.1}{}}
-\newlabel{sec:results:tail@cref}{{[subsection][1][5,12]5.12.1}{[1][52][]53}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.9}{\ignorespaces Experiment E5.1. Separation statistics across the headline configurations (\textsc  {coworker}{}, \texttt  {noisy}). The policy improves the \emph  {mean} separation but the worst-case tail ($\ensuremath  {\mathrm  {CVaR}}_{0.95}$ and the single worst approach) is unchanged, because the closest approach is the coworker's lunge toward a robot it is co-located with, an \emph  {exogenous} event no robot-action policy or filter can remove. The controllable quantity is the dwell and frequency of proximity, not the single worst-case approach.}}{53}{table.caption.57}\protected@file@percent }
-\newlabel{tab:e5.1-tail}{{5.9}{53}{Experiment E5.1. Separation statistics across the headline configurations (\coworker {}, \texttt {noisy}). The policy improves the \emph {mean} separation but the worst-case tail ($\cvar _{0.95}$ and the single worst approach) is unchanged, because the closest approach is the coworker's lunge toward a robot it is co-located with, an \emph {exogenous} event no robot-action policy or filter can remove. The controllable quantity is the dwell and frequency of proximity, not the single worst-case approach}{table.caption.57}{}}
-\newlabel{tab:e5.1-tail@cref}{{[table][9][5]5.9}{[1][53][]53}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.12.2}E5.2: OOD Generalisation on the Wider Eval Band}{53}{subsection.5.12.2}\protected@file@percent }
-\newlabel{sec:results:ood}{{5.12.2}{53}{E5.2: OOD Generalisation on the Wider Eval Band}{subsection.5.12.2}{}}
-\newlabel{sec:results:ood@cref}{{[subsection][2][5,12]5.12.2}{[1][53][]53}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.13}RQ4: Tail Risk and OOD Generalisation}{53}{section.5.13}\protected@file@percent }
+\newlabel{sec:results:rq4}{{5.13}{53}{RQ4: Tail Risk and OOD Generalisation}{section.5.13}{}}
+\newlabel{sec:results:rq4@cref}{{[section][13][5]5.13}{[1][52][]53}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.1}E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{53}{subsection.5.13.1}\protected@file@percent }
+\newlabel{sec:results:tail}{{5.13.1}{53}{E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{subsection.5.13.1}{}}
+\newlabel{sec:results:tail@cref}{{[subsection][1][5,13]5.13.1}{[1][52][]53}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.9}{\ignorespaces Experiment E5.1. Separation statistics across the headline configurations (\textsc  {coworker}{}, \texttt  {noisy}). The policy improves the \emph  {mean} separation but the worst-case tail ($\ensuremath  {\mathrm  {CVaR}}_{0.95}$ and the single worst approach) is unchanged, because the closest approach is the coworker's lunge toward a robot it is co-located with, an \emph  {exogenous} event no robot-action policy or filter can remove. The controllable quantity is the dwell and frequency of proximity, not the single worst-case approach.}}{54}{table.caption.57}\protected@file@percent }
+\newlabel{tab:e5.1-tail}{{5.9}{54}{Experiment E5.1. Separation statistics across the headline configurations (\coworker {}, \texttt {noisy}). The policy improves the \emph {mean} separation but the worst-case tail ($\cvar _{0.95}$ and the single worst approach) is unchanged, because the closest approach is the coworker's lunge toward a robot it is co-located with, an \emph {exogenous} event no robot-action policy or filter can remove. The controllable quantity is the dwell and frequency of proximity, not the single worst-case approach}{table.caption.57}{}}
+\newlabel{tab:e5.1-tail@cref}{{[table][9][5]5.9}{[1][53][]54}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.2}E5.2: OOD Generalisation on the Wider Eval Band}{54}{subsection.5.13.2}\protected@file@percent }
+\newlabel{sec:results:ood}{{5.13.2}{54}{E5.2: OOD Generalisation on the Wider Eval Band}{subsection.5.13.2}{}}
+\newlabel{sec:results:ood@cref}{{[subsection][2][5,13]5.13.2}{[1][54][]54}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.10}{\ignorespaces Experiment E5.2. The proactive policy's proximity reduction generalises to the wider, gentler held-out coworker distribution. The absolute rate is lower on \texttt  {coworker\_eval} (the gentler coworker approaches less), but the proportional reduction is preserved; the larger success cost reflects $\lambda = 0.1$ over-constraining a distribution it was not tuned for.}}{54}{table.caption.58}\protected@file@percent }
 \newlabel{tab:e5.2-ood}{{5.10}{54}{Experiment E5.2. The proactive policy's proximity reduction generalises to the wider, gentler held-out coworker distribution. The absolute rate is lower on \texttt {coworker\_eval} (the gentler coworker approaches less), but the proportional reduction is preserved; the larger success cost reflects $\lambda = 0.1$ over-constraining a distribution it was not tuned for}{table.caption.58}{}}
 \newlabel{tab:e5.2-ood@cref}{{[table][10][5]5.10}{[1][54][]54}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.13}R2 --- Intermittent Co-location: \texttt  {dishwasher\_close} and \texttt  {drawers\_open\_all}}{54}{section.5.13}\protected@file@percent }
-\newlabel{sec:results:r2}{{5.13}{54}{R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{section.5.13}{}}
-\newlabel{sec:results:r2@cref}{{[section][13][5]5.13}{[1][54][]54}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.1}E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{54}{subsection.5.13.1}\protected@file@percent }
-\newlabel{sec:results:r2-lagrangian}{{5.13.1}{54}{E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{subsection.5.13.1}{}}
-\newlabel{sec:results:r2-lagrangian@cref}{{[subsection][1][5,13]5.13.1}{[1][54][]54}}
-\@writefile{toc}{\contentsline {paragraph}{Deployment of the best cells confirms the cliff.}{54}{paragraph*.60}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{When $\lambda $ binds, the robot gets \emph  {faster}, not more careful.}{54}{paragraph*.61}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.14}R2 --- Intermittent Co-location: \texttt  {dishwasher\_close} and \texttt  {drawers\_open\_all}}{54}{section.5.14}\protected@file@percent }
+\newlabel{sec:results:r2}{{5.14}{54}{R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{section.5.14}{}}
+\newlabel{sec:results:r2@cref}{{[section][14][5]5.14}{[1][54][]54}}
 \citation{yang2021wcsac}
 \citation{yang2021wcsac}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.1}E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{55}{subsection.5.14.1}\protected@file@percent }
+\newlabel{sec:results:r2-lagrangian}{{5.14.1}{55}{E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{subsection.5.14.1}{}}
+\newlabel{sec:results:r2-lagrangian@cref}{{[subsection][1][5,14]5.14.1}{[1][54][]55}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.11}{\ignorespaces Experiment E3.3. Cost-budget retarget sweep on the intermittent-co-location tasks (40k frames, single training seed per cell, warm-started from the stage-2 curriculum snapshot; cost is the graded SSM{}-margin signal). Re-targeting makes the constraint \emph  {bind} ($\lambda > 0$ everywhere), but the rolling cost floors at $\approx $0.21--0.25, at or above every budget, so $\lambda $ integrates upward and the task collapses. There is no budget that both binds and preserves the task; even the floor budget has no \emph  {stable} feasible point (\texttt  {dish} $d{=}0.22$ was at $1.00$ success at 37k frames, $\lambda = 0.69$, and collapsed to $0.30$ by 40k as $\lambda $ reached $1.5$).}}{55}{table.caption.59}\protected@file@percent }
 \newlabel{tab:e3.3-budget-sweep}{{5.11}{55}{Experiment E3.3. Cost-budget retarget sweep on the intermittent-co-location tasks (40k frames, single training seed per cell, warm-started from the stage-2 curriculum snapshot; cost is the graded \ssm {}-margin signal). Re-targeting makes the constraint \emph {bind} ($\lambda > 0$ everywhere), but the rolling cost floors at $\approx $0.21--0.25, at or above every budget, so $\lambda $ integrates upward and the task collapses. There is no budget that both binds and preserves the task; even the floor budget has no \emph {stable} feasible point (\texttt {dish} $d{=}0.22$ was at $1.00$ success at 37k frames, $\lambda = 0.69$, and collapsed to $0.30$ by 40k as $\lambda $ reached $1.5$)}{table.caption.59}{}}
-\newlabel{tab:e3.3-budget-sweep@cref}{{[table][11][5]5.11}{[1][54][]55}}
+\newlabel{tab:e3.3-budget-sweep@cref}{{[table][11][5]5.11}{[1][55][]55}}
+\@writefile{toc}{\contentsline {paragraph}{Deployment of the best cells confirms the cliff.}{55}{paragraph*.60}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{When $\lambda $ binds, the robot gets \emph  {faster}, not more careful.}{55}{paragraph*.61}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{The trainability confound, stated honestly, and the external check.}{55}{paragraph*.62}\protected@file@percent }
-\newlabel{sec:results:wcsac}{{5.13.1}{55}{The trainability confound, stated honestly, and the external check}{paragraph*.62}{}}
-\newlabel{sec:results:wcsac@cref}{{[subsection][1][5,13]5.13.1}{[1][55][]55}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.12}{\ignorespaces Experiment E3.7. WCSAC~\cite  {yang2021wcsac} external reference, reimplemented faithfully and trained from scratch (150k frames, no demonstrations, single seed per cell; 30 evaluation episodes, \texttt  {oracle} human-state, so these are upper bounds with respect to perception). WCSAC is non-degenerate on dishwasher but fails to learn drawers at any budget; the apparent budget ordering on dishwasher ($d{=}30$ at $0.03$) is within single-seed from-scratch SAC variance and is not interpreted further. From-scratch WCSAC also sits well below the demo-warm-started value-based Lagrangian ($0.47$ vs.\ $0.82$ peak on dishwasher), quantifying how much of task competence on these tasks comes from the demonstration prior.}}{55}{table.caption.63}\protected@file@percent }
-\newlabel{tab:e3.7-wcsac}{{5.12}{55}{Experiment E3.7. WCSAC~\cite {yang2021wcsac} external reference, reimplemented faithfully and trained from scratch (150k frames, no demonstrations, single seed per cell; 30 evaluation episodes, \texttt {oracle} human-state, so these are upper bounds with respect to perception). WCSAC is non-degenerate on dishwasher but fails to learn drawers at any budget; the apparent budget ordering on dishwasher ($d{=}30$ at $0.03$) is within single-seed from-scratch SAC variance and is not interpreted further. From-scratch WCSAC also sits well below the demo-warm-started value-based Lagrangian ($0.47$ vs.\ $0.82$ peak on dishwasher), quantifying how much of task competence on these tasks comes from the demonstration prior}{table.caption.63}{}}
-\newlabel{tab:e3.7-wcsac@cref}{{[table][12][5]5.12}{[1][55][]55}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.2}E2.4: A Binary Veto Breaks a Chunked Policy}{55}{subsection.5.13.2}\protected@file@percent }
-\newlabel{sec:results:r2-veto}{{5.13.2}{55}{E2.4: A Binary Veto Breaks a Chunked Policy}{subsection.5.13.2}{}}
-\newlabel{sec:results:r2-veto@cref}{{[subsection][2][5,13]5.13.2}{[1][55][]55}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.13.3}\protected@file@percent }
-\newlabel{sec:results:r2-uncond}{{5.13.3}{56}{E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{subsection.5.13.3}{}}
-\newlabel{sec:results:r2-uncond@cref}{{[subsection][3][5,13]5.13.3}{[1][56][]56}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.13.4}\protected@file@percent }
-\newlabel{sec:results:r2-gated}{{5.13.4}{56}{E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{subsection.5.13.4}{}}
-\newlabel{sec:results:r2-gated@cref}{{[subsection][4][5,13]5.13.4}{[1][56][]56}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.13.5}E2.6 Ablations: Four Refinements Confirm the Recipe}{56}{subsection.5.13.5}\protected@file@percent }
-\newlabel{sec:results:r2-ablations}{{5.13.5}{56}{E2.6 Ablations: Four Refinements Confirm the Recipe}{subsection.5.13.5}{}}
-\newlabel{sec:results:r2-ablations@cref}{{[subsection][5][5,13]5.13.5}{[1][56][]56}}
+\newlabel{sec:results:wcsac}{{5.14.1}{55}{The trainability confound, stated honestly, and the external check}{paragraph*.62}{}}
+\newlabel{sec:results:wcsac@cref}{{[subsection][1][5,14]5.14.1}{[1][55][]55}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.12}{\ignorespaces Experiment E3.7. WCSAC~\cite  {yang2021wcsac} external reference, reimplemented faithfully and trained from scratch (150k frames, no demonstrations, single seed per cell; 30 evaluation episodes, \texttt  {oracle} human-state, so these are upper bounds with respect to perception). WCSAC is non-degenerate on dishwasher but fails to learn drawers at any budget; the apparent budget ordering on dishwasher ($d{=}30$ at $0.03$) is within single-seed from-scratch SAC variance and is not interpreted further. From-scratch WCSAC also sits well below the demo-warm-started value-based Lagrangian ($0.47$ vs.\ $0.82$ peak on dishwasher), quantifying how much of task competence on these tasks comes from the demonstration prior.}}{56}{table.caption.63}\protected@file@percent }
+\newlabel{tab:e3.7-wcsac}{{5.12}{56}{Experiment E3.7. WCSAC~\cite {yang2021wcsac} external reference, reimplemented faithfully and trained from scratch (150k frames, no demonstrations, single seed per cell; 30 evaluation episodes, \texttt {oracle} human-state, so these are upper bounds with respect to perception). WCSAC is non-degenerate on dishwasher but fails to learn drawers at any budget; the apparent budget ordering on dishwasher ($d{=}30$ at $0.03$) is within single-seed from-scratch SAC variance and is not interpreted further. From-scratch WCSAC also sits well below the demo-warm-started value-based Lagrangian ($0.47$ vs.\ $0.82$ peak on dishwasher), quantifying how much of task competence on these tasks comes from the demonstration prior}{table.caption.63}{}}
+\newlabel{tab:e3.7-wcsac@cref}{{[table][12][5]5.12}{[1][55][]56}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.2}E2.4: A Binary Veto Breaks a Chunked Policy}{56}{subsection.5.14.2}\protected@file@percent }
+\newlabel{sec:results:r2-veto}{{5.14.2}{56}{E2.4: A Binary Veto Breaks a Chunked Policy}{subsection.5.14.2}{}}
+\newlabel{sec:results:r2-veto@cref}{{[subsection][2][5,14]5.14.2}{[1][55][]56}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.14.3}\protected@file@percent }
+\newlabel{sec:results:r2-uncond}{{5.14.3}{56}{E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{subsection.5.14.3}{}}
+\newlabel{sec:results:r2-uncond@cref}{{[subsection][3][5,14]5.14.3}{[1][56][]56}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.14.4}\protected@file@percent }
+\newlabel{sec:results:r2-gated}{{5.14.4}{56}{E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{subsection.5.14.4}{}}
+\newlabel{sec:results:r2-gated@cref}{{[subsection][4][5,14]5.14.4}{[1][56][]56}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.13}{\ignorespaces The R2 method comparison (60 episodes per cell, \texttt  {noisy}, \textsc  {coworker}{}; both safety axes reported per the R0 protocol). $\Delta $ columns are relative to each task's unconstrained baseline. The Lagrangian rows are the best basin checkpoints from the seed-unstable E3.3 sweep and carry that caveat (Section~\ref {sec:results:r2-lagrangian}); WCSAC rows are the external from-scratch reference at its best budget (single seed, \texttt  {oracle} perception). Only critic-gated speed-scaling reduces the SSM{}-velocity axis substantially while keeping success within $0.10$ of baseline.}}{57}{table.caption.64}\protected@file@percent }
 \newlabel{tab:r2-methods}{{5.13}{57}{The R2 method comparison (60 episodes per cell, \texttt {noisy}, \coworker {}; both safety axes reported per the R0 protocol). $\Delta $ columns are relative to each task's unconstrained baseline. The Lagrangian rows are the best basin checkpoints from the seed-unstable E3.3 sweep and carry that caveat (Section~\ref {sec:results:r2-lagrangian}); WCSAC rows are the external from-scratch reference at its best budget (single seed, \texttt {oracle} perception). Only critic-gated speed-scaling reduces the \ssm {}-velocity axis substantially while keeping success within $0.10$ of baseline}{table.caption.64}{}}
-\newlabel{tab:r2-methods@cref}{{[table][13][5]5.13}{[1][56][]57}}
+\newlabel{tab:r2-methods@cref}{{[table][13][5]5.13}{[1][57][]57}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces The R2 headline: each method on the success (x) / SSM{}-violation (y) plane; the desirable corner is bottom-right (high success, low violation), and only the critic-gated filter reaches it on both tasks. Two points need their context. The \emph  {drawers Lagrangian} point sits near the gated one, but it is a basin-selected checkpoint from seed-unstable, single-seed training on which no feasible budget exists (PID-$\lambda $ is inert or task-fatal across the E3.3 sweep); gating-on-Lagrangian $\approx $ gating-on-baseline (ablation~3, Section~\ref {sec:results:r2-ablations}) shows it learned no genuinely proactive avoidance; and it offers no deployable dial, whereas the gate threshold $R$ traces a tunable frontier (Figure~\ref {fig:r2-tradeoff}). The \emph  {unconditional speed-scale} points reach the lowest violation rates but at $2.5$--$5\times $ the gated filter's success cost.}}{57}{figure.caption.65}\protected@file@percent }
 \newlabel{fig:r2-method-comparison}{{5.6}{57}{The R2 headline: each method on the success (x) / \ssm {}-violation (y) plane; the desirable corner is bottom-right (high success, low violation), and only the critic-gated filter reaches it on both tasks. Two points need their context. The \emph {drawers Lagrangian} point sits near the gated one, but it is a basin-selected checkpoint from seed-unstable, single-seed training on which no feasible budget exists (PID-$\lambda $ is inert or task-fatal across the E3.3 sweep); gating-on-Lagrangian $\approx $ gating-on-baseline (ablation~3, Section~\ref {sec:results:r2-ablations}) shows it learned no genuinely proactive avoidance; and it offers no deployable dial, whereas the gate threshold $R$ traces a tunable frontier (Figure~\ref {fig:r2-tradeoff}). The \emph {unconditional speed-scale} points reach the lowest violation rates but at $2.5$--$5\times $ the gated filter's success cost}{figure.caption.65}{}}
-\newlabel{fig:r2-method-comparison@cref}{{[figure][6][5]5.6}{[1][56][]57}}
+\newlabel{fig:r2-method-comparison@cref}{{[figure][6][5]5.6}{[1][57][]57}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.5}E2.6 Ablations: Four Refinements Confirm the Recipe}{57}{subsection.5.14.5}\protected@file@percent }
+\newlabel{sec:results:r2-ablations}{{5.14.5}{57}{E2.6 Ablations: Four Refinements Confirm the Recipe}{subsection.5.14.5}{}}
+\newlabel{sec:results:r2-ablations@cref}{{[subsection][5][5,14]5.14.5}{[1][57][]57}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces The gate threshold $R$ is a clean operating-point dial: low $R$ is selective (near-baseline success, small SSM{} gain), high $R$ approaches unconditional scaling. The dominance claim is task-scoped, per the R0 protocol: on \emph  {dishwasher} the gated frontier matches unconditional scaling's SSM{}-violation at strictly higher success; on \emph  {drawers} the gated frontier never reaches unconditional's absolute floor ($0.059$ vs.\ best gated $0.078$) but pays far less success at every \emph  {shared} SSM{}-violation level.}}{58}{figure.caption.66}\protected@file@percent }
 \newlabel{fig:r2-tradeoff}{{5.7}{58}{The gate threshold $R$ is a clean operating-point dial: low $R$ is selective (near-baseline success, small \ssm {} gain), high $R$ approaches unconditional scaling. The dominance claim is task-scoped, per the R0 protocol: on \emph {dishwasher} the gated frontier matches unconditional scaling's \ssm {}-violation at strictly higher success; on \emph {drawers} the gated frontier never reaches unconditional's absolute floor ($0.059$ vs.\ best gated $0.078$) but pays far less success at every \emph {shared} \ssm {}-violation level}{figure.caption.66}{}}
-\newlabel{fig:r2-tradeoff@cref}{{[figure][7][5]5.7}{[1][56][]58}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.14}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.14}\protected@file@percent }
-\newlabel{sec:results:boundary}{{5.14}{58}{R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{section.5.14}{}}
-\newlabel{sec:results:boundary@cref}{{[section][14][5]5.14}{[1][57][]58}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.14.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.14}{\ignorespaces Experiment E4.4. Critic-gated speed-scaling on \texttt  {saucepan\_to\_hob} (180 episodes per row, 3 trained seeds; \texttt  {noisy}; \texttt  {snapshot\_best} checkpoints, see the caveat box). The pre-registered rule, success $\geq 0.60$ \emph  {and} SSM{}-actual $\leq 0.08$, is met by no row: gating slides from policy-alone toward the unconditional point without opening a corner. The on-policy re-collected critic (v3op) does not help either, at $R = 2.0$ its SSM{}-actual ($0.149$) is \emph  {worse} than policy-alone ($0.138$), confirming the limit is task structure, not critic calibration.}}{58}{table.caption.67}\protected@file@percent }
-\newlabel{tab:e4.4-gated-saucepan}{{5.14}{58}{Experiment E4.4. Critic-gated speed-scaling on \texttt {saucepan\_to\_hob} (180 episodes per row, 3 trained seeds; \texttt {noisy}; \texttt {snapshot\_best} checkpoints, see the caveat box). The pre-registered rule, success $\geq 0.60$ \emph {and} \ssm {}-actual $\leq 0.08$, is met by no row: gating slides from policy-alone toward the unconditional point without opening a corner. The on-policy re-collected critic (v3op) does not help either, at $R = 2.0$ its \ssm {}-actual ($0.149$) is \emph {worse} than policy-alone ($0.138$), confirming the limit is task structure, not critic calibration}{table.caption.67}{}}
-\newlabel{tab:e4.4-gated-saucepan@cref}{{[table][14][5]5.14}{[1][58][]58}}
+\newlabel{fig:r2-tradeoff@cref}{{[figure][7][5]5.7}{[1][57][]58}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.15}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.15}\protected@file@percent }
+\newlabel{sec:results:boundary}{{5.15}{58}{R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{section.5.15}{}}
+\newlabel{sec:results:boundary@cref}{{[section][15][5]5.15}{[1][58][]58}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.15.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.15.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.14}{\ignorespaces Experiment E4.4. Critic-gated speed-scaling on \texttt  {saucepan\_to\_hob} (180 episodes per row, 3 trained seeds; \texttt  {noisy}; \texttt  {snapshot\_best} checkpoints, see the caveat box). The pre-registered rule, success $\geq 0.60$ \emph  {and} SSM{}-actual $\leq 0.08$, is met by no row: gating slides from policy-alone toward the unconditional point without opening a corner. The on-policy re-collected critic (v3op) does not help either, at $R = 2.0$ its SSM{}-actual ($0.149$) is \emph  {worse} than policy-alone ($0.138$), confirming the limit is task structure, not critic calibration.}}{59}{table.caption.67}\protected@file@percent }
+\newlabel{tab:e4.4-gated-saucepan}{{5.14}{59}{Experiment E4.4. Critic-gated speed-scaling on \texttt {saucepan\_to\_hob} (180 episodes per row, 3 trained seeds; \texttt {noisy}; \texttt {snapshot\_best} checkpoints, see the caveat box). The pre-registered rule, success $\geq 0.60$ \emph {and} \ssm {}-actual $\leq 0.08$, is met by no row: gating slides from policy-alone toward the unconditional point without opening a corner. The on-policy re-collected critic (v3op) does not help either, at $R = 2.0$ its \ssm {}-actual ($0.149$) is \emph {worse} than policy-alone ($0.138$), confirming the limit is task structure, not critic calibration}{table.caption.67}{}}
+\newlabel{tab:e4.4-gated-saucepan@cref}{{[table][14][5]5.14}{[1][59][]59}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces The boundary condition in one picture: each task's gated $R$-dial trajectory on the success/SSM{}-violation plane, normalised to its own no-filter point. Dishwasher and drawers \emph  {bend down}, SSM{}-violation falls steeply while success is retained, because the gate passes the genuinely-safe majority of steps at full speed. Saucepan \emph  {slides along the diagonal} toward its unconditional endpoint, success and SSM{}-violation falling together, because the gate is active on most steps and gating degenerates to unconditional scaling.}}{59}{figure.caption.68}\protected@file@percent }
 \newlabel{fig:cross-task-boundary}{{5.8}{59}{The boundary condition in one picture: each task's gated $R$-dial trajectory on the success/\ssm {}-violation plane, normalised to its own no-filter point. Dishwasher and drawers \emph {bend down}, \ssm {}-violation falls steeply while success is retained, because the gate passes the genuinely-safe majority of steps at full speed. Saucepan \emph {slides along the diagonal} toward its unconditional endpoint, success and \ssm {}-violation falling together, because the gate is active on most steps and gating degenerates to unconditional scaling}{figure.caption.68}{}}
-\newlabel{fig:cross-task-boundary@cref}{{[figure][8][5]5.8}{[1][58][]59}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.2}The Mechanism, Measured}{59}{subsection.5.14.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.3}The Regime Map}{59}{subsection.5.14.3}\protected@file@percent }
+\newlabel{fig:cross-task-boundary@cref}{{[figure][8][5]5.8}{[1][59][]59}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.15.2}The Mechanism, Measured}{59}{subsection.5.15.2}\protected@file@percent }
 \@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces The regime variable, measured: per-step gate-active fraction of the critic-gated filter at the matched threshold $R = 2.75$ (bars; 95\,\% bootstrap CIs; 180/60/60 episodes). The saucepan gate fires on $61.5\,\%$ of steps, exceeding even the unconditional scaler's proximity trigger rate ($44.2\,\%$, dashed), so gating degenerates to unconditional scaling; on dishwasher/drawers the gate passes $73$--$81\,\%$ of steps at full speed, which is exactly the recovered throughput of Table~\ref {tab:r2-methods}.}}{60}{figure.caption.69}\protected@file@percent }
 \newlabel{fig:gate-activity}{{5.9}{60}{The regime variable, measured: per-step gate-active fraction of the critic-gated filter at the matched threshold $R = 2.75$ (bars; 95\,\% bootstrap CIs; 180/60/60 episodes). The saucepan gate fires on $61.5\,\%$ of steps, exceeding even the unconditional scaler's proximity trigger rate ($44.2\,\%$, dashed), so gating degenerates to unconditional scaling; on dishwasher/drawers the gate passes $73$--$81\,\%$ of steps at full speed, which is exactly the recovered throughput of Table~\ref {tab:r2-methods}}{figure.caption.69}{}}
-\newlabel{fig:gate-activity@cref}{{[figure][9][5]5.9}{[1][59][]60}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces The regime map (the thesis in one image). The observable regime variable, how persistently the coworker is co-located, measured as the fraction of steps a separation/risk-triggered filter would be active, determines which arm of the Hybrid Safety Critic carries the safety burden. The boundary was validated by the pre-registered E4.4 rule whose else-branch fired on saucepan. Evidence per cell: gated wins (\S  \ref {sec:results:r2-gated}), Lagrangian infeasibility (\S  \ref {sec:results:r2-lagrangian}), veto coherence break (\S  \ref {sec:results:r2-veto}), policy win and composition ceiling (\S  \ref {sec:results:headline-feature-table}, \S  \ref {sec:results:joint-coverage}), freeze/flee taxonomy (\S  \ref {sec:results:reactive-taxonomy}), gating $\approx $ unconditional (Table~\ref {tab:e4.4-gated-saucepan}). On the intermittent tasks the exposure axis itself is left without a graceful mechanism, bounded by the exogenous floor (\S  \ref {sec:results:r2-lagrangian}).}}{60}{figure.caption.70}\protected@file@percent }
-\newlabel{fig:regime-map}{{5.10}{60}{The regime map (the thesis in one image). The observable regime variable, how persistently the coworker is co-located, measured as the fraction of steps a separation/risk-triggered filter would be active, determines which arm of the Hybrid Safety Critic carries the safety burden. The boundary was validated by the pre-registered E4.4 rule whose else-branch fired on saucepan. Evidence per cell: gated wins (\S \ref {sec:results:r2-gated}), Lagrangian infeasibility (\S \ref {sec:results:r2-lagrangian}), veto coherence break (\S \ref {sec:results:r2-veto}), policy win and composition ceiling (\S \ref {sec:results:headline-feature-table}, \S \ref {sec:results:joint-coverage}), freeze/flee taxonomy (\S \ref {sec:results:reactive-taxonomy}), gating $\approx $ unconditional (Table~\ref {tab:e4.4-gated-saucepan}). On the intermittent tasks the exposure axis itself is left without a graceful mechanism, bounded by the exogenous floor (\S \ref {sec:results:r2-lagrangian})}{figure.caption.70}{}}
-\newlabel{fig:regime-map@cref}{{[figure][10][5]5.10}{[1][59][]60}}
+\newlabel{fig:gate-activity@cref}{{[figure][9][5]5.9}{[1][60][]60}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.15.3}The Regime Map}{60}{subsection.5.15.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Snapshot caveat (scope of the E4.4 numbers).}{60}{paragraph*.71}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.15}Summary of Results}{61}{section.5.15}\protected@file@percent }
-\newlabel{sec:results:summary}{{5.15}{61}{Summary of Results}{section.5.15}{}}
-\newlabel{sec:results:summary@cref}{{[section][15][5]5.15}{[1][60][]61}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces Marker-facing summary of the intermittent-co-location arm: SSM{}-violation reduction by method with the success cost annotated. Only critic-gated speed-scaling combines a substantial velocity-axis reduction with a small success cost; the unconditional scaler buys slightly more reduction at several times the cost, the veto and the Lagrangian buy little or none. The persistent-regime counterpart of this figure is Table~\ref {tab:e4.1-feature-incremental}.}}{61}{figure.caption.72}\protected@file@percent }
-\newlabel{fig:r2-reduction-bars}{{5.11}{61}{Marker-facing summary of the intermittent-co-location arm: \ssm {}-violation reduction by method with the success cost annotated. Only critic-gated speed-scaling combines a substantial velocity-axis reduction with a small success cost; the unconditional scaler buys slightly more reduction at several times the cost, the veto and the Lagrangian buy little or none. The persistent-regime counterpart of this figure is Table~\ref {tab:e4.1-feature-incremental}}{figure.caption.72}{}}
-\newlabel{fig:r2-reduction-bars@cref}{{[figure][11][5]5.11}{[1][61][]61}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Discussion}{62}{chapter.6}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces The regime map (the thesis in one image). The observable regime variable, how persistently the coworker is co-located, measured as the fraction of steps a separation/risk-triggered filter would be active, determines which arm of the Hybrid Safety Critic carries the safety burden. The boundary was validated by the pre-registered E4.4 rule, which failed on saucepan exactly as the regime map predicted. Evidence per cell: gated wins (\S  \ref {sec:results:r2-gated}), Lagrangian infeasibility (\S  \ref {sec:results:r2-lagrangian}), veto coherence break (\S  \ref {sec:results:r2-veto}), policy win and composition ceiling (\S  \ref {sec:results:headline-feature-table}, \S  \ref {sec:results:joint-coverage}), freeze/flee taxonomy (\S  \ref {sec:results:reactive-taxonomy}), gating $\approx $ unconditional (Table~\ref {tab:e4.4-gated-saucepan}). On the intermittent tasks the exposure axis itself is left without a graceful mechanism, bounded by the exogenous floor (\S  \ref {sec:results:r2-lagrangian}).}}{61}{figure.caption.70}\protected@file@percent }
+\newlabel{fig:regime-map}{{5.10}{61}{The regime map (the thesis in one image). The observable regime variable, how persistently the coworker is co-located, measured as the fraction of steps a separation/risk-triggered filter would be active, determines which arm of the Hybrid Safety Critic carries the safety burden. The boundary was validated by the pre-registered E4.4 rule, which failed on saucepan exactly as the regime map predicted. Evidence per cell: gated wins (\S \ref {sec:results:r2-gated}), Lagrangian infeasibility (\S \ref {sec:results:r2-lagrangian}), veto coherence break (\S \ref {sec:results:r2-veto}), policy win and composition ceiling (\S \ref {sec:results:headline-feature-table}, \S \ref {sec:results:joint-coverage}), freeze/flee taxonomy (\S \ref {sec:results:reactive-taxonomy}), gating $\approx $ unconditional (Table~\ref {tab:e4.4-gated-saucepan}). On the intermittent tasks the exposure axis itself is left without a graceful mechanism, bounded by the exogenous floor (\S \ref {sec:results:r2-lagrangian})}{figure.caption.70}{}}
+\newlabel{fig:regime-map@cref}{{[figure][10][5]5.10}{[1][60][]61}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.16}Summary of Results}{61}{section.5.16}\protected@file@percent }
+\newlabel{sec:results:summary}{{5.16}{61}{Summary of Results}{section.5.16}{}}
+\newlabel{sec:results:summary@cref}{{[section][16][5]5.16}{[1][61][]61}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces Marker-facing summary of the intermittent-co-location arm: SSM{}-violation reduction by method with the success cost annotated. Only critic-gated speed-scaling combines a substantial velocity-axis reduction with a small success cost; the unconditional scaler buys slightly more reduction at several times the cost, the veto and the Lagrangian buy little or none. The persistent-regime counterpart of this figure is Table~\ref {tab:e4.1-feature-incremental}.}}{62}{figure.caption.72}\protected@file@percent }
+\newlabel{fig:r2-reduction-bars}{{5.11}{62}{Marker-facing summary of the intermittent-co-location arm: \ssm {}-violation reduction by method with the success cost annotated. Only critic-gated speed-scaling combines a substantial velocity-axis reduction with a small success cost; the unconditional scaler buys slightly more reduction at several times the cost, the veto and the Lagrangian buy little or none. The persistent-regime counterpart of this figure is Table~\ref {tab:e4.1-feature-incremental}}{figure.caption.72}{}}
+\newlabel{fig:r2-reduction-bars@cref}{{[figure][11][5]5.11}{[1][62][]62}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Discussion}{63}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{ch:disc}{{6}{62}{Discussion}{chapter.6}{}}
-\newlabel{ch:disc@cref}{{[chapter][6][]6}{[1][62][]62}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}Research Questions Revisited}{62}{section.6.1}\protected@file@percent }
-\newlabel{sec:disc:rqs-revisited}{{6.1}{62}{Research Questions Revisited}{section.6.1}{}}
-\newlabel{sec:disc:rqs-revisited@cref}{{[section][1][6]6.1}{[1][62][]62}}
-\citation{narvekar2020curriculum,openai2019solving}
+\newlabel{ch:disc}{{6}{63}{Discussion}{chapter.6}{}}
+\newlabel{ch:disc@cref}{{[chapter][6][]6}{[1][63][]63}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}Research Questions Revisited}{63}{section.6.1}\protected@file@percent }
+\newlabel{sec:disc:rqs-revisited}{{6.1}{63}{Research Questions Revisited}{section.6.1}{}}
+\newlabel{sec:disc:rqs-revisited@cref}{{[section][1][6]6.1}{[1][63][]63}}
+\citation{narvekar2020curriculum,openai2019solving,rudin2022walkminutes}
 \citation{henning2023bodyslampp}
-\citation{tobin2017domainrand,zhao2020sim2real}
+\citation{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
+\citation{radosavovic2024humanoid}
 \citation{todorov2012mujoco}
-\citation{svarny2020collision}
+\citation{acosta2022simvalidation}
+\citation{joseph2026mujoco}
+\citation{schlotzhauer2022pfl,svarny2020collision}
 \citation{tian2022confidence}
 \citation{permissivefilter2025}
 \citation{tian2022confidence}
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}Threats to Validity}{63}{section.6.2}\protected@file@percent }
-\newlabel{sec:disc:threats}{{6.2}{63}{Threats to Validity}{section.6.2}{}}
-\newlabel{sec:disc:threats@cref}{{[section][2][6]6.2}{[1][63][]63}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}The PFL{} Contact-Detection Limitation}{63}{subsection.6.2.1}\protected@file@percent }
-\newlabel{sec:disc:pfl-bug}{{6.2.1}{63}{The \pfl {} Contact-Detection Limitation}{subsection.6.2.1}{}}
-\newlabel{sec:disc:pfl-bug@cref}{{[subsection][1][6,2]6.2.1}{[1][63][]63}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Curriculum Dependence}{63}{subsection.6.2.2}\protected@file@percent }
-\newlabel{sec:disc:curriculum}{{6.2.2}{63}{Curriculum Dependence}{subsection.6.2.2}{}}
-\newlabel{sec:disc:curriculum@cref}{{[subsection][2][6,2]6.2.2}{[1][63][]63}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}Sim-to-Real: Three Orthogonal Gaps}{63}{subsection.6.2.3}\protected@file@percent }
-\newlabel{sec:disc:sim2real}{{6.2.3}{63}{Sim-to-Real: Three Orthogonal Gaps}{subsection.6.2.3}{}}
-\newlabel{sec:disc:sim2real@cref}{{[subsection][3][6,2]6.2.3}{[1][63][]63}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}The Runtime Filter's Role Is Axis- and Regime-Conditional}{63}{subsection.6.2.4}\protected@file@percent }
-\newlabel{sec:disc:filter-role}{{6.2.4}{63}{The Runtime Filter's Role Is Axis- and Regime-Conditional}{subsection.6.2.4}{}}
-\newlabel{sec:disc:filter-role@cref}{{[subsection][4][6,2]6.2.4}{[1][63][]63}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}Threats to Validity}{64}{section.6.2}\protected@file@percent }
+\newlabel{sec:disc:threats}{{6.2}{64}{Threats to Validity}{section.6.2}{}}
+\newlabel{sec:disc:threats@cref}{{[section][2][6]6.2}{[1][64][]64}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}The PFL{} Contact-Detection Limitation}{64}{subsection.6.2.1}\protected@file@percent }
+\newlabel{sec:disc:pfl-bug}{{6.2.1}{64}{The \pfl {} Contact-Detection Limitation}{subsection.6.2.1}{}}
+\newlabel{sec:disc:pfl-bug@cref}{{[subsection][1][6,2]6.2.1}{[1][64][]64}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Curriculum Dependence}{64}{subsection.6.2.2}\protected@file@percent }
+\newlabel{sec:disc:curriculum}{{6.2.2}{64}{Curriculum Dependence}{subsection.6.2.2}{}}
+\newlabel{sec:disc:curriculum@cref}{{[subsection][2][6,2]6.2.2}{[1][64][]64}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}Sim-to-Real: Three Orthogonal Gaps}{64}{subsection.6.2.3}\protected@file@percent }
+\newlabel{sec:disc:sim2real}{{6.2.3}{64}{Sim-to-Real: Three Orthogonal Gaps}{subsection.6.2.3}{}}
+\newlabel{sec:disc:sim2real@cref}{{[subsection][3][6,2]6.2.3}{[1][64][]64}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}The Runtime Filter's Role Is Axis- and Regime-Conditional}{64}{subsection.6.2.4}\protected@file@percent }
+\newlabel{sec:disc:filter-role}{{6.2.4}{64}{The Runtime Filter's Role Is Axis- and Regime-Conditional}{subsection.6.2.4}{}}
+\newlabel{sec:disc:filter-role@cref}{{[subsection][4][6,2]6.2.4}{[1][64][]64}}
 \citation{yang2021wcsac}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Generalisation Scope and the Resolved Cross-Task Transfer}{65}{subsection.6.2.5}\protected@file@percent }
+\newlabel{sec:disc:arch-gen}{{6.2.5}{65}{Generalisation Scope and the Resolved Cross-Task Transfer}{subsection.6.2.5}{}}
+\newlabel{sec:disc:arch-gen@cref}{{[subsection][5][6,2]6.2.5}{[1][65][]65}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.6}External Baseline (WCSAC): Implemented, with Stated Limits}{65}{subsection.6.2.6}\protected@file@percent }
+\newlabel{sec:disc:wcsac-honest}{{6.2.6}{65}{External Baseline (WCSAC): Implemented, with Stated Limits}{subsection.6.2.6}{}}
+\newlabel{sec:disc:wcsac-honest@cref}{{[subsection][6][6,2]6.2.6}{[1][65][]65}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.7}The Regime Classification Is Observational, on Three Tasks}{65}{subsection.6.2.7}\protected@file@percent }
+\newlabel{sec:disc:regime-threat}{{6.2.7}{65}{The Regime Classification Is Observational, on Three Tasks}{subsection.6.2.7}{}}
+\newlabel{sec:disc:regime-threat@cref}{{[subsection][7][6,2]6.2.7}{[1][65][]65}}
 \citation{yang2021wcsac}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Generalisation Scope and the Resolved Cross-Task Transfer}{64}{subsection.6.2.5}\protected@file@percent }
-\newlabel{sec:disc:arch-gen}{{6.2.5}{64}{Generalisation Scope and the Resolved Cross-Task Transfer}{subsection.6.2.5}{}}
-\newlabel{sec:disc:arch-gen@cref}{{[subsection][5][6,2]6.2.5}{[1][64][]64}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.6}External Baseline (WCSAC): Implemented, with Stated Limits}{64}{subsection.6.2.6}\protected@file@percent }
-\newlabel{sec:disc:wcsac-honest}{{6.2.6}{64}{External Baseline (WCSAC): Implemented, with Stated Limits}{subsection.6.2.6}{}}
-\newlabel{sec:disc:wcsac-honest@cref}{{[subsection][6][6,2]6.2.6}{[1][64][]64}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.7}The Regime Classification Is Observational, on Three Tasks}{64}{subsection.6.2.7}\protected@file@percent }
-\newlabel{sec:disc:regime-threat}{{6.2.7}{64}{The Regime Classification Is Observational, on Three Tasks}{subsection.6.2.7}{}}
-\newlabel{sec:disc:regime-threat@cref}{{[subsection][7][6,2]6.2.7}{[1][64][]64}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.8}Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{65}{subsection.6.2.8}\protected@file@percent }
-\newlabel{sec:disc:arch-caveat}{{6.2.8}{65}{Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{subsection.6.2.8}{}}
-\newlabel{sec:disc:arch-caveat@cref}{{[subsection][8][6,2]6.2.8}{[1][64][]65}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.9}Computational Feasibility}{65}{subsection.6.2.9}\protected@file@percent }
-\newlabel{sec:disc:compute}{{6.2.9}{65}{Computational Feasibility}{subsection.6.2.9}{}}
-\newlabel{sec:disc:compute@cref}{{[subsection][9][6,2]6.2.9}{[1][65][]65}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.3}Broader Impact}{65}{section.6.3}\protected@file@percent }
-\newlabel{sec:disc:broader}{{6.3}{65}{Broader Impact}{section.6.3}{}}
-\newlabel{sec:disc:broader@cref}{{[section][3][6]6.3}{[1][65][]65}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.1}Responsible Deployment}{65}{subsection.6.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.2}What Does Not Generalise}{65}{subsection.6.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.3}Reproducibility as Honesty}{66}{subsection.6.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.8}Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{66}{subsection.6.2.8}\protected@file@percent }
+\newlabel{sec:disc:arch-caveat}{{6.2.8}{66}{Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{subsection.6.2.8}{}}
+\newlabel{sec:disc:arch-caveat@cref}{{[subsection][8][6,2]6.2.8}{[1][66][]66}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.9}Computational Feasibility}{66}{subsection.6.2.9}\protected@file@percent }
+\newlabel{sec:disc:compute}{{6.2.9}{66}{Computational Feasibility}{subsection.6.2.9}{}}
+\newlabel{sec:disc:compute@cref}{{[subsection][9][6,2]6.2.9}{[1][66][]66}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}Broader Impact}{66}{section.6.3}\protected@file@percent }
+\newlabel{sec:disc:broader}{{6.3}{66}{Broader Impact}{section.6.3}{}}
+\newlabel{sec:disc:broader@cref}{{[section][3][6]6.3}{[1][66][]66}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.1}Responsible Deployment and Misuse Risk}{66}{subsection.6.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.2}Vulnerable Users and Domestic Environments}{67}{subsection.6.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.3.3}Reproducibility as Honesty}{67}{subsection.6.3.3}\protected@file@percent }
 \citation{yang2021wcsac}
 \citation{dabney2018qrdqn}
-\citation{bansal2017hamilton}
-\citation{tian2022confidence}
-\citation{cbfrl2024,shield2025}
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}Future Work}{67}{chapter.7}\protected@file@percent }
+\citation{kim2022offtrc}
+\citation{kim2023sdac,kim2024srcpo}
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Future Work}{68}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{ch:future}{{7}{67}{Future Work}{chapter.7}{}}
-\newlabel{ch:future@cref}{{[chapter][7][]7}{[1][67][]67}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.1}The Persistence Dial: From Regime Map to Causal Test}{67}{section.7.1}\protected@file@percent }
-\newlabel{sec:fw:persistence-dial}{{7.1}{67}{The Persistence Dial: From Regime Map to Causal Test}{section.7.1}{}}
-\newlabel{sec:fw:persistence-dial@cref}{{[section][1][7]7.1}{[1][67][]67}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.2}Closing the Force Loop: Fixing PFL{}}{67}{section.7.2}\protected@file@percent }
-\newlabel{sec:fw:pfl}{{7.2}{67}{Closing the Force Loop: Fixing \pfl {}}{section.7.2}{}}
-\newlabel{sec:fw:pfl@cref}{{[section][2][7]7.2}{[1][67][]67}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.3}Proactive Avoidance Beyond the Lagrangian Signal}{67}{section.7.3}\protected@file@percent }
-\newlabel{sec:fw:proactive}{{7.3}{67}{Proactive Avoidance Beyond the Lagrangian Signal}{section.7.3}{}}
-\newlabel{sec:fw:proactive@cref}{{[section][3][7]7.3}{[1][67][]67}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.4}Explicit \ensuremath  {\mathrm  {CVaR}}{}-Lagrangian Training}{67}{section.7.4}\protected@file@percent }
-\newlabel{sec:fw:cvar}{{7.4}{67}{Explicit \cvar {}-Lagrangian Training}{section.7.4}{}}
-\newlabel{sec:fw:cvar@cref}{{[section][4][7]7.4}{[1][67][]67}}
+\newlabel{ch:future}{{7}{68}{Future Work}{chapter.7}{}}
+\newlabel{ch:future@cref}{{[chapter][7][]7}{[1][68][]68}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}The Persistence Dial: From Regime Map to Causal Test}{68}{section.7.1}\protected@file@percent }
+\newlabel{sec:fw:persistence-dial}{{7.1}{68}{The Persistence Dial: From Regime Map to Causal Test}{section.7.1}{}}
+\newlabel{sec:fw:persistence-dial@cref}{{[section][1][7]7.1}{[1][68][]68}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}Closing the Force Loop: Fixing PFL{}}{68}{section.7.2}\protected@file@percent }
+\newlabel{sec:fw:pfl}{{7.2}{68}{Closing the Force Loop: Fixing \pfl {}}{section.7.2}{}}
+\newlabel{sec:fw:pfl@cref}{{[section][2][7]7.2}{[1][68][]68}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Proactive Avoidance Beyond the Lagrangian Signal}{68}{section.7.3}\protected@file@percent }
+\newlabel{sec:fw:proactive}{{7.3}{68}{Proactive Avoidance Beyond the Lagrangian Signal}{section.7.3}{}}
+\newlabel{sec:fw:proactive@cref}{{[section][3][7]7.3}{[1][68][]68}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}Explicit \ensuremath  {\mathrm  {CVaR}}{}-Lagrangian Training}{68}{section.7.4}\protected@file@percent }
+\newlabel{sec:fw:cvar}{{7.4}{68}{Explicit \cvar {}-Lagrangian Training}{section.7.4}{}}
+\newlabel{sec:fw:cvar@cref}{{[section][4][7]7.4}{[1][68][]68}}
+\citation{bansal2017hamilton,hsu2024safetyfilter}
+\citation{tian2022confidence}
+\citation{cbfrl2024,shield2025}
 \citation{henning2023bodyslampp}
 \citation{romero2017smplh}
-\@writefile{toc}{\contentsline {section}{\numberline {7.5}Formally-Guaranteed and Anticipatory Filters}{68}{section.7.5}\protected@file@percent }
-\newlabel{sec:fw:formal}{{7.5}{68}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
-\newlabel{sec:fw:formal@cref}{{[section][5][7]7.5}{[1][67][]68}}
-\newlabel{sec:fw:fallback}{{7.5}{68}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
-\newlabel{sec:fw:fallback@cref}{{[section][5][7]7.5}{[1][67][]68}}
-\newlabel{sec:fw:filter-during-training}{{7.5}{68}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
-\newlabel{sec:fw:filter-during-training@cref}{{[section][5][7]7.5}{[1][67][]68}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.6}Real-Robot Transfer and the Coworker Realism Spectrum}{68}{section.7.6}\protected@file@percent }
-\newlabel{sec:fw:realbody}{{7.6}{68}{Real-Robot Transfer and the Coworker Realism Spectrum}{section.7.6}{}}
-\newlabel{sec:fw:realbody@cref}{{[section][6][7]7.6}{[1][68][]68}}
-\newlabel{sec:fw:embodiment}{{7.6}{68}{Real-Robot Transfer and the Coworker Realism Spectrum}{section.7.6}{}}
-\newlabel{sec:fw:embodiment@cref}{{[section][6][7]7.6}{[1][68][]68}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.5}Formally-Guaranteed and Anticipatory Filters}{69}{section.7.5}\protected@file@percent }
+\newlabel{sec:fw:formal}{{7.5}{69}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
+\newlabel{sec:fw:formal@cref}{{[section][5][7]7.5}{[1][69][]69}}
+\newlabel{sec:fw:fallback}{{7.5}{69}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
+\newlabel{sec:fw:fallback@cref}{{[section][5][7]7.5}{[1][69][]69}}
+\newlabel{sec:fw:filter-during-training}{{7.5}{69}{Formally-Guaranteed and Anticipatory Filters}{section.7.5}{}}
+\newlabel{sec:fw:filter-during-training@cref}{{[section][5][7]7.5}{[1][69][]69}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.6}Real-Robot Transfer and the Coworker Realism Spectrum}{69}{section.7.6}\protected@file@percent }
+\newlabel{sec:fw:realbody}{{7.6}{69}{Real-Robot Transfer and the Coworker Realism Spectrum}{section.7.6}{}}
+\newlabel{sec:fw:realbody@cref}{{[section][6][7]7.6}{[1][69][]69}}
+\newlabel{sec:fw:embodiment}{{7.6}{69}{Real-Robot Transfer and the Coworker Realism Spectrum}{section.7.6}{}}
+\newlabel{sec:fw:embodiment@cref}{{[section][6][7]7.6}{[1][69][]69}}
 \citation{chernyadev2024bigym}
-\citation{unitree_g1}
-\citation{henning2023bodyslampp}
-\citation{unitree_h1}
 \citation{yang2021wcsac}
-\citation{unitree_g1}
+\citation{thumm2023interventions}
+\citation{unitree_g1,hartmann2026iso}
 \citation{yang2021wcsac}
 \citation{shield2025}
 \citation{thananjeyan2021recovery}
 \citation{cbfrl2024}
 \citation{srinivasan2020learning}
-\@writefile{toc}{\contentsline {chapter}{\numberline {8}Conclusion}{69}{chapter.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {8}Conclusion}{70}{chapter.8}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{ch:conclusion}{{8}{69}{Conclusion}{chapter.8}{}}
-\newlabel{ch:conclusion@cref}{{[chapter][8][]8}{[1][69][]69}}
-\@writefile{toc}{\contentsline {chapter}{Declarations}{70}{chapter*.73}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Originality.}{70}{paragraph*.74}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Use of generative AI.}{70}{paragraph*.75}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Ethics.}{70}{paragraph*.76}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Sustainability.}{70}{paragraph*.77}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Code and data availability.}{70}{paragraph*.78}\protected@file@percent }
+\newlabel{ch:conclusion}{{8}{70}{Conclusion}{chapter.8}{}}
+\newlabel{ch:conclusion@cref}{{[chapter][8][]8}{[1][70][]70}}
+\@writefile{toc}{\contentsline {chapter}{Declarations}{71}{chapter*.73}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Originality.}{71}{paragraph*.74}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Use of generative AI.}{71}{paragraph*.75}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Ethics.}{71}{paragraph*.76}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Sustainability.}{71}{paragraph*.77}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Code and data availability.}{71}{paragraph*.78}\protected@file@percent }
 \bibdata{references}
-\bibcite{zhao2023act}{{1}{}{{}}{{}}}
-\bibcite{chi2023diffusion}{{2}{}{{}}{{}}}
-\bibcite{seo2024cqnas}{{3}{}{{}}{{}}}
-\bibcite{seo2025actionsequence}{{4}{}{{}}{{}}}
-\bibcite{chernyadev2024bigym}{{5}{}{{}}{{}}}
-\bibcite{sferrazza2024humanoidbench}{{6}{}{{}}{{}}}
-\bibcite{unitree_h1}{{7}{}{{}}{{}}}
-\bibcite{unitree_g1}{{8}{}{{}}{{}}}
-\bibcite{iso25785}{{9}{}{{}}{{}}}
-\bibcite{iso15066}{{10}{}{{}}{{}}}
-\bibcite{iso10218}{{11}{}{{}}{{}}}
-\bibcite{auditing2021}{{12}{}{{}}{{}}}
-\bibcite{brunke2022safelearning}{{13}{}{{}}{{}}}
-\bibcite{shield2025}{{14}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {chapter}{Bibliography}{71}{section*.79}\protected@file@percent }
-\bibcite{henning2023bodyslampp}{{15}{}{{}}{{}}}
-\bibcite{henning2022bodyslam}{{16}{}{{}}{{}}}
-\bibcite{ray2019safetygym}{{17}{}{{}}{{}}}
-\bibcite{ji2023safetygymnasium}{{18}{}{{}}{{}}}
-\bibcite{yuan2022safecontrolgym}{{19}{}{{}}{{}}}
-\bibcite{stooke2020pid}{{20}{}{{}}{{}}}
-\bibcite{alshiekh2018shielding}{{21}{}{{}}{{}}}
-\bibcite{ames2019cbf}{{22}{}{{}}{{}}}
-\bibcite{srinivasan2020learning}{{23}{}{{}}{{}}}
-\bibcite{thananjeyan2021recovery}{{24}{}{{}}{{}}}
-\bibcite{svarny2019unified}{{25}{}{{}}{{}}}
-\bibcite{marvel2017implementing}{{26}{}{{}}{{}}}
-\bibcite{svarny2020collision}{{27}{}{{}}{{}}}
-\bibcite{achiam2017cpo}{{28}{}{{}}{{}}}
-\bibcite{bellemare2017c51}{{29}{}{{}}{{}}}
-\bibcite{yarats2021drqv2}{{30}{}{{}}{{}}}
-\bibcite{narvekar2020curriculum}{{31}{}{{}}{{}}}
-\bibcite{openai2019solving}{{32}{}{{}}{{}}}
-\bibcite{altman1999constrained}{{33}{}{{}}{{}}}
-\bibcite{garcia2015comprehensive}{{34}{}{{}}{{}}}
-\bibcite{yang2021wcsac}{{35}{}{{}}{{}}}
-\bibcite{dabney2018qrdqn}{{36}{}{{}}{{}}}
-\bibcite{bansal2017hamilton}{{37}{}{{}}{{}}}
-\bibcite{cbfrl2024}{{38}{}{{}}{{}}}
-\bibcite{kumar2020cql}{{39}{}{{}}{{}}}
-\bibcite{nakamura2025latent}{{40}{}{{}}{{}}}
-\bibcite{latentcbf2025}{{41}{}{{}}{{}}}
-\bibcite{permissivefilter2025}{{42}{}{{}}{{}}}
-\bibcite{tian2022confidence}{{43}{}{{}}{{}}}
-\bibcite{trautman2010freezing}{{44}{}{{}}{{}}}
-\bibcite{dontfreeze2026}{{45}{}{{}}{{}}}
-\bibcite{tobin2017domainrand}{{46}{}{{}}{{}}}
-\bibcite{zhao2020sim2real}{{47}{}{{}}{{}}}
-\bibcite{james2020rlbench}{{48}{}{{}}{{}}}
-\bibcite{romero2017smplh}{{49}{}{{}}{{}}}
-\bibcite{mahmood2019amass}{{50}{}{{}}{{}}}
-\bibcite{todorov2012mujoco}{{51}{}{{}}{{}}}
+\bibcite{yang2021wcsac}{{1}{}{{}}{{}}}
+\bibcite{zhao2023act}{{2}{}{{}}{{}}}
+\bibcite{chi2023diffusion}{{3}{}{{}}{{}}}
+\bibcite{seo2024cqnas}{{4}{}{{}}{{}}}
+\bibcite{seo2025actionsequence}{{5}{}{{}}{{}}}
+\bibcite{chernyadev2024bigym}{{6}{}{{}}{{}}}
+\bibcite{sferrazza2024humanoidbench}{{7}{}{{}}{{}}}
+\bibcite{unitree_h1}{{8}{}{{}}{{}}}
+\bibcite{unitree_g1}{{9}{}{{}}{{}}}
+\bibcite{iso25785}{{10}{}{{}}{{}}}
+\bibcite{iso15066}{{11}{}{{}}{{}}}
+\bibcite{iso10218}{{12}{}{{}}{{}}}
+\bibcite{hartmann2026iso}{{13}{}{{}}{{}}}
+\bibcite{koczi2025humanoidsafety}{{14}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {chapter}{Bibliography}{72}{section*.79}\protected@file@percent }
+\bibcite{ieee2025pathway}{{15}{}{{}}{{}}}
+\bibcite{auditing2021}{{16}{}{{}}{{}}}
+\bibcite{robey2025jailbreaking}{{17}{}{{}}{{}}}
+\bibcite{hundt2025llmrobots}{{18}{}{{}}{{}}}
+\bibcite{brunke2022safelearning}{{19}{}{{}}{{}}}
+\bibcite{wachi2024constraint}{{20}{}{{}}{{}}}
+\bibcite{ji2023safetygymnasium}{{21}{}{{}}{{}}}
+\bibcite{yuan2022safecontrolgym}{{22}{}{{}}{{}}}
+\bibcite{thumm2024humanrobotgym}{{23}{}{{}}{{}}}
+\bibcite{shield2025}{{24}{}{{}}{{}}}
+\bibcite{henning2023bodyslampp}{{25}{}{{}}{{}}}
+\bibcite{henning2022bodyslam}{{26}{}{{}}{{}}}
+\bibcite{ray2019safetygym}{{27}{}{{}}{{}}}
+\bibcite{stooke2020pid}{{28}{}{{}}{{}}}
+\bibcite{alshiekh2018shielding}{{29}{}{{}}{{}}}
+\bibcite{ames2019cbf}{{30}{}{{}}{{}}}
+\bibcite{srinivasan2020learning}{{31}{}{{}}{{}}}
+\bibcite{thananjeyan2021recovery}{{32}{}{{}}{{}}}
+\bibcite{thumm2023interventions}{{33}{}{{}}{{}}}
+\bibcite{svarny2019unified}{{34}{}{{}}{{}}}
+\bibcite{marvel2017implementing}{{35}{}{{}}{{}}}
+\bibcite{svarny2020collision}{{36}{}{{}}{{}}}
+\bibcite{svarny2022softskins}{{37}{}{{}}{{}}}
+\bibcite{rozlivek2025harmonious}{{38}{}{{}}{{}}}
+\bibcite{achiam2017cpo}{{39}{}{{}}{{}}}
+\bibcite{he2023autocost}{{40}{}{{}}{{}}}
+\bibcite{bellemare2017c51}{{41}{}{{}}{{}}}
+\bibcite{yarats2021drqv2}{{42}{}{{}}{{}}}
+\bibcite{narvekar2020curriculum}{{43}{}{{}}{{}}}
+\bibcite{openai2019solving}{{44}{}{{}}{{}}}
+\bibcite{rudin2022walkminutes}{{45}{}{{}}{{}}}
+\bibcite{zhuang2024parkour}{{46}{}{{}}{{}}}
+\bibcite{altman1999constrained}{{47}{}{{}}{{}}}
+\bibcite{garcia2015comprehensive}{{48}{}{{}}{{}}}
+\bibcite{yang2023wcsacjournal}{{49}{}{{}}{{}}}
+\bibcite{dabney2018qrdqn}{{50}{}{{}}{{}}}
+\bibcite{konighofer2025shields}{{51}{}{{}}{{}}}
+\bibcite{bansal2017hamilton}{{52}{}{{}}{{}}}
+\bibcite{ganai2024hjsurvey}{{53}{}{{}}{{}}}
+\bibcite{wabersich2023datadriven}{{54}{}{{}}{{}}}
+\bibcite{hsu2024safetyfilter}{{55}{}{{}}{{}}}
+\bibcite{cbfrl2024}{{56}{}{{}}{{}}}
+\bibcite{kumar2020cql}{{57}{}{{}}{{}}}
+\bibcite{khazoom2022selfcollision}{{58}{}{{}}{{}}}
+\bibcite{morton2025oscbf}{{59}{}{{}}{{}}}
+\bibcite{bena2025poisson}{{60}{}{{}}{{}}}
+\bibcite{sun2025spark}{{61}{}{{}}{{}}}
+\bibcite{cai2026humanoidcbf}{{62}{}{{}}{{}}}
+\bibcite{nakamura2025latent}{{63}{}{{}}{{}}}
+\bibcite{latentcbf2025}{{64}{}{{}}{{}}}
+\bibcite{permissivefilter2025}{{65}{}{{}}{{}}}
+\bibcite{tian2022confidence}{{66}{}{{}}{{}}}
+\bibcite{trautman2010freezing}{{67}{}{{}}{{}}}
+\bibcite{dontfreeze2026}{{68}{}{{}}{{}}}
+\bibcite{krasowski2023provablysafe}{{69}{}{{}}{{}}}
+\bibcite{prudencio2024offlinesurvey}{{70}{}{{}}{{}}}
+\bibcite{xu2022cpq}{{71}{}{{}}{{}}}
+\bibcite{tobin2017domainrand}{{72}{}{{}}{{}}}
+\bibcite{zhao2020sim2real}{{73}{}{{}}{{}}}
+\bibcite{muratore2022randomized}{{74}{}{{}}{{}}}
+\bibcite{shin2024wham}{{75}{}{{}}{{}}}
+\bibcite{wang2024tram}{{76}{}{{}}{{}}}
+\bibcite{zhang2025safevla}{{77}{}{{}}{{}}}
+\bibcite{james2020rlbench}{{78}{}{{}}{{}}}
+\bibcite{erickson2020assistivegym}{{79}{}{{}}{{}}}
+\bibcite{ye2022rcareworld}{{80}{}{{}}{{}}}
+\bibcite{puig2024habitat3}{{81}{}{{}}{{}}}
+\bibcite{romero2017smplh}{{82}{}{{}}{{}}}
+\bibcite{tian2023meshsurvey}{{83}{}{{}}{{}}}
+\bibcite{mahmood2019amass}{{84}{}{{}}{{}}}
+\bibcite{radosavovic2024humanoid}{{85}{}{{}}{{}}}
+\bibcite{todorov2012mujoco}{{86}{}{{}}{{}}}
+\bibcite{acosta2022simvalidation}{{87}{}{{}}{{}}}
+\bibcite{joseph2026mujoco}{{88}{}{{}}{{}}}
+\bibcite{schlotzhauer2022pfl}{{89}{}{{}}{{}}}
+\bibcite{kim2022offtrc}{{90}{}{{}}{{}}}
+\bibcite{kim2023sdac}{{91}{}{{}}{{}}}
+\bibcite{kim2024srcpo}{{92}{}{{}}{{}}}
 \citation{seo2024cqnas}
-\@writefile{toc}{\contentsline {chapter}{\numberline {A}Hyperparameter Tables}{75}{appendix.A}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}Hyperparameter Tables}{79}{appendix.A}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:hparams}{{A}{75}{Hyperparameter Tables}{appendix.A}{}}
-\newlabel{app:hparams@cref}{{[appendix][1][2147483647]A}{[1][75][]75}}
-\@writefile{toc}{\contentsline {section}{\numberline {A.1}Phase 2: Offline CQL Safety Critic}{75}{section.A.1}\protected@file@percent }
-\newlabel{app:hparams:svf}{{A.1}{75}{Phase 2: Offline CQL Safety Critic}{section.A.1}{}}
-\newlabel{app:hparams:svf@cref}{{[subappendix][1][2147483647,1]A.1}{[1][75][]75}}
-\@writefile{lot}{\contentsline {table}{\numberline {A.1}{\ignorespaces Phase 2 offline CQL safety-value-function hyperparameters. The dataset is collected under \texttt  {noisy} perception because a runtime filter must learn the conditions it faces at deployment (Section~\ref {sec:setup:perception-mode}).}}{75}{table.caption.81}\protected@file@percent }
-\newlabel{tab:app-hparams-svf}{{A.1}{75}{Phase 2 offline CQL safety-value-function hyperparameters. The dataset is collected under \texttt {noisy} perception because a runtime filter must learn the conditions it faces at deployment (Section~\ref {sec:setup:perception-mode})}{table.caption.81}{}}
-\newlabel{tab:app-hparams-svf@cref}{{[table][1][2147483647,1]A.1}{[1][75][]75}}
-\@writefile{toc}{\contentsline {section}{\numberline {A.2}Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{75}{section.A.2}\protected@file@percent }
-\newlabel{app:hparams:lagrangian}{{A.2}{75}{Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{section.A.2}{}}
-\newlabel{app:hparams:lagrangian@cref}{{[subappendix][2][2147483647,1]A.2}{[1][75][]75}}
-\@writefile{lot}{\contentsline {table}{\numberline {A.2}{\ignorespaces Phase 3 headline hyperparameters (fixed-$\lambda $ constrained CQN-AS{}). The cost critic is fully decoupled (its own optimiser and its own features, the RoboBase shared-encoder constraint) and cold-started.}}{75}{table.caption.82}\protected@file@percent }
-\newlabel{tab:app-hparams-lagrangian}{{A.2}{75}{Phase 3 headline hyperparameters (fixed-$\lambda $ constrained \cqnas {}). The cost critic is fully decoupled (its own optimiser and its own features, the RoboBase shared-encoder constraint) and cold-started}{table.caption.82}{}}
-\newlabel{tab:app-hparams-lagrangian@cref}{{[table][2][2147483647,1]A.2}{[1][75][]75}}
+\newlabel{app:hparams}{{A}{79}{Hyperparameter Tables}{appendix.A}{}}
+\newlabel{app:hparams@cref}{{[appendix][1][2147483647]A}{[1][79][]79}}
+\@writefile{toc}{\contentsline {section}{\numberline {A.1}Phase 2: Offline CQL Safety Critic}{79}{section.A.1}\protected@file@percent }
+\newlabel{app:hparams:svf}{{A.1}{79}{Phase 2: Offline CQL Safety Critic}{section.A.1}{}}
+\newlabel{app:hparams:svf@cref}{{[subappendix][1][2147483647,1]A.1}{[1][79][]79}}
+\@writefile{lot}{\contentsline {table}{\numberline {A.1}{\ignorespaces Phase 2 offline CQL safety-value-function hyperparameters. The dataset is collected under \texttt  {noisy} perception because a runtime filter must learn the conditions it faces at deployment (Section~\ref {sec:setup:perception-mode}).}}{79}{table.caption.81}\protected@file@percent }
+\newlabel{tab:app-hparams-svf}{{A.1}{79}{Phase 2 offline CQL safety-value-function hyperparameters. The dataset is collected under \texttt {noisy} perception because a runtime filter must learn the conditions it faces at deployment (Section~\ref {sec:setup:perception-mode})}{table.caption.81}{}}
+\newlabel{tab:app-hparams-svf@cref}{{[table][1][2147483647,1]A.1}{[1][79][]79}}
+\@writefile{toc}{\contentsline {section}{\numberline {A.2}Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{79}{section.A.2}\protected@file@percent }
+\newlabel{app:hparams:lagrangian}{{A.2}{79}{Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{section.A.2}{}}
+\newlabel{app:hparams:lagrangian@cref}{{[subappendix][2][2147483647,1]A.2}{[1][79][]79}}
+\@writefile{lot}{\contentsline {table}{\numberline {A.2}{\ignorespaces Phase 3 headline hyperparameters (fixed-$\lambda $ constrained CQN-AS{}). The cost critic is fully decoupled (its own optimiser and its own features, the RoboBase shared-encoder constraint) and cold-started.}}{79}{table.caption.82}\protected@file@percent }
+\newlabel{tab:app-hparams-lagrangian}{{A.2}{79}{Phase 3 headline hyperparameters (fixed-$\lambda $ constrained \cqnas {}). The cost critic is fully decoupled (its own optimiser and its own features, the RoboBase shared-encoder constraint) and cold-started}{table.caption.82}{}}
+\newlabel{tab:app-hparams-lagrangian@cref}{{[table][2][2147483647,1]A.2}{[1][79][]79}}
 \citation{yang2021wcsac}
-\@writefile{toc}{\contentsline {section}{\numberline {A.3}Phase 4: Per-Regime Deployment Configurations}{76}{section.A.3}\protected@file@percent }
-\newlabel{app:hparams:hybrid}{{A.3}{76}{Phase 4: Per-Regime Deployment Configurations}{section.A.3}{}}
-\newlabel{app:hparams:hybrid@cref}{{[subappendix][3][2147483647,1]A.3}{[1][75][]76}}
-\@writefile{lot}{\contentsline {table}{\numberline {A.3}{\ignorespaces Runtime deployment configurations per regime. The veto and the model-based dodges are taxonomy points, not deployment configurations.}}{76}{table.caption.83}\protected@file@percent }
-\newlabel{tab:app-hparams-hybrid}{{A.3}{76}{Runtime deployment configurations per regime. The veto and the model-based dodges are taxonomy points, not deployment configurations}{table.caption.83}{}}
-\newlabel{tab:app-hparams-hybrid@cref}{{[table][3][2147483647,1]A.3}{[1][76][]76}}
-\@writefile{toc}{\contentsline {paragraph}{Shared dish/drawers SVF critic.}{76}{paragraph*.84}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{WCSAC external baseline.}{76}{paragraph*.85}\protected@file@percent }
+\citation{yang2023wcsacjournal}
+\@writefile{toc}{\contentsline {section}{\numberline {A.3}Phase 4: Per-Regime Deployment Configurations}{80}{section.A.3}\protected@file@percent }
+\newlabel{app:hparams:hybrid}{{A.3}{80}{Phase 4: Per-Regime Deployment Configurations}{section.A.3}{}}
+\newlabel{app:hparams:hybrid@cref}{{[subappendix][3][2147483647,1]A.3}{[1][79][]80}}
+\@writefile{lot}{\contentsline {table}{\numberline {A.3}{\ignorespaces Runtime deployment configurations per regime. The veto and the model-based dodges are taxonomy points, not deployment configurations.}}{80}{table.caption.83}\protected@file@percent }
+\newlabel{tab:app-hparams-hybrid}{{A.3}{80}{Runtime deployment configurations per regime. The veto and the model-based dodges are taxonomy points, not deployment configurations}{table.caption.83}{}}
+\newlabel{tab:app-hparams-hybrid@cref}{{[table][3][2147483647,1]A.3}{[1][80][]80}}
+\@writefile{toc}{\contentsline {paragraph}{Shared dish/drawers SVF critic.}{80}{paragraph*.84}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{WCSAC external baseline.}{80}{paragraph*.85}\protected@file@percent }
 \citation{chernyadev2024bigym}
 \citation{mahmood2019amass}
 \citation{seo2024cqnas}
-\@writefile{toc}{\contentsline {chapter}{\numberline {B}Reproducibility Checklist}{77}{appendix.B}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {B}Reproducibility Checklist}{81}{appendix.B}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:repro}{{B}{77}{Reproducibility Checklist}{appendix.B}{}}
-\newlabel{app:repro@cref}{{[appendix][2][2147483647]B}{[1][77][]77}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {C}Use of Generative AI}{78}{appendix.C}\protected@file@percent }
+\newlabel{app:repro}{{B}{81}{Reproducibility Checklist}{appendix.B}{}}
+\newlabel{app:repro@cref}{{[appendix][2][2147483647]B}{[1][81][]81}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {C}Use of Generative AI}{82}{appendix.C}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:genai}{{C}{78}{Use of Generative AI}{appendix.C}{}}
-\newlabel{app:genai@cref}{{[appendix][3][2147483647]C}{[1][78][]78}}
+\newlabel{app:genai}{{C}{82}{Use of Generative AI}{appendix.C}{}}
+\newlabel{app:genai@cref}{{[appendix][3][2147483647]C}{[1][82][]82}}
 \citation{mahmood2019amass}
-\@writefile{toc}{\contentsline {chapter}{\numberline {D}Ethical Considerations}{79}{appendix.D}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {D}Ethical Considerations}{83}{appendix.D}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:ethics}{{D}{79}{Ethical Considerations}{appendix.D}{}}
-\newlabel{app:ethics@cref}{{[appendix][4][2147483647]D}{[1][79][]79}}
-\@writefile{toc}{\contentsline {chapter}{\numberline {E}Sustainability}{80}{appendix.E}\protected@file@percent }
+\newlabel{app:ethics}{{D}{83}{Ethical Considerations}{appendix.D}{}}
+\newlabel{app:ethics@cref}{{[appendix][4][2147483647]D}{[1][83][]83}}
+\@writefile{toc}{\contentsline {chapter}{\numberline {E}Sustainability}{84}{appendix.E}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:sustainability}{{E}{80}{Sustainability}{appendix.E}{}}
-\newlabel{app:sustainability@cref}{{[appendix][5][2147483647]E}{[1][80][]80}}
+\newlabel{app:sustainability}{{E}{84}{Sustainability}{appendix.E}{}}
+\newlabel{app:sustainability@cref}{{[appendix][5][2147483647]E}{[1][84][]84}}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\@writefile{toc}{\contentsline {chapter}{\numberline {F}Code and Data Availability}{81}{appendix.F}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {F}Code and Data Availability}{85}{appendix.F}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:data}{{F}{81}{Code and Data Availability}{appendix.F}{}}
-\newlabel{app:data@cref}{{[appendix][6][2147483647]F}{[1][81][]81}}
-\gdef \@abspage@last{83}
+\newlabel{app:data}{{F}{85}{Code and Data Availability}{appendix.F}{}}
+\newlabel{app:data@cref}{{[appendix][6][2147483647]F}{[1][85][]85}}
+\gdef \@abspage@last{87}

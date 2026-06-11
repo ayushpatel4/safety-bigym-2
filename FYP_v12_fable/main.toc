@@ -8,7 +8,7 @@
 \contentsline {subsection}{\numberline {1.1.4}What This Project Targets}{12}{subsection.1.1.4}%
 \contentsline {paragraph}{Terminology.}{13}{paragraph*.5}%
 \contentsline {section}{\numberline {1.2}Problem Statement}{13}{section.1.2}%
-\contentsline {section}{\numberline {1.3}Research Questions}{13}{section.1.3}%
+\contentsline {section}{\numberline {1.3}Research Questions}{14}{section.1.3}%
 \contentsline {section}{\numberline {1.4}Contributions}{14}{section.1.4}%
 \contentsline {section}{\numberline {1.5}Report Outline}{15}{section.1.5}%
 \contentsline {chapter}{\numberline {2}Background and Related Work}{16}{chapter.2}%
@@ -16,7 +16,7 @@
 \contentsline {subsection}{\numberline {2.1.1}Speed and Separation Monitoring (SSM{})}{16}{subsection.2.1.1}%
 \contentsline {subsection}{\numberline {2.1.2}Power and Force Limiting (PFL{})}{16}{subsection.2.1.2}%
 \contentsline {subsection}{\numberline {2.1.3}Why ISO~15066{} Is Hard to Target with Generic Safe-RL}{16}{subsection.2.1.3}%
-\contentsline {section}{\numberline {2.2}Reinforcement Learning Fundamentals}{16}{section.2.2}%
+\contentsline {section}{\numberline {2.2}Reinforcement Learning Fundamentals}{17}{section.2.2}%
 \contentsline {subsection}{\numberline {2.2.1}Why CQN-AS{} (Choice of Backbone)}{17}{subsection.2.2.1}%
 \contentsline {subsection}{\numberline {2.2.2}Curriculum Learning for Long-Horizon RL}{17}{subsection.2.2.2}%
 \contentsline {section}{\numberline {2.3}Safe Reinforcement Learning}{18}{section.2.3}%
@@ -25,12 +25,12 @@
 \contentsline {subsection}{\numberline {2.3.3}Recovery, Switching, and Filters}{18}{subsection.2.3.3}%
 \contentsline {section}{\numberline {2.4}Safety Filters and Control Barrier Functions on Humanoids}{18}{section.2.4}%
 \contentsline {subsection}{\numberline {2.4.1}Filter Conservatism and the Freeze-versus-Flee Limit}{19}{subsection.2.4.1}%
-\contentsline {section}{\numberline {2.5}Conservative Q-Learning}{19}{section.2.5}%
-\contentsline {section}{\numberline {2.6}Sim-to-Real for Human-Aware Robotics}{19}{section.2.6}%
-\contentsline {subsection}{\numberline {2.6.1}Dynamics vs.\ Perception Sim-to-Real}{19}{subsection.2.6.1}%
+\contentsline {section}{\numberline {2.5}Conservative Q-Learning}{20}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Sim-to-Real for Human-Aware Robotics}{20}{section.2.6}%
+\contentsline {subsection}{\numberline {2.6.1}Dynamics vs.\ Perception Sim-to-Real}{20}{subsection.2.6.1}%
 \contentsline {subsection}{\numberline {2.6.2}Human Pose Estimation in Co-Located Settings}{20}{subsection.2.6.2}%
 \contentsline {section}{\numberline {2.7}Benchmark Landscape}{20}{section.2.7}%
-\contentsline {section}{\numberline {2.8}Positioning of This Work}{20}{section.2.8}%
+\contentsline {section}{\numberline {2.8}Positioning of This Work}{21}{section.2.8}%
 \contentsline {chapter}{\numberline {3}The \texttt {safety\_bigym}{} Benchmark}{22}{chapter.3}%
 \contentsline {section}{\numberline {3.1}Why a New Benchmark}{22}{section.3.1}%
 \contentsline {section}{\numberline {3.2}Why Build on \textsc {BiGym}{}}{22}{section.3.2}%
@@ -76,21 +76,21 @@
 \contentsline {subsection}{\numberline {4.4.1}Why Value-Based}{34}{subsection.4.4.1}%
 \contentsline {subsection}{\numberline {4.4.2}Option A-value: Shaped-Reward Single Critic}{34}{subsection.4.4.2}%
 \contentsline {subsection}{\numberline {4.4.3}Option B-value-mean: Dual Q-Functions on Mean Cost (Headline)}{34}{subsection.4.4.3}%
-\contentsline {subsection}{\numberline {4.4.4}Option B-value-CVaR: Distributional Cost Critic (future work)}{34}{subsection.4.4.4}%
+\contentsline {subsection}{\numberline {4.4.4}Option B-value-CVaR: Distributional Cost Critic (future work)}{35}{subsection.4.4.4}%
 \contentsline {subsection}{\numberline {4.4.5}The C51 Value-Support Invariant}{35}{subsection.4.4.5}%
 \contentsline {paragraph}{Consequence.}{35}{paragraph*.23}%
 \contentsline {subsection}{\numberline {4.4.6}Per-Env-Step Cost Backup}{35}{subsection.4.4.6}%
-\contentsline {subsection}{\numberline {4.4.7}PID Lagrange Multiplier Update}{35}{subsection.4.4.7}%
-\contentsline {paragraph}{PID auto-tuning is seed-unstable at the feasibility boundary; a fixed multiplier is the fix.}{35}{paragraph*.24}%
+\contentsline {subsection}{\numberline {4.4.7}PID Lagrange Multiplier Update}{36}{subsection.4.4.7}%
+\contentsline {paragraph}{PID auto-tuning is seed-unstable at the feasibility boundary; a fixed multiplier is the fix.}{36}{paragraph*.24}%
 \contentsline {subsection}{\numberline {4.4.8}Filter During Training (optional)}{36}{subsection.4.4.8}%
 \contentsline {subsection}{\numberline {4.4.9}Cost-Critic Initialisation and Policy Warm-Start}{36}{subsection.4.4.9}%
 \contentsline {section}{\numberline {4.5}The Base-Policy Curriculum}{36}{section.4.5}%
 \contentsline {paragraph}{Why a curriculum (against alternatives).}{37}{paragraph*.25}%
 \contentsline {section}{\numberline {4.6}Algorithm}{37}{section.4.6}%
 \contentsline {section}{\numberline {4.7}Software Architecture}{37}{section.4.7}%
-\contentsline {section}{\numberline {4.8}CQN-AS{} Vendor Integration}{38}{section.4.8}%
-\contentsline {paragraph}{Demo distribution gap.}{38}{paragraph*.26}%
-\contentsline {paragraph}{Demo--live action-stat sharing.}{38}{paragraph*.27}%
+\contentsline {section}{\numberline {4.8}CQN-AS{} Vendor Integration}{37}{section.4.8}%
+\contentsline {paragraph}{Demo distribution gap.}{37}{paragraph*.26}%
+\contentsline {paragraph}{Demo--live action-stat sharing.}{37}{paragraph*.27}%
 \contentsline {paragraph}{C51 projection CUDA overflow.}{38}{paragraph*.28}%
 \contentsline {paragraph}{Other gotchas.}{38}{paragraph*.29}%
 \contentsline {section}{\numberline {4.9}Making the Offline Filter Deployment-Faithful}{38}{section.4.9}%
@@ -112,86 +112,87 @@
 \contentsline {section}{\numberline {5.6}Statistical Methodology}{43}{section.5.6}%
 \contentsline {section}{\numberline {5.7}Compute Budget}{43}{section.5.7}%
 \contentsline {section}{\numberline {5.8}Experiment Index}{43}{section.5.8}%
-\contentsline {section}{\numberline {5.9}Baseline ISO 15066 Compliance}{43}{section.5.9}%
-\contentsline {paragraph}{Intermittent-co-location baselines.}{44}{paragraph*.36}%
-\contentsline {section}{\numberline {5.10}RQ1: The Human-State Observation Channel}{45}{section.5.10}%
-\contentsline {subsection}{\numberline {5.10.1}E1.1: Behaviour Cloning under No Penalty (Negative)}{45}{subsection.5.10.1}%
-\contentsline {subsection}{\numberline {5.10.2}E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{45}{subsection.5.10.2}%
-\contentsline {section}{\numberline {5.11}R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{46}{section.5.11}%
-\contentsline {subsection}{\numberline {5.11.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.11.1}%
-\contentsline {subsection}{\numberline {5.11.2}E3.2: Cost Budget Sweep and the Feasibility Boundary}{46}{subsection.5.11.2}%
-\contentsline {subsection}{\numberline {5.11.3}Filter Pareto Frontier (E2.1--E2.3)}{47}{subsection.5.11.3}%
+\contentsline {section}{\numberline {5.9}Ablation Map: What Each Component Proves}{43}{section.5.9}%
+\contentsline {section}{\numberline {5.10}Baseline ISO 15066 Compliance}{44}{section.5.10}%
+\contentsline {paragraph}{Intermittent-co-location baselines.}{45}{paragraph*.36}%
+\contentsline {section}{\numberline {5.11}RQ1: The Human-State Observation Channel}{45}{section.5.11}%
+\contentsline {subsection}{\numberline {5.11.1}E1.1: Behaviour Cloning under No Penalty (Negative)}{45}{subsection.5.11.1}%
+\contentsline {subsection}{\numberline {5.11.2}E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{45}{subsection.5.11.2}%
+\contentsline {section}{\numberline {5.12}R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{46}{section.5.12}%
+\contentsline {subsection}{\numberline {5.12.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.12.1}%
+\contentsline {subsection}{\numberline {5.12.2}E3.2: Cost Budget Sweep and the Feasibility Boundary}{47}{subsection.5.12.2}%
+\contentsline {subsection}{\numberline {5.12.3}Filter Pareto Frontier (E2.1--E2.3)}{47}{subsection.5.12.3}%
 \contentsline {paragraph}{The reactive-fallback dilemma.}{47}{paragraph*.41}%
-\contentsline {subsection}{\numberline {5.11.4}E4.1: The Headline Comparison}{48}{subsection.5.11.4}%
-\contentsline {paragraph}{The proactive policy reduces proximity, reproducibly.}{48}{paragraph*.43}%
-\contentsline {paragraph}{Operating-point selection must be safety-aware.}{48}{paragraph*.45}%
+\contentsline {subsection}{\numberline {5.12.4}E4.1: The Headline Comparison}{49}{subsection.5.12.4}%
+\contentsline {paragraph}{The proactive policy reduces proximity, reproducibly.}{49}{paragraph*.43}%
+\contentsline {paragraph}{Operating-point selection must be safety-aware.}{49}{paragraph*.45}%
 \contentsline {paragraph}{The basin is constraint-driven, not selection noise.}{49}{paragraph*.46}%
 \contentsline {paragraph}{Controlling for the workspace-shaping confound.}{50}{paragraph*.48}%
 \contentsline {paragraph}{The velocity axis is the filter's, and only a graded filter reaches it.}{50}{paragraph*.49}%
 \contentsline {paragraph}{The composition is the only both-axis-compliant configuration, and it costs success.}{50}{paragraph*.50}%
-\contentsline {paragraph}{Sim-to-real perception.}{50}{paragraph*.51}%
-\contentsline {subsection}{\numberline {5.11.5}The Reactive-Filter Taxonomy: Freeze versus Flee}{50}{subsection.5.11.5}%
+\contentsline {paragraph}{Sim-to-real perception.}{51}{paragraph*.51}%
+\contentsline {subsection}{\numberline {5.12.5}The Reactive-Filter Taxonomy: Freeze versus Flee}{51}{subsection.5.12.5}%
 \contentsline {paragraph}{The learned veto freezes.}{51}{paragraph*.53}%
-\contentsline {paragraph}{The model-based filter flees.}{51}{paragraph*.54}%
-\contentsline {subsection}{\numberline {5.11.6}Joint ISO Coverage: The Composition and Its Ceiling}{51}{subsection.5.11.6}%
-\contentsline {subsection}{\numberline {5.11.7}E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{52}{subsection.5.11.7}%
-\contentsline {section}{\numberline {5.12}RQ4: Tail Risk and OOD Generalisation}{53}{section.5.12}%
-\contentsline {subsection}{\numberline {5.12.1}E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{53}{subsection.5.12.1}%
-\contentsline {subsection}{\numberline {5.12.2}E5.2: OOD Generalisation on the Wider Eval Band}{53}{subsection.5.12.2}%
-\contentsline {section}{\numberline {5.13}R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{54}{section.5.13}%
-\contentsline {subsection}{\numberline {5.13.1}E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{54}{subsection.5.13.1}%
-\contentsline {paragraph}{Deployment of the best cells confirms the cliff.}{54}{paragraph*.60}%
-\contentsline {paragraph}{When $\lambda $ binds, the robot gets \emph {faster}, not more careful.}{54}{paragraph*.61}%
+\contentsline {paragraph}{The model-based filter flees.}{52}{paragraph*.54}%
+\contentsline {subsection}{\numberline {5.12.6}Joint ISO Coverage: The Composition and Its Ceiling}{52}{subsection.5.12.6}%
+\contentsline {subsection}{\numberline {5.12.7}E4.3: The Filter Does Not Internalise (It Stays Out of Distribution)}{52}{subsection.5.12.7}%
+\contentsline {section}{\numberline {5.13}RQ4: Tail Risk and OOD Generalisation}{53}{section.5.13}%
+\contentsline {subsection}{\numberline {5.13.1}E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{53}{subsection.5.13.1}%
+\contentsline {subsection}{\numberline {5.13.2}E5.2: OOD Generalisation on the Wider Eval Band}{54}{subsection.5.13.2}%
+\contentsline {section}{\numberline {5.14}R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{54}{section.5.14}%
+\contentsline {subsection}{\numberline {5.14.1}E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{55}{subsection.5.14.1}%
+\contentsline {paragraph}{Deployment of the best cells confirms the cliff.}{55}{paragraph*.60}%
+\contentsline {paragraph}{When $\lambda $ binds, the robot gets \emph {faster}, not more careful.}{55}{paragraph*.61}%
 \contentsline {paragraph}{The trainability confound, stated honestly, and the external check.}{55}{paragraph*.62}%
-\contentsline {subsection}{\numberline {5.13.2}E2.4: A Binary Veto Breaks a Chunked Policy}{55}{subsection.5.13.2}%
-\contentsline {subsection}{\numberline {5.13.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.13.3}%
-\contentsline {subsection}{\numberline {5.13.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.13.4}%
-\contentsline {subsection}{\numberline {5.13.5}E2.6 Ablations: Four Refinements Confirm the Recipe}{56}{subsection.5.13.5}%
-\contentsline {section}{\numberline {5.14}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.14}%
-\contentsline {subsection}{\numberline {5.14.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.14.1}%
-\contentsline {subsection}{\numberline {5.14.2}The Mechanism, Measured}{59}{subsection.5.14.2}%
-\contentsline {subsection}{\numberline {5.14.3}The Regime Map}{59}{subsection.5.14.3}%
+\contentsline {subsection}{\numberline {5.14.2}E2.4: A Binary Veto Breaks a Chunked Policy}{56}{subsection.5.14.2}%
+\contentsline {subsection}{\numberline {5.14.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.14.3}%
+\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.14.4}%
+\contentsline {subsection}{\numberline {5.14.5}E2.6 Ablations: Four Refinements Confirm the Recipe}{57}{subsection.5.14.5}%
+\contentsline {section}{\numberline {5.15}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.15}%
+\contentsline {subsection}{\numberline {5.15.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.15.1}%
+\contentsline {subsection}{\numberline {5.15.2}The Mechanism, Measured}{59}{subsection.5.15.2}%
+\contentsline {subsection}{\numberline {5.15.3}The Regime Map}{60}{subsection.5.15.3}%
 \contentsline {paragraph}{Snapshot caveat (scope of the E4.4 numbers).}{60}{paragraph*.71}%
-\contentsline {section}{\numberline {5.15}Summary of Results}{61}{section.5.15}%
-\contentsline {chapter}{\numberline {6}Discussion}{62}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Research Questions Revisited}{62}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Threats to Validity}{63}{section.6.2}%
-\contentsline {subsection}{\numberline {6.2.1}The PFL{} Contact-Detection Limitation}{63}{subsection.6.2.1}%
-\contentsline {subsection}{\numberline {6.2.2}Curriculum Dependence}{63}{subsection.6.2.2}%
-\contentsline {subsection}{\numberline {6.2.3}Sim-to-Real: Three Orthogonal Gaps}{63}{subsection.6.2.3}%
-\contentsline {subsection}{\numberline {6.2.4}The Runtime Filter's Role Is Axis- and Regime-Conditional}{63}{subsection.6.2.4}%
-\contentsline {subsection}{\numberline {6.2.5}Generalisation Scope and the Resolved Cross-Task Transfer}{64}{subsection.6.2.5}%
-\contentsline {subsection}{\numberline {6.2.6}External Baseline (WCSAC): Implemented, with Stated Limits}{64}{subsection.6.2.6}%
-\contentsline {subsection}{\numberline {6.2.7}The Regime Classification Is Observational, on Three Tasks}{64}{subsection.6.2.7}%
-\contentsline {subsection}{\numberline {6.2.8}Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{65}{subsection.6.2.8}%
-\contentsline {subsection}{\numberline {6.2.9}Computational Feasibility}{65}{subsection.6.2.9}%
-\contentsline {section}{\numberline {6.3}Broader Impact}{65}{section.6.3}%
-\contentsline {subsection}{\numberline {6.3.1}Responsible Deployment}{65}{subsection.6.3.1}%
-\contentsline {subsection}{\numberline {6.3.2}What Does Not Generalise}{65}{subsection.6.3.2}%
-\contentsline {subsection}{\numberline {6.3.3}Reproducibility as Honesty}{66}{subsection.6.3.3}%
-\contentsline {chapter}{\numberline {7}Future Work}{67}{chapter.7}%
-\contentsline {section}{\numberline {7.1}The Persistence Dial: From Regime Map to Causal Test}{67}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Closing the Force Loop: Fixing PFL{}}{67}{section.7.2}%
-\contentsline {section}{\numberline {7.3}Proactive Avoidance Beyond the Lagrangian Signal}{67}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Explicit \ensuremath {\mathrm {CVaR}}{}-Lagrangian Training}{67}{section.7.4}%
-\contentsline {section}{\numberline {7.5}Formally-Guaranteed and Anticipatory Filters}{68}{section.7.5}%
-\contentsline {section}{\numberline {7.6}Real-Robot Transfer and the Coworker Realism Spectrum}{68}{section.7.6}%
-\contentsline {chapter}{\numberline {8}Conclusion}{69}{chapter.8}%
-\contentsline {chapter}{Declarations}{70}{chapter*.73}%
-\contentsline {paragraph}{Originality.}{70}{paragraph*.74}%
-\contentsline {paragraph}{Use of generative AI.}{70}{paragraph*.75}%
-\contentsline {paragraph}{Ethics.}{70}{paragraph*.76}%
-\contentsline {paragraph}{Sustainability.}{70}{paragraph*.77}%
-\contentsline {paragraph}{Code and data availability.}{70}{paragraph*.78}%
-\contentsline {chapter}{Bibliography}{71}{section*.79}%
-\contentsline {chapter}{\numberline {A}Hyperparameter Tables}{75}{appendix.A}%
-\contentsline {section}{\numberline {A.1}Phase 2: Offline CQL Safety Critic}{75}{section.A.1}%
-\contentsline {section}{\numberline {A.2}Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{75}{section.A.2}%
-\contentsline {section}{\numberline {A.3}Phase 4: Per-Regime Deployment Configurations}{76}{section.A.3}%
-\contentsline {paragraph}{Shared dish/drawers SVF critic.}{76}{paragraph*.84}%
-\contentsline {paragraph}{WCSAC external baseline.}{76}{paragraph*.85}%
-\contentsline {chapter}{\numberline {B}Reproducibility Checklist}{77}{appendix.B}%
-\contentsline {chapter}{\numberline {C}Use of Generative AI}{78}{appendix.C}%
-\contentsline {chapter}{\numberline {D}Ethical Considerations}{79}{appendix.D}%
-\contentsline {chapter}{\numberline {E}Sustainability}{80}{appendix.E}%
-\contentsline {chapter}{\numberline {F}Code and Data Availability}{81}{appendix.F}%
+\contentsline {section}{\numberline {5.16}Summary of Results}{61}{section.5.16}%
+\contentsline {chapter}{\numberline {6}Discussion}{63}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Research Questions Revisited}{63}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Threats to Validity}{64}{section.6.2}%
+\contentsline {subsection}{\numberline {6.2.1}The PFL{} Contact-Detection Limitation}{64}{subsection.6.2.1}%
+\contentsline {subsection}{\numberline {6.2.2}Curriculum Dependence}{64}{subsection.6.2.2}%
+\contentsline {subsection}{\numberline {6.2.3}Sim-to-Real: Three Orthogonal Gaps}{64}{subsection.6.2.3}%
+\contentsline {subsection}{\numberline {6.2.4}The Runtime Filter's Role Is Axis- and Regime-Conditional}{64}{subsection.6.2.4}%
+\contentsline {subsection}{\numberline {6.2.5}Generalisation Scope and the Resolved Cross-Task Transfer}{65}{subsection.6.2.5}%
+\contentsline {subsection}{\numberline {6.2.6}External Baseline (WCSAC): Implemented, with Stated Limits}{65}{subsection.6.2.6}%
+\contentsline {subsection}{\numberline {6.2.7}The Regime Classification Is Observational, on Three Tasks}{65}{subsection.6.2.7}%
+\contentsline {subsection}{\numberline {6.2.8}Headline-Architecture Caveat (B-value-mean vs.\ B-CVaR)}{66}{subsection.6.2.8}%
+\contentsline {subsection}{\numberline {6.2.9}Computational Feasibility}{66}{subsection.6.2.9}%
+\contentsline {section}{\numberline {6.3}Broader Impact}{66}{section.6.3}%
+\contentsline {subsection}{\numberline {6.3.1}Responsible Deployment and Misuse Risk}{66}{subsection.6.3.1}%
+\contentsline {subsection}{\numberline {6.3.2}Vulnerable Users and Domestic Environments}{67}{subsection.6.3.2}%
+\contentsline {subsection}{\numberline {6.3.3}Reproducibility as Honesty}{67}{subsection.6.3.3}%
+\contentsline {chapter}{\numberline {7}Future Work}{68}{chapter.7}%
+\contentsline {section}{\numberline {7.1}The Persistence Dial: From Regime Map to Causal Test}{68}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Closing the Force Loop: Fixing PFL{}}{68}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Proactive Avoidance Beyond the Lagrangian Signal}{68}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Explicit \ensuremath {\mathrm {CVaR}}{}-Lagrangian Training}{68}{section.7.4}%
+\contentsline {section}{\numberline {7.5}Formally-Guaranteed and Anticipatory Filters}{69}{section.7.5}%
+\contentsline {section}{\numberline {7.6}Real-Robot Transfer and the Coworker Realism Spectrum}{69}{section.7.6}%
+\contentsline {chapter}{\numberline {8}Conclusion}{70}{chapter.8}%
+\contentsline {chapter}{Declarations}{71}{chapter*.73}%
+\contentsline {paragraph}{Originality.}{71}{paragraph*.74}%
+\contentsline {paragraph}{Use of generative AI.}{71}{paragraph*.75}%
+\contentsline {paragraph}{Ethics.}{71}{paragraph*.76}%
+\contentsline {paragraph}{Sustainability.}{71}{paragraph*.77}%
+\contentsline {paragraph}{Code and data availability.}{71}{paragraph*.78}%
+\contentsline {chapter}{Bibliography}{72}{section*.79}%
+\contentsline {chapter}{\numberline {A}Hyperparameter Tables}{79}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Phase 2: Offline CQL Safety Critic}{79}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Phase 3: Constrained Lagrangian Agent (Headline: Fixed $\lambda $)}{79}{section.A.2}%
+\contentsline {section}{\numberline {A.3}Phase 4: Per-Regime Deployment Configurations}{80}{section.A.3}%
+\contentsline {paragraph}{Shared dish/drawers SVF critic.}{80}{paragraph*.84}%
+\contentsline {paragraph}{WCSAC external baseline.}{80}{paragraph*.85}%
+\contentsline {chapter}{\numberline {B}Reproducibility Checklist}{81}{appendix.B}%
+\contentsline {chapter}{\numberline {C}Use of Generative AI}{82}{appendix.C}%
+\contentsline {chapter}{\numberline {D}Ethical Considerations}{83}{appendix.D}%
+\contentsline {chapter}{\numberline {E}Sustainability}{84}{appendix.E}%
+\contentsline {chapter}{\numberline {F}Code and Data Availability}{85}{appendix.F}%
