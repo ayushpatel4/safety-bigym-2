@@ -287,5 +287,116 @@ referenced in text.
    vs v1 dish/drawers, mean-q scales differ) — defensible (R swept per task,
    knees all at 2.75–3.0) and disclosed in FIGURE_DATA_NOTES.md; the
    operating-point comparison shows the same contrast (51–63% vs ~27%).
-6. GenAI declaration (Appendix C) kept from v12 — review that it still
-   reflects your actual usage for this revision.
+6. GenAI declaration was strengthened in the late merge pass below; do a final
+   personal accuracy check before submission, because only you can certify the
+   exact tool usage history.
+
+## 2026-06-10 late merge pass: best-of GPT into Fable master
+
+Purpose: keep `FYP_v12_fable` as the master report while integrating the strongest
+mark-scheme-facing elements from `FYP_v12_gpt`.
+
+### Kept
+
+- Kept the Fable regime-map structure, figures, page-budget work, WCSAC integration,
+  verified references, and compiled-report orientation.
+- Kept Fable's Chapter 4 architecture, CQN-AS integration, critic-gated speed-scaling
+  method, and ablation-heavy R2/R3 results as the master source.
+
+### Added / Modified
+
+- Added a more explicit CMDP-to-value-based-Lagrangian derivation in Chapter 4:
+  the constrained objective, Lagrangian relaxation, separate $Q_r/Q_c$ targets, and
+  the reason $\lambda$ should enter action selection rather than the reward critic's
+  Bellman target. This strengthens the reproducible mathematical explanation.
+- Added a prominent `Ablation Map: What Each Component Proves` section before the
+  detailed results, summarising E1.1, E3.1--E3.3, E3.2, E2.4--E2.6, and the gate
+  critic/label/DAgger ablations.
+- Expanded `Broader Impact` to discuss misuse risk, domestic/unconstrained
+  deployment, vulnerable users, and why a safety wrapper is not an ISO certificate.
+- Strengthened the Declarations GenAI paragraph with specific uses and verification
+  steps.
+- Rewrote Appendix C (`Use of Generative AI`) into a structured disclosure covering
+  literature triage, code scaffolding, experiment-log summarisation, LaTeX/prose
+  drafting, and observed tool limitations.
+
+### Lost
+
+- No report results, figures, tables, or citations were removed in this merge pass.
+
+### Validation Notes
+
+- Needs a fresh PDF compile/page count after these additions, because Fable was
+  previously at 59 content pages and this pass adds text.
+
+## 2026-06-11 abstract / intro / reference freshness pass
+
+### Modified
+
+- Rewrote the abstract for readability around the classical-safety vs learned-humanoid
+  safety contrast: lane keeping, adaptive cruise control, caged arms, and
+  speed-and-separation interlocks are now used to set up the greenfield problem.
+- Removed the family/friends acknowledgement and added the SWIRL research lab plus
+  Imperial College Department of Computing for advice, feedback, and GPU compute.
+- Tightened the introduction's motivation prose and removed the stale `Figure~01`
+  reference.
+- Rewrote the "robot learning safety record" paragraph so Brunke 2022 is not
+  misattributed as making a realistic-perception/humanoid claim.
+- Rephrased the SHIELD discussion to match its actual scope: runtime safety for
+  humanoid locomotion/navigation, not manipulation under sustained co-working.
+- Added Wachi et al. 2024 as a modern safe-RL survey so current-state claims do not
+  rely only on pre-2022 sources.
+- Rewrote RQ3 and RQ4 in plainer language.
+- Rewrote the contributions list for readability and explained critic-gated
+  speed-scaling in the terminology paragraph.
+- Replaced the vague "regime map says which part carries the safety burden where"
+  wording with a clearer explanation: the regime map links the human--robot
+  co-location pattern to the safety mechanism that works.
+
+### Reference audit
+
+- Added and verified `wachi2024constraint`; updated `REFERENCES_AUDIT.md` counts
+  from 51 to 52 entries.
+
+### Still to check
+
+- Recompile and re-check page count after these prose additions.
+
+## 2026-06-11 final readability / reference freshness pass
+
+### Modified
+
+- Rewrote the abstract again for a colder reader:
+  - Opens with the contrast between classical safety engineering (lane keeping,
+    adaptive cruise control, caged arms, speed-and-separation interlocks) and
+    learned humanoid manipulation.
+  - Explains why the project is greenfield: benchmark, cost signals, perception,
+    training method, runtime filter, and evaluation protocol all have to be built
+    together.
+  - Keeps the regime-map result, but in shorter sentences.
+- Rewrote the first motivation pages to make the classical-vs-learned safety
+  contrast easier to follow.
+- Removed the stale `Figure~01` reference.
+- Removed family/friends from acknowledgements and added SWIRL + Department of
+  Computing for feedback/advice/GPU compute.
+- Fixed the use of references 13/14:
+  - Brunke 2022 now supports broad safe-learning context, not a specific
+    humanoid/perception claim.
+  - SHIELD 2025 is scoped to humanoid locomotion/navigation and used to motivate
+    the analogous manipulation gap.
+- Added Wachi et al. 2024 (`wachi2024constraint`) to support current-state safe-RL
+  constraint-formulation claims; updated `REFERENCES_AUDIT.md` to 52 entries.
+- Rewrote RQ3 and RQ4 in plain language.
+- Rewrote the contributions list to remove dense jargon and explain the key terms.
+- Replaced vague/internal wording such as "which part carries the safety burden
+  where", "load-bearing", "byte-for-byte", "else-branch fired", and the conclusion
+  scaffold headings.
+
+### Validation
+
+- `ReadLints` reports no issues.
+- Active `main.tex` has no matches for stale terms such as `Figure~01`,
+  `family and friends`, `to our knowledge`, `working draft`, `VERIFY`, `Hardik`,
+  `load-bearing`, `byte-for-byte`, or `else-branch`.
+- Generated `.aux/.lof/.lot` files may still contain old wording until the next
+  PDF compile.

@@ -12,8 +12,8 @@
 | corrected | 11 |
 | replaced (wrong authors/title/venue) | 6 |
 | UNVERIFIABLE | 0 |
-| NEW entries added | 5 |
-| **Total entries in new bib** | **51** |
+| NEW entries added | 6 |
+| **Total entries in new bib** | **52** |
 
 The six *replaced* entries had fabricated or placeholder metadata; in every case the real paper was found via its arXiv ID, so **no entry needs to be dropped** (including `cbfrl2024`, whose old author list was invented but which maps to a real 2025 paper).
 
@@ -38,6 +38,7 @@ The six *replaced* entries had fabricated or placeholder metadata; in every case
 | `thananjeyan2021recovery` | verified-correct | Nothing. RA-L 6(3):4915–4922, 2021. | https://dblp.org (publ API: "Recovery RL") |
 | `srinivasan2020learning` | verified-correct | Nothing. arXiv:2010.14603; never published at a venue ("in submission" on arXiv), so arXiv-preprint form is right. | https://arxiv.org/abs/2010.14603 |
 | `brunke2022safelearning` | verified-correct | Nothing. Annu. Rev. Control Robot. Auton. Syst. 5:411–444, 2022. | https://www.annualreviews.org/content/journals/10.1146/annurev-control-042920-020211 |
+| `wachi2024constraint` | **NEW** (verified) | Added: Wachi, Shen, Sui, "A Survey of Constraint Formulations in Safe Reinforcement Learning", IJCAI 2024 Survey Track, pp. 8262–8271, DOI 10.24963/ijcai.2024/913. Used for current-state safe-RL constraint-formulation claims. | https://www.ijcai.org/proceedings/2024/913 |
 | `garcia2015comprehensive` | corrected | Dropped spurious `number={1}` (dblp/JMLR cite as 16:1437–1480). Everything else confirmed. | https://www.semanticscholar.org/paper/c0f2c4104ef6e36bb67022001179887e6600d24d |
 | `ames2019cbf` | verified-correct | Nothing. ECC 2019, pp. 3420–3431. | https://researchr.org/publication/AmesCENST19 |
 | `bansal2017hamilton` | **NEW** (verified) | Added: Bansal, Chen, Herbert, Tomlin, CDC 2017, pp. 2242–2253. HJ-reachability positioning reference. | https://dl.acm.org/doi/10.1109/CDC.2017.8263977 |

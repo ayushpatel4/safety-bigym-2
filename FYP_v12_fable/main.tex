@@ -141,53 +141,50 @@
 % ===
 \begin{abstract}
 \noindent
-\iso{}, the international standard for collaborative-robot contact
-safety, prescribes Speed and Separation Monitoring (\ssm{}) and Power
-and Force Limiting (\pfl{}); yet commercial humanoids such as the
-Unitree~G1 ship without collaborative certification and run
-demonstration-driven manipulation policies with no representation of
-the standard, of human position, or of any contact constraint. The
-safe-RL literature offers two remedies, training-time constrained RL
-and runtime safety filtering, but no characterisation of \emph{when}
-each helps for manipulation beside a person.
+Classical safety engineering is mature for systems whose behaviour is
+designed by hand: lane keeping, adaptive cruise control, caged
+industrial arms, and speed-and-separation interlocks all rely on
+models that can be analysed and certified. Learned humanoid
+manipulation is different. A 76-degree-of-freedom robot trained from
+demonstrations can now work in the same space a person reaches into,
+but its policy optimises task reward, not human distance,
+\iso{} margins, or contact force. Combining state-of-the-art robot
+manipulation with collaborative-robot safety is therefore a greenfield
+problem: the benchmark, cost signals, perception model, training
+method, runtime filter, and evaluation protocol all have to be built
+together.
 
-This work contributes \sbigym{}, a safety-aware extension of the
-\bigym{} benchmark (a moving humanoid coworker, three \iso{}-derived
-metric flavours, continuous anticipatory costs, calibrated
-perception noise, a deployment-faithful evaluation harness), and uses
-it to derive that characterisation. A measurement result organises the
-evaluation: $\approx$42\,\% of close proximity is human-driven, a
-floor no robot policy can remove, so safety decomposes into a
-partly-exogenous \emph{proximity (exposure)} axis and a
-robot-controllable \emph{\ssm{}-velocity} axis. On three tasks, which
-mechanism helps is then governed by the human--robot
-\emph{co-location regime}, not by mechanism sophistication. Under
-\emph{persistent} co-location (\texttt{saucepan\_to\_hob}), only an
-anticipatory fixed-multiplier Lagrangian policy reduces proximity
-gracefully ($-22.8\,\%$, $0.296 \to 0.228$, at $0.76$ success, three
-seeds); every reactive filter pays a freeze-or-flee cost, and
-both-axis compliance is reachable only by composition at a
-multiplicative success cost ($0.85 \to 0.44$). Under
+This project builds that system. I introduce \sbigym{}, a safety-aware
+extension of \bigym{} with a moving Unitree~G1 (representing a human) coworker, calibrated
+mock-\bodyslampp{} perception noise, three \iso{}-derived metric
+flavours, continuous anticipatory costs, and a deployment-faithful
+snapshot-evaluation harness. On top of the demonstration-driven
+\cqnas{} backbone, I implement a value-based Lagrangian constrained
+policy and several runtime safety mechanisms, including learned
+safety-value-function vetoes, ISO speed-scaling, and critic-gated
+speed-scaling. This is technically hard because \cqnas{} is
+critic-only: there is no actor network to attach a standard
+Lagrangian to, so the constrained objective must be re-derived in
+value-based form, and dense safety shaping must fit inside the C51
+critic's value support or training silently saturates.
+
+The main result is a regime map, not a single winning method.
+Proximity measures exposure, but a controlled sweep shows that
+$\approx42\,\%$ of close proximity is human-driven and remains even
+when the robot is frozen. The robot-controllable axis is
+velocity-adaptive \ssm{}. Under \emph{persistent} co-location
+(\texttt{saucepan\_to\_hob}), only anticipatory constrained RL reduces
+proximity gracefully: a fixed-multiplier Lagrangian policy cuts
+proximity by $22.8\,\%$ ($0.296 \to 0.228$) at $0.76$ success across
+three seeds, while reactive filters freeze or flee. Under
 \emph{intermittent} co-location (\texttt{dishwasher\_close},
-\texttt{drawers\_open\_all}), constrained RL finds no feasible budget
-(inert or task-fatal; a binding multiplier makes motion \emph{faster}
-and more erratic), a binary safety-critic veto breaks chunked-policy
-action coherence (max velocity $2.46 \to 6.03$\,m/s), and a learned
-critic \emph{gating} an \iso{} speed-scaling backstop is the only
-mechanism that improves the velocity axis without collapsing the task
-($-50\,\%$ \ssm{}-violation at $-0.10$ success on dishwasher;
-$-22\,\%$ at $-0.09$ on drawers). A pre-registered decision rule
-validated the boundary: its else-branch fired on saucepan, where
-gating degenerates to unconditional scaling because the gate is
-active almost continuously. A reimplemented WCSAC external baseline
-corroborates the constrained-RL findings.
-
-To our knowledge this is the first \iso{}-referenced study of a
-high-DOF humanoid manipulating beside a moving humanoid coworker
-under realistic perception, and the first to characterise, rather
-than assume, \emph{when} runtime filtering helps, when only proactive
-avoidance does, and which observable (co-location persistence)
-separates the regimes.
+\texttt{drawers\_open\_all}), constrained RL is inert or task-fatal,
+but a learned critic gating an ISO speed-scaling backstop reduces
+\ssm{}-velocity violations by $50\,\%$ and $22\,\%$ with moderate
+success cost. The Hybrid Safety Critic is therefore a two-arm
+architecture: proactive policy learning where co-location is
+persistent, and critic-gated runtime speed control where safe windows
+exist.
 \end{abstract}
 
 % ===
@@ -206,10 +203,10 @@ thank the authors of \bigym{} for the manipulation simulator and human
 demonstrations that \sbigym{} extends, and the authors of \cqnas{} for
 the demonstration-driven agent that serves as its backbone. I am
 indebted to the \textsc{AMASS} consortium for the motion-capture data
-that drives the demonstration-replay human-state channel, and to the Imperial College London
-Department of Computing for the GPU cluster on which these experiments
-were run, and its support team. Finally, I thank my family and friends
-for their support and patience throughout the year.
+that drives the demonstration-replay human-state channel. I also thank
+the SWIRL research lab and the Imperial College London Department of
+Computing for technical advice, feedback during the project, and access
+to the GPU compute on which these experiments were run.
 % =============================================================================
 % PART I: SETTING
 % =============================================================================
@@ -235,11 +232,12 @@ agents such as Coarse-to-Fine Q-Networks with action sequences
 human-like manipulation morphologies such as
 \bigym{}~\cite{chernyadev2024bigym} and
 HumanoidBench~\cite{sferrazza2024humanoidbench} have driven this
-transition. Commercial humanoid platforms (the Unitree
-H1~\cite{unitree_h1}, the Unitree G1~\cite{unitree_g1}, Figure~01,
-Apptronik Apollo, 1X Neo) are being deployed for tasks where the
+transition. Commercial humanoid platforms (including the Unitree
+H1~\cite{unitree_h1}, the Unitree G1~\cite{unitree_g1},
+Apptronik Apollo, and 1X Neo) are being deployed for tasks where the
 robot is expected to operate \emph{near} a human, not behind a
-safety cage. The recent ISO 25785-1 working draft~\cite{iso25785}
+safety cage. ISO 25785-1, under development as a committee draft in
+2026~\cite{iso25785},
 introduces the term ``industrial mobile robots with actively
 controlled stability'' specifically to standardise this class of
 system, reflecting how fast the deployment frontier is moving
@@ -248,22 +246,19 @@ relative to the standards that govern it.
 \subsection{Most Learned Policies Are Not Safe Near Humans}
 \label{sec:intro:mot:unsafe}
 
-Safety for machines near people is not a new concern, and in classical
-settings it is comparatively mature. Industrial arms are kept behind
-cages and light curtains; automotive driver-assistance functions such
-as adaptive cruise control and lane-keeping have shipped at scale for
-over a decade under established functional-safety practice. Both
-paradigms, however, rest on assumptions that a learned humanoid
-manipulator violates. Caging assumes the human and the machine never
-share space. Driver assistance assumes a low-dimensional, analytically
-modelled plant, a vehicle on a road, for which a controller can be
-designed and certified in closed form. A 76-degree-of-freedom
-manipulation policy learned from demonstrations, operating in the very
-volume a person reaches into, satisfies neither: it shares the
-workspace by design, and its behaviour is a neural network rather than
-a hand-derived control law. Safety for this class of system is
-consequently a greenfield problem, and closing it is what this project
-targets.
+Safety for machines near people is not new. In classical settings it
+is comparatively mature. Industrial arms use cages and light curtains and
+driver-assistance systems such as adaptive cruise control and lane
+keeping have shipped at scale. Those successes rely on
+assumptions that fail for learned humanoid manipulation. A cage assumes
+the human and robot do not share space. Driver assistance assumes a
+low-dimensional road vehicle with a controller that can be designed
+and verified in closed form. A 76-degree-of-freedom manipulation policy
+learned from demonstrations satisfies neither assumption: it shares the
+workspace by design, operates in the volume a person reaches into, and
+is a neural policy rather than a hand-derived controller. Safety for
+this class of system is therefore a greenfield problem, and closing it
+is what this project targets.
 
 In particular, the policies these platforms run are largely
 \emph{unaware} of the standard that governs their safety. \iso{}~\cite{iso15066}, now
@@ -275,7 +270,7 @@ Limiting (\pfl{}), which caps contact forces against per-body-region
 biomechanical limits. Standard imitation-learning and
 reinforcement-learning agents on
 \bigym{}~\cite{chernyadev2024bigym} optimise task success against a
-sparse reward; they have no representation of human position, no
+sparse reward. They have no representation of human position, no
 \ssm{} margin, and no constraint that would distinguish a
 task-completing trajectory from one that endangers a nearby person.
 
@@ -285,23 +280,27 @@ Three independent observations frame the problem:
 \item \emph{Commercial humanoid platforms are not certified
   collaborative.} The Unitree G1, the most widely deployed humanoid
   research platform in 2026, is explicitly \emph{not} ISO-certified
-  as a collaborative robot~\cite{unitree_g1}; the H1 likewise
+  as a collaborative robot~\cite{unitree_g1}. The H1 likewise
   requires a safety cage during ``lively testing''. The deployment
-  is happening; the certification is not.
-\item \emph{Robot learning's safety record is unaudited.}
+  is happening but the certification is not.
+\item \emph{Robot learning's safety record remains thin at deployment.}
   Bharadhwaj~\cite{auditing2021} argues that safety and compliance
-  have not received their fair share of attention in robot-learning
-  evaluation; Brunke et al.~\cite{brunke2022safelearning} survey
-  safe-learning methods but find few evaluated under realistic
-  perception on contemporary humanoid embodiments.
-\item \emph{Concurrent work confirms the gap.} The SHIELD framework,
-  introduced in 2025~\cite{shield2025} and demonstrated on a Unitree
-  G1, applies a CBF-based probabilistic safety filter over high-level
-  commands precisely because RL controllers ``by their very nature''
-  provide no formal safety guarantees and cannot be modified for
-  safety without expensive retraining. SHIELD addresses navigation
-  around humans and obstacles; the equivalent gap for manipulation in
-  shared workspaces is the target of this work.
+  have not received proportional attention in robot-learning
+  evaluation. Brunke et al.~\cite{brunke2022safelearning} and the
+  newer safe-RL survey of Wachi et al.~\cite{wachi2024constraint}
+  show an active field of constrained and safety-filtered learning, but
+  the representative benchmarks remain low-dimensional, abstract-cost,
+  or separate from manipulation with a live human coworker
+  (e.g.\ Safety-Gymnasium~\cite{ji2023safetygymnasium} and
+  safe-control-gym~\cite{yuan2022safecontrolgym}).
+\item \emph{Concurrent humanoid work confirms the runtime-filter need,
+  but not this task class.} SHIELD~\cite{shield2025}, demonstrated on
+  a Unitree G1, adds a probabilistic CBF safety layer on top of a
+  learned locomotion controller because black-box learned controllers
+  are difficult to certify and expensive to retrain when constraints
+  change. SHIELD targets navigation around people and obstacles. The
+  analogous gap for manipulation in shared workspaces, with
+  \iso{}-style separation and force limits, is the target of this work.
 \end{enumerate}
 
 \subsection{Perception Adds Distribution Shift}
@@ -325,24 +324,26 @@ ji2023safetygymnasium,yuan2022safecontrolgym} do not model at all.
 \subsection{What This Project Targets}
 \label{sec:intro:mot:targets}
 
-The deployment frontier has, in short, outrun the research frontier.
-Manipulation benchmarks ignore safety; safety benchmarks ignore
-manipulation; the safe-RL methods that do exist commit to either a
-training-time constraint or a runtime filter, but not both; and almost
-none model the perception under which any of this would actually run.
-The intersection these gaps describe is exactly where a safe humanoid
-manipulator must operate, and it is largely uncharted: there is not
-even a benchmark on which to pose the question, let alone a method
-known to answer it. This is the difficulty and the opportunity at once.
-This project enters that intersection by closing three concrete gaps in
-safe-RL evaluation for human-co-located humanoid manipulation:
+Commercial deployment is moving faster than published safety methods. Manipulation
+benchmarks largely ignore safety, safety benchmarks largely ignore
+manipulation, and safe-RL methods usually choose either a
+training-time constraint or a runtime filter, not both. On top of
+this, most methods assume cleaner human state than a real robot would
+have. The intersection is exactly where a safe humanoid manipulator
+must operate. It is also largely uncharted: recent work covers parts of
+the problem, but not the full combination of high-DOF humanoid
+manipulation, a moving human stand-in, \iso{}-derived separation and
+force signals, noisy human-state perception, and a direct comparison of
+training-time and runtime safety mechanisms. This project enters that
+intersection by closing three concrete gaps in safe-RL evaluation for
+human-co-located humanoid manipulation:
 
 \begin{itemize}[topsep=2pt,itemsep=2pt]
-\item \textbf{No benchmark exposes \iso{}-specific signals on a
-  humanoid manipulator.} Safety-Gym~\cite{ray2019safetygym} and
-  Safety-Gymnasium~\cite{ji2023safetygymnasium} use abstract cost
-  budgets; safe-control-gym~\cite{yuan2022safecontrolgym} targets
-  low-DOF control; \bigym{}~\cite{chernyadev2024bigym} and
+\item \textbf{No benchmark exposes the full \iso{}-specific
+  co-working setting on a humanoid manipulator.} Safety-Gymnasium
+  builds on Safety-Gym~\cite{ray2019safetygym,ji2023safetygymnasium}
+  but still uses abstract cost budgets. safe-control-gym~\cite{yuan2022safecontrolgym} targets
+  low-DOF control. \bigym{}~\cite{chernyadev2024bigym} and
   HumanoidBench~\cite{sferrazza2024humanoidbench} target manipulation
   and locomotion but include no human coworker. We extend
   \bigym{} with a Unitree G1 humanoid as a sustained human-coworker
@@ -355,49 +356,52 @@ safe-RL evaluation for human-co-located humanoid manipulation:
   filtering (shielding~\cite{alshiekh2018shielding},
   CBFs~\cite{ames2019cbf,shield2025}, learned safety
   filters~\cite{srinivasan2020learning,thananjeyan2021recovery}).
-  Each family reports settings where it works; neither offers a rule
+  Each family reports settings where it works, but neither offers a rule
   for which mechanism to reach for in a given human-robot
   collaboration setting, or a variable that predicts when a runtime
   filter will preserve task throughput and when it will destroy it.
   We study both families together on one benchmark and derive exactly
   such a rule: a \emph{regime map} keyed on the human--robot
   co-location pattern.
-\item \textbf{No prior work characterises the resulting system
-  under realistic perception noise.} The mock-\bodyslampp{}
-  observation wrapper introduced here is, to our knowledge, the
-  first calibrated perception-noise model bundled with a safe-RL
-  manipulation benchmark.
+\item \textbf{Safe-RL manipulation benchmarks rarely model deployment
+  perception.} The mock-\bodyslampp{} observation wrapper introduced
+  here fills that gap for this setting: it gives the safety mechanisms
+  a noisy, lagged, occasionally stale human-state estimate rather than
+  perfect simulator state, and lets the report test whether the
+  architecture survives the perception conditions a real deployment
+  would face.
 \end{itemize}
 
-Closing these gaps \emph{simultaneously} is what makes the problem
-hard, and none of the constituent sub-problems has an off-the-shelf
+The difficulty is that these gaps have to be closed
+\emph{simultaneously}. None of the pieces has an off-the-shelf
 solution at this scale. A demonstration-driven, critic-only agent has
-no actor network to which a Lagrangian multiplier could be attached,
-so the constrained objective must be re-derived in value-based form
-(Section~\ref{sec:method:lagrangian:why}). A dense safety signal must
-be shaped into a distributional value critic without saturating its
-support, which we show breaks training outright unless a specific
-invariant holds (Proposition~\ref{lem:support-bound}). A runtime safety
-filter must be trained offline on the noisy, deployment-time
-perception distribution rather than on simulator ground truth, or its
-veto decisions are calibrated against information the deployed robot
-never has (Section~\ref{sec:method:filter}). And the whole system must
-stay task-competent while a humanoid coworker repeatedly walks into
-the workspace and reaches toward the robot. The contribution is the
+no actor network to which a Lagrangian multiplier can be attached, so
+the constrained objective must be re-derived in value-based form
+(Section~\ref{sec:method:lagrangian:why}). Dense safety shaping must
+fit inside a distributional critic's fixed value support, or training
+saturates (Proposition~\ref{lem:support-bound}). A runtime safety
+critic must be trained on the same noisy perception distribution it
+will see at deployment, not on simulator ground truth
+(Section~\ref{sec:method:filter}). And the whole system must remain
+task-competent while a humanoid coworker repeatedly walks into the
+workspace and reaches toward the robot. The contribution is the
 architecture that composes these parts, the benchmark that makes the
-composition measurable, and, above all, the \emph{regime map} that
-says which part carries the safety burden where, with an honest
-account of what each mechanism costs.
+composition measurable, and the \emph{regime map}: an empirical rule
+linking the pattern of human--robot closeness to the safety mechanism
+that works.
 
 \paragraph{Terminology.}
-Three terms carry fixed meanings throughout: the \emph{Hybrid Safety
-Critic} is the two-arm architecture (training-time constrained
-policy $+$ runtime critic-gated backstop); \emph{critic-gated
-speed-scaling} is the runtime arm itself
-(Section~\ref{sec:method:filter:gated}); and \emph{policy--filter
-composition} is the stacking of an ungated filter on the constrained
-policy (Section~\ref{sec:results:joint-coverage}). The empirical
-finding is which arm carries safety in which co-location regime.
+Three terms carry fixed meanings throughout. The \emph{Hybrid Safety
+Critic} is the two-arm architecture: one arm trains the policy to avoid
+risk, and the other arm filters actions at runtime. \emph{Critic-gated
+speed-scaling} is the runtime arm: a learned safety critic estimates
+whether the proposed action is risky; only when it is risky does the
+robot slow the action down using the \iso{} speed-scaling rule
+(Section~\ref{sec:method:filter:gated}). \emph{Policy--filter
+composition} is the simpler act of stacking a filter on top of the
+constrained policy (Section~\ref{sec:results:joint-coverage}). The
+empirical finding is which arm should be used in which co-location
+regime.
 
 \section{Problem Statement}
 \label{sec:intro:problem}
@@ -406,8 +410,7 @@ Formally, this work targets the following constrained Markov
 decision process (CMDP). Let an agent control a 76-DOF Unitree H1
 humanoid manipulating in a domestic kitchen scene, co-located with a
 Unitree G1 humanoid acting as a moving stand-in for a human coworker that walks
-into the workspace, reaches periodically toward the robot's arm,
-its end-effector, or the task object, and occasionally departs and
+into the workspace, reaches periodically toward the robot's arm or the task object, and occasionally departs and
 returns. Per-step task reward $r^{\mathrm{task}}_t$ is the standard
 \bigym{}~\cite{chernyadev2024bigym} sparse-plus-shaping signal.
 Per-step safety cost $c_t \in [0,1]$ is derived from \iso{}~\ssm{}
@@ -419,7 +422,7 @@ Two structural properties of this CMDP shape everything that
 follows. First, its safety is \emph{two-axis}: a geometric
 \emph{proximity} axis (how often human and robot are close), which is
 partly \emph{exogenous} because the human can close distance on a
-stationary robot, and an \iso{}~\ssm{} \emph{velocity} axis (whether
+stationary robot, and secondly an \iso{}~\ssm{} \emph{velocity} axis (whether
 the robot moves slowly enough to stop before contact at the current
 separation), which the robot fully controls
 (Section~\ref{sec:setup:metrics}). Second, the CMDP is instantiated
@@ -462,17 +465,12 @@ $\mathcal{F}$ that:
   safety--task operating point, and under what conditions does the
   constraint bind \emph{usefully}, rather than sitting inert or
   collapsing the task?
-\item[RQ3] Which runtime-filter mechanisms (learned veto, geometric
-  dodge, graded speed-scaling, critic-gated speed-scaling) improve
-  which \iso{} axis when wrapped around a chunked manipulation
-  policy, and how do they compose with the policy: as redundancy, as
-  complement, or as interference?
-\item[RQ4] What determines \emph{when} each mechanism helps? In
-  particular, does the human--robot co-location regime predict,
-  across tasks, whether critic-gated filtering recovers task
-  throughput and whether constrained RL finds a feasible budget; and
-  how do the mechanisms degrade out of distribution and in the
-  worst-case tail?
+\item[RQ3] Which runtime safety filter should be used at deployment?
+  Specifically, when should the robot stop, slow down, move away, or
+  use a learned critic to decide when to slow down?
+\item[RQ4] What decides which safety mechanism works? Does the pattern
+  of human--robot co-location explain why one task needs proactive
+  policy learning while another can be handled by a runtime filter?
 \end{description}
 
 Each RQ is answered by a specific experiment or experiment family,
@@ -482,85 +480,53 @@ discussion (Section~\ref{sec:disc:rqs-revisited}).
 \section{Contributions}
 \label{sec:intro:contributions}
 
-To the best of our knowledge this is the first systematic treatment of
-\iso{}-referenced safety for a learned, high-degree-of-freedom
-manipulator operating under \emph{sustained} human co-presence. Because
-neither a benchmark on which to pose the problem nor a method validated
-to solve it existed at this scale, the contributions below are
-deliberately part infrastructural and part empirical, ordered with the
-regime map at the centre:
+This report studies the intersection of learned high-DOF manipulation,
+human co-working, \iso{}-referenced safety, noisy human-state
+perception, and safe-RL mechanisms. Existing work covers important
+parts of that space, but not the whole setting at once. The
+contributions are therefore both infrastructural and empirical:
 
 \begin{enumerate}[label=\textbf{C\arabic*.}, leftmargin=2em]
-\item \textbf{\sbigym{}, a safety-aware benchmark with a
-deployment-faithful evaluation pipeline.} An extension of \bigym{}
-adding \iso{}-derived metrics in three flavours, continuous
-anticipatory cost signals, a Unitree G1 coworker driving sustained
-co-working across three tasks with separate train/eval parameter
-spaces, a calibrated mock-\bodyslampp{} perception-noise model, and
-a snapshot-evaluation harness with multi-seed bootstrap CIs
-(Chapter~\ref{ch:benchmark-env}). The harness surfaced, then closed,
-four collection-versus-deployment mismatches that had silently
-invalidated an earlier filter result
-(Section~\ref{sec:impl:svf-faithful}).
-\item \textbf{Measurement: an exogenous/endogenous decomposition of
-proximity that yields a two-axis evaluation protocol.} Sweeping a
-runtime filter to a fully-frozen robot removes only $\approx$58\,\% of
-time-in-proximity; the remaining $\approx$42\,\% is the coworker
-approaching a stationary robot
-(Figure~\ref{fig:exogenous-decomposition}). Proximity therefore
-measures \emph{exposure}, partly outside robot control, while the
-velocity-adaptive \ssm{} margin is fully robot-controllable. The
-evaluation protocol assigns explicit axis ownership, policy
-$\leftrightarrow$ proximity (exposure), runtime filter
-$\leftrightarrow$ \ssm{}-velocity, and reports both axes for every
-configuration (Section~\ref{sec:setup:metrics}).
-\item \textbf{The regime map and its boundary condition (the central
-empirical contribution).} Critic-gated speed-scaling recovers task
-throughput \emph{if and only if} human--robot co-location is
-intermittent; persistent co-location requires anticipatory avoidance,
-which only the constrained policy provides. Under persistent
-co-location every reactive filter pays a freeze-or-flee cost and
-critic-gating degenerates to unconditional scaling; under intermittent
-co-location constrained RL fails to bind usefully and the critic-gated
-backstop is the only mechanism that improves the velocity axis without
-collapsing success ($-50\,\%$ \ssm{}-violation at $-0.10$ success on
-\texttt{dishwasher\_close}; $-22\,\%$ at $-0.09$ on
-\texttt{drawers\_open\_all}). The boundary was validated on three
-tasks with a \emph{pre-registered} decision rule whose else-branch
-fired on saucepan (Section~\ref{sec:results:boundary}).
-\item \textbf{Mechanism findings.} (i) A freeze-versus-flee taxonomy
-of reactive filters on the proximity axis: learned vetoes freeze (and
-dwell), geometric dodges flee (and abandon the task), and neither
-reaches the constrained policy's frontier
-(Section~\ref{sec:results:reactive-taxonomy}). (ii) A binary veto
-breaks the action coherence of a chunked (temporal-ensemble) policy,
-\emph{raising} max velocity $2.46 \to 6.03$\,m/s, while continuous
-speed-scaling preserves direction and leaves it unchanged
-($2.46 \to 2.46$); hence \emph{gate the scaler, do not veto}
-(Section~\ref{sec:results:r2-veto}). (iii) PID auto-tuning of the
-Lagrange multiplier is seed-unstable when the only feasible budget
-coincides with the task's inherent cost ($\lambda \to 0.0/0.27/3.86$
-across seeds); a fixed multiplier removes the instability
-(Section~\ref{sec:method:lagrangian:pid}).
-\item \textbf{Deployable recipes and practitioner lessons.} Per-task
-operating points with bootstrap CIs and the tunable gate-threshold
-frontier (Section~\ref{sec:results:r2-gated}); train the gate critic
-on the \emph{unfiltered} policy's rollouts
-(Section~\ref{sec:results:r2-ablations}); select constrained
-checkpoints by a \emph{safety-aware} rule, peak-success selection
-picks against the constraint
-(Section~\ref{sec:results:headline-feature-table}); and a faithfully
-reimplemented WCSAC as the external safe-RL reference
-(Section~\ref{sec:results:r2-lagrangian}).
-\item \textbf{A value-based constrained-RL formulation with a
-support-bounding proposition.} The backbone is critic-only, so the
-actor-critic Lagrangian is re-derived in value-based form
-(Section~\ref{sec:method:lagrangian}); and for a C51 critic with
-support $[v_{\min}, v_{\max}]$, dense shaping bounded by
-$\beta c_{\mathrm{ws}}$ per step is well-posed only if
-$\beta c_{\mathrm{ws}}/(1-\gamma) \le |v_{\min}|$
-(Proposition~\ref{lem:support-bound}); the unbounded version broke
-training outright. Both generalise beyond \sbigym{}.
+\item \textbf{A benchmark for asking the safety question.}
+  \sbigym{} extends \bigym{} with a moving Unitree G1 coworker, three
+  \iso{}-derived safety metrics, continuous anticipatory costs, noisy
+  human-state estimates, three manipulation tasks, and a
+  deployment-faithful evaluation harness (Chapter~\ref{ch:benchmark-env}).
+\item \textbf{A two-axis safety measurement protocol.} Proximity
+  measures exposure, but a frozen-robot sweep shows that
+  $\approx$42\,\% of close proximity is caused by the human approaching
+  the robot. We therefore report both proximity exposure and the
+  robot-controllable velocity-adaptive \ssm{} axis
+  (Section~\ref{sec:setup:metrics}).
+\item \textbf{A regime map for choosing the safety mechanism.} The
+  key variable is the co-location pattern: whether the human and robot
+  are close almost continuously or only in bursts. Persistent
+  co-location requires proactive policy learning. Intermittent
+  co-location allows a runtime critic to find safe windows in which the
+  robot can keep moving at full speed
+  (Section~\ref{sec:results:boundary}).
+\item \textbf{Mechanism-level lessons.} Learned vetoes freeze, geometric
+  dodges flee, and neither gracefully reduces proximity under persistent
+  co-location. A binary veto also breaks the action coherence of the
+  chunked CQN-AS policy, raising max velocity from $2.46$ to
+  $6.03$\,m/s. Continuous speed-scaling preserves action direction, so
+  the successful runtime design is: \emph{let the critic decide when to
+  intervene, but slow smoothly rather than veto}
+  (Sections~\ref{sec:results:reactive-taxonomy} and
+  \ref{sec:results:r2-veto}).
+\item \textbf{Deployable recipes.} On \texttt{saucepan\_to\_hob}, a
+  fixed-multiplier constrained policy reduces proximity by $22.8\,\%$
+  at $0.76$ success. On \texttt{dishwasher\_close} and
+  \texttt{drawers\_open\_all}, critic-gated speed-scaling reduces
+  \ssm{}-velocity violations by $50\,\%$ and $22\,\%$ respectively,
+  with moderate success cost. WCSAC is reimplemented as an external
+  safe-RL reference (Chapter~\ref{ch:eval}).
+\item \textbf{A reproducible value-based constrained-RL formulation.}
+  Because CQN-AS is critic-only, the Lagrangian must be written in
+  terms of $Q_r-\lambda Q_c$ rather than an actor update. The report
+  also proves a C51 support-bound condition showing when dense shaping
+  is safe to add to a distributional critic
+  (Section~\ref{sec:method:lagrangian}).
 \end{enumerate}
 
 \section{Report Outline}
@@ -629,7 +595,7 @@ domestic-manipulation geometry the conservative $S_p$ over-fires
 ($\sim$\,93\,\% violation rate on random rollouts in our
 environment), motivating the velocity-adaptive variant introduced in
 Section~\ref{sec:bench:metrics:flavours}. Our implementation
-evaluates $S_p$ with the human- and robot-velocity terms and the
+evaluates $S_p$ with the human and robot-velocity terms and the
 braking term, plus a single lumped constant $C$ into which the
 sensor-specific position-uncertainty terms $Z_d$ and $Z_r$ are
 folded, since their per-axis budgets are not defined for a simulated
@@ -689,7 +655,7 @@ $Q^{\pi}(s,a) = \mathbb{E}_{\pi}[\sum_t \gamma^t r_t \mid s_0 = s, a_0 =
 a]$, the unique fixed point of the Bellman operator
 $(\mathcal{T}^{\pi} Q)(s,a) = r(s,a) + \gamma\,
 \mathbb{E}_{s',a'}[Q(s',a')]$. Value-based agents learn $Q$ and act
-greedily, $\pi(s) = \arg\max_a Q(s,a)$; the safety architecture of
+greedily, $\pi(s) = \arg\max_a Q(s,a)$. The safety architecture of
 Chapter~\ref{ch:method} adds a second value function over a cost signal
 and selects actions against a combination of the two. Safety is imposed
 by lifting the MDP to a \emph{constrained} MDP (CMDP), which augments
@@ -701,7 +667,7 @@ learns the full return distribution $Z^{\pi}(s,a)$ whose expectation is
 $Q^{\pi}$~\cite{bellemare2017c51}. The C51 algorithm represents
 $Z^{\pi}$ as a categorical distribution over a fixed support
 $[v_{\min}, v_{\max}]$ and minimises a projected Bellman error. This
-fixed support is load-bearing for the safety extension: a shaped reward
+fixed support is central for the safety extension: a shaped reward
 whose discounted return exceeds the support is silently clipped, which
 breaks value learning unless an invariant holds
 (Proposition~\ref{lem:support-bound}). Our backbone is built on a C51
@@ -794,10 +760,13 @@ ascent~\cite{ray2019safetygym,achiam2017cpo}, PID
 control~\cite{stooke2020pid}, and primal-dual variants all appear in
 the literature. PID outperforms gradient ascent on convergence and
 oscillation when constraints are tight, and we adopt the PID variant
-(Section~\ref{sec:method:lagrangian:pid}). The García and
-Fernández survey~\cite{garcia2015comprehensive} and the more
-recent Brunke et al.~\cite{brunke2022safelearning} cover the field
-comprehensively.
+(Section~\ref{sec:method:lagrangian:pid}). García and
+Fernández~\cite{garcia2015comprehensive} is the foundational safe-RL
+survey. Brunke et al.~\cite{brunke2022safelearning} connect safe
+learning to robotics; and the newer survey by Wachi et
+al.~\cite{wachi2024constraint} summarises current constraint
+formulations. These surveys establish the method families, but not the
+co-location regime boundary studied here.
 
 \subsection{Distributional and Tail-Aware Safe RL}
 \label{sec:bg:safe:distr}
@@ -846,12 +815,12 @@ graded speed reduction does not.
 \label{sec:bg:cbf}
 
 Hamilton-Jacobi reachability~\cite{bansal2017hamilton} gives the
-theoretical foundation for safety value functions; practical
+theoretical foundation for safety value functions. Practical
 implementations are either hand-engineered Control Barrier Functions
 (CBFs)~\cite{ames2019cbf} or learned safety value
 functions~\cite{srinivasan2020learning,thananjeyan2021recovery}.
 Recent CBF-RL hybrids~\cite{cbfrl2024} apply CBF-style filtering
-during RL training so the deployed policy needs no filter;
+during RL training so the deployed policy needs no filter.
 SHIELD~\cite{shield2025}, demonstrated on a Unitree G1, applies a
 probabilistic CBF filter over high-level commands without modifying
 the learned controller.
@@ -868,7 +837,7 @@ human-link / robot-link pair at the control rate is substantially
 more expensive on a 76-DOF humanoid than a single forward pass of a
 learned value function, and scaling a hand-engineered CBF-QP to an
 embodiment of this dimensionality is itself an open research
-problem; this practical consideration, alongside the data-efficiency
+problem. This practical consideration, alongside the data-efficiency
 argument above, is why we adopt the learned-value-function path.
 
 \subsection{Filter Conservatism and the Freeze-versus-Flee Limit}
@@ -879,9 +848,9 @@ filter strict enough to guarantee safety against an unmodelled human
 tends to be too conservative to let the task proceed. This is the
 field's own stated problem. Recent latent safety
 filters~\cite{nakamura2025latent} observe that the standard
-\emph{least-restrictive} construction ``potentially undermin[es] the
+\emph{least-restrictive} construction ``potentially undermines the
 task performance that makes modern visuomotor policies valuable'',
-degrading task completion sharply in their own experiments; smoother
+degrading task completion sharply in their own experiments. Smoother
 variants~\cite{latentcbf2025} are proposed specifically to soften
 the resulting freeze. A recent separation
 result~\cite{permissivefilter2025} gives the theoretical
@@ -897,7 +866,7 @@ The most pointed evidence concerns an \emph{approaching} human whose
 motion the robot cannot predict. Tian et al.~\cite{tian2022confidence}
 show that a worst-case Hamilton--Jacobi filter ``maintain[s] safety, but
 inhibit[s] the robot's ability to make progress by intervening
-excessively''---the freeze-versus-flee mode---and that the obvious
+excessively'',the freeze-versus-flee mode, and that the obvious
 remedy, trusting a human-motion model to relax the bound, is unsafe:
 their model-trusting variant suffered a $25\,\%$ collision rate against
 an unmodelled, distracted human, while their safe, confidence-aware
@@ -1054,12 +1023,12 @@ Learned SVF~\cite{srinivasan2020learning}   & \xmark & \cmark & \xmark & N/A    
 \end{table}
 
 WCSAC~\cite{yang2021wcsac} introduced the distributional cost
-critic on Safety-Gym, much lower-DOF than our setting; we
+critic on Safety-Gym, much lower-DOF than our setting. We
 reimplement it faithfully on the 76-DOF humanoid tasks and report it
 as the external safe-RL reference
 (Section~\ref{sec:results:wcsac}). CBF-RL~\cite{cbfrl2024} and
 SHIELD~\cite{shield2025} provide runtime CBF-style filtering on top
-of RL but without a distributional treatment of cost; SHIELD is the
+of RL but without a distributional treatment of cost. SHIELD is the
 closest concurrent work (G1 humanoid, runtime safety) but targets
 navigation around humans/obstacles rather than manipulation in a
 shared workspace. Recovery RL~\cite{thananjeyan2021recovery}
@@ -1084,7 +1053,7 @@ family's own literature provides.
 \section{Why a New Benchmark}
 \label{sec:bench:why}
 
-This chapter and the next together present \sbigym{}: a safety-aware
+This chapter presents \sbigym{}: a safety-aware
 extension of \bigym{}~\cite{chernyadev2024bigym} that we contribute
 as one of the two principal deliverables of this project. \sbigym{}
 is a \emph{benchmark}, not a method: the environment and
@@ -1177,8 +1146,8 @@ contact forces are computed consistently for both bodies.
 \paragraph{(ii) The safety-relevant properties are biomechanical, not specifically human.}
 SMPL-H~\cite{romero2017smplh} and similar parametric models are the
 standard for human-pose research, but the quantities driving an
-\iso{}~\ssm{}/\pfl{} assessment, velocity, geometric extent, contact
-response, are functions of mass and articulated degrees of freedom,
+\iso{}~\ssm{}/\pfl{} assessment (velocity, geometric extent, contact
+response) are functions of mass and articulated degrees of freedom,
 not of human appearance. The limits are applied to the stand-in
 exactly as if it were a person, under the conservative assumption
 that any human sharing the workspace is at most as massive and as
@@ -1187,7 +1156,7 @@ fast as the G1.
 \paragraph{(iii) The benchmark is body-agnostic.}
 Planner, scenario sampler, and IK chains route through a single
 \texttt{HumanConfig.human\_model} selector, so the G1 can be swapped
-for any articulated body with no architectural change; alternative
+for any articulated body with no architectural change. Alternative
 embodiments are supplementary
 (Section~\ref{sec:fw:embodiment}).
 
@@ -2018,7 +1987,7 @@ where $q_t$ is the current joint position for the absolute-mode arm
 dimensions (so the per-step \emph{motion} from the current pose is
 scaled) and zero for the delta-mode floating base (so the commanded
 increment is scaled directly). Above $d_{\mathrm{slow}}$ the filter
-is the identity ($\sigma_t = 1$, byte-for-byte pass-through); at or
+is the identity ($\sigma_t = 1$, the action is unchanged); at or
 below $d_{\mathrm{stop}} = 0.15$\,m the robot holds position
 ($\sigma_t = 0$); in between, speed falls linearly with separation.
 The slow radius $d_{\mathrm{slow}}$ is the single operating-point
@@ -2078,7 +2047,7 @@ is simply the wrong way to act on that knowledge. The
 \end{equation}
 
 The critic decides \emph{when} to intervene; the speed-scaler decides
-\emph{how}. Both halves are load-bearing. Replacing the graded
+\emph{how}. Both halves matter. Replacing the graded
 slow-down with a hard veto breaks the action coherence of a chunked
 policy (Section~\ref{sec:results:r2-veto}); removing the gate makes
 the scaler fire on every close approach and pay the full
@@ -2132,6 +2101,34 @@ $\mathbb{E}[Q_r(s,a)] - \lambda \mathbb{E}[Q_c(s,a)]$, which
 presumes that $\pi_\theta$ exists as a separately-trained network.
 There is no $\pi_\theta$ in \cqnas{}. The Lagrangian must be
 re-expressed in value-based form.
+
+The starting point is the constrained objective
+\begin{equation}
+  \max_{\pi} J_r(\pi)
+  \quad \text{s.t.} \quad
+  J_c(\pi) \le d,
+  \qquad
+  J_r(\pi)=\mathbb{E}_{\pi}\!\left[\sum_t \gamma^t r_t\right],
+  \quad
+  J_c(\pi)=\mathbb{E}_{\pi}\!\left[\sum_t \gamma^t c_t\right].
+  \label{eq:cmdp-objective}
+\end{equation}
+For any fixed multiplier $\lambda \ge 0$, the Lagrangian relaxation is
+$\mathcal{L}(\pi,\lambda)=J_r(\pi)-\lambda(J_c(\pi)-d)$. The
+$\lambda d$ term is constant with respect to action choice, so a
+critic-only policy can implement the same trade-off at decision time
+by learning separate action-values
+\[
+Q_r(s,a)\approx\mathbb{E}\!\left[\sum_t\gamma^t r_t\mid s_0=s,a_0=a\right],
+\qquad
+Q_c(s,a)\approx\mathbb{E}\!\left[\sum_t\gamma^t c_t\mid s_0=s,a_0=a\right],
+\]
+and selecting the action that maximises $Q_r-\lambda Q_c$. This is the
+key reproducibility point: \emph{the policy improvement step is changed,
+not the Bellman target of the reward critic}. The reward and cost
+critics can therefore be trained on stationary targets, while
+$\lambda$ acts only as a deployment-time or training-time selection
+parameter.
 
 Three options were considered, in increasing principledness; the
 choice is itself an empirical comparison
@@ -2252,7 +2249,7 @@ proceeds normally; the next-attempt \texttt{ep\_reward} reaches
 $\sim +1.8$ on stage~1 of the curriculum
 (Section~\ref{sec:method:curriculum}).
 
-\textbf{This is the report's strongest engineering lesson.} It
+\textbf{The engineering lesson generalises beyond \sbigym{}.} It
 generalises to any distributional critic + dense shaping setting
 and applies as a checking principle independent of \sbigym{}.
 
@@ -2475,7 +2472,7 @@ top-level training entrypoint \texttt{train\_cqn\_as.py}.
 Configuration is managed via Hydra; W\&B is the experiment tracker;
 per-run JSONL metric dumps provide W\&B-independent reproducibility.
 The snapshot-evaluation harness of Section~\ref{sec:bench:harness}
-is the load-bearing piece for reproducible benchmark consumption.
+is the central tool for reproducible benchmark consumption.
 
 Hardware target: a single NVIDIA A100 40\,GB for training;
 CPU-only smoke gates for every script.
@@ -2774,8 +2771,9 @@ reduction at $\leq 25\,\%$ intervention
 boundary-condition rule for critic-gated scaling on
 \texttt{saucepan\_to\_hob}, success $\geq 0.60$ \emph{and}
 \ssm{}-actual $\leq 0.08$ for the gate to count as recovering
-throughput (Section~\ref{sec:results:boundary}). Rule (iii)'s
-else-branch firing is itself a headline result.
+throughput (Section~\ref{sec:results:boundary}). Rule (iii)'s failure
+on saucepan is itself a headline result, because it matches the
+predicted boundary condition.
 
 \subsection{Task Performance and the Safety Tax}
 \label{sec:setup:metrics:task}
@@ -2809,9 +2807,8 @@ that combines task progress and the workspace-shaping signal.
 
 Tail-risk metrics:
 \begin{itemize}[topsep=2pt,itemsep=1pt]
-\item $\cvar_{0.95}$ of \texttt{ep\_cost\_integral} (the
-  load-bearing tail metric, matching the cost signal the policy
-  was trained on).
+\item $\cvar_{0.95}$ of \texttt{ep\_cost\_integral} (the tail metric
+  matching the cost signal the policy was trained on).
 \item $\cvar_{0.95}$ of \texttt{ep\_min\_separation} (a more
   human-readable tail metric).
 \item 99\textsuperscript{th} percentile of
@@ -2958,6 +2955,38 @@ E5.3   & Cross-task transfer of the saucepan pipeline (resolved negative)
 \end{tabular}
 \end{table}
 
+\section{Ablation Map: What Each Component Proves}
+\label{sec:results:ablation-map}
+
+The evaluation is deliberately ablation-led. Each major component of
+the Hybrid Safety Critic is removed, replaced, or retuned to test
+whether it actually contributes to either proximity exposure or
+SSM-velocity safety. The main ablations are summarised here before the
+regime-specific results:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+\item \textbf{Human-state channel without a safety gradient} (E1.1):
+  perception alone does not produce safety; the policy uses oracle
+  human state for task completion, not distance keeping.
+\item \textbf{Cost form and budget} (E3.1--E3.3): continuous vs.
+  binary cost is secondary; the binding question is whether the budget
+  is feasible in the task's co-location regime.
+\item \textbf{Multiplier update} (E3.2): PID auto-tuning is
+  seed-unstable at the feasibility boundary, motivating fixed
+  $\lambda$ on saucepan.
+\item \textbf{Runtime override form} (E2.4--E2.6): a binary veto
+  breaks chunked-policy coherence, unconditional scaling is safe but
+  costly, and critic-gated scaling recovers throughput only where safe
+  windows exist.
+\item \textbf{Gate critic and label design} (E2.6 ablations):
+  $R$ is the dominant dial, looser anticipatory labels do not improve
+  the frontier, gating a Lagrangian policy does not dominate gating the
+  baseline, and DAgger-style re-collection on filtered rollouts
+  under-gates.
+\end{itemize}
+This map is the evidence that the final architecture is not an
+accidental combination of parts: each retained component survives a
+specific failure mode of a simpler alternative.
+
 
 % =============================================================================
 % (merged) The sections below were formerly Chapter 8 "Results". They
@@ -3069,7 +3098,7 @@ where the oracle channel dramatically improves task success
 ($0.22 \to 0.58$) yet \emph{worsens} \ssm{} violations: the policy
 uses human state to route around obstructions and complete the task,
 not to keep distance, because nothing in its objective rewards the
-latter. This is the load-bearing observation behind the
+latter. This observation motivates the
 constrained-RL formulation, observation without a safety gradient is
 at best inert and at worst counterproductive. E1.1 alone cannot
 distinguish ``channel useless'' from ``BC marginalises a channel
@@ -3340,7 +3369,7 @@ filter, not the binary veto, proves to be the one that works.
 \subsection{E4.1: The Headline Comparison}
 \label{sec:results:headline-feature-table}
 
-\textbf{This is the headline.} The central question of the
+\textbf{Main comparison.} The central question of the
 architecture is which mechanism reduces which \iso{} axis, and how the
 mechanisms compose. The answer is a \emph{division of labour}: the
 proactive constrained-RL policy owns the geometric-proximity axis and a
@@ -3495,12 +3524,10 @@ $\times 0.89$) and the reactive cost ($\times 0.58$) stack
 \emph{multiplicatively}, and the composition beats neither specialist
 on that specialist's own axis (the policy still wins proximity
 $0.228 < 0.250$; the filter still wins velocity $0.048 < 0.065$). The
-composition is the joint-coverage compromise, not a per-axis
-champion, and the honest reading is therefore not ``the composition
-is free'' but \emph{comprehensive \iso{} safety, proximity and
-velocity together, is reachable in this regime only by composing the
-proactive policy with a complementary-axis reactive filter, and that
-composition makes the safety--throughput trade explicit}, with a cost
+composition is the joint-coverage compromise, not a per-axis champion.
+Both measured safety axes are improved in this regime only by composing
+the proactive policy with a complementary runtime filter, and that
+composition makes the safety--throughput trade explicit, with a cost
 dial tunable through $\lambda$ and $d_{\mathrm{slow}}$
 (Section~\ref{sec:results:joint-coverage}).
 
@@ -4185,9 +4212,9 @@ the operating point moves monotonically from policy-alone
 below the success floor) and $R = 2.5$ ($0.567$/$0.105$, below both
 bars). The gated curve \emph{tracks} the unconditional scaler rather
 than dominating it; no high-success, low-violation corner opens.
-The else-branch of the decision rule fired, and that outcome was the
-\emph{predicted} failure mode under the regime map, not an anomaly
-to be explained away.
+The decision rule failed on saucepan, and that outcome was the
+\emph{predicted} failure mode under the regime map, not an anomaly to
+be explained away.
 
 \begin{table}[htbp]
 \centering
@@ -4342,7 +4369,8 @@ regime variable, how persistently the coworker is co-located,
 measured as the fraction of steps a separation/risk-triggered filter
 would be active, determines which arm of the Hybrid Safety Critic
 carries the safety burden. The boundary was validated by the
-pre-registered E4.4 rule whose else-branch fired on saucepan.
+pre-registered E4.4 rule, which failed on saucepan exactly as the
+regime map predicted.
 Evidence per cell: gated wins
 (\S\ref{sec:results:r2-gated}), Lagrangian infeasibility
 (\S\ref{sec:results:r2-lagrangian}), veto coherence break
@@ -4417,8 +4445,8 @@ the intermittent-co-location arm.
 variable that predicts everything above.} The gate-active fraction
 separates the tasks cleanly ($61.5\,\%$ saucepan vs.\
 $19$--$27\,\%$ dishwasher/drawers at matched threshold), the
-pre-registered E4.4 rule's else-branch fired exactly where the map
-predicts (gating $\approx$ unconditional under persistent
+pre-registered E4.4 rule failed exactly where the map predicts
+(gating $\approx$ unconditional under persistent
 co-location), and the constrained-RL feasibility flips across the
 same boundary (R3). Within the saucepan regime the policy's
 reduction also generalises to a wider held-out coworker (E5.2:
@@ -4519,8 +4547,8 @@ tunable price.''
 \emph{Co-location persistence, an observable, measurable property of
 the task--disruption pair.} The gate-active fraction separates the
 regimes by more than a factor of two at matched threshold
-($61.5\,\%$ vs.\ $19$--$27\,\%$), the pre-registered E4.4 rule
-fired its else-branch exactly where the map predicts, and the
+($61.5\,\%$ vs.\ $19$--$27\,\%$), the pre-registered E4.4 rule failed
+exactly where the map predicts, and the
 constrained-RL feasibility flips across the same boundary. Three
 further degradation facts complete the picture: the saucepan
 policy's reduction generalises to a wider, gentler held-out coworker
@@ -4681,7 +4709,7 @@ The regime map rests on three tasks, and the regime variable is
 with task identity, geometry, episode length, and policy speed, so a
 confound-free causal reading is not yet available. Three things
 mitigate, without eliminating, the concern: the boundary condition
-was pre-registered before E4.4 ran (the saucepan else-branch is a
+was pre-registered before E4.4 ran (the saucepan failure case is a
 prediction satisfied, not a post-hoc classification); the mechanism
 is measured at the step level (Figure~\ref{fig:gate-activity}), and
 the degeneration it implies is visible \emph{within}-task as $R$
@@ -4742,36 +4770,62 @@ avoids the per-step QP that a 76-DOF CBF would demand.
 \section{Broader Impact}
 \label{sec:disc:broader}
 
-\subsection{Responsible Deployment}
+\subsection{Responsible Deployment and Misuse Risk}
 
-Simulator-trained safety mechanisms must be independently validated
-before real-world deployment, particularly given the contact-fidelity
-gap of Section~\ref{sec:disc:sim2real}. The regime map adds a
-concrete pre-deployment step: \emph{measure the co-location pattern
-first}. The gate-active fraction of a candidate filter on logged or
-simulated traffic is cheap to compute and, on this evidence,
-predicts which safety arm will work and flags in advance the
-deployments where both-axis safety carries a heavy throughput
-price. A second lesson, from E4.3, inverts the project's initial
-assumption: a runtime filter cannot be relied on to ``hand over'' to
-a policy trained to be safe, so real-world validation must verify
-policy and composed filter \emph{jointly}, with the filter
-re-calibrated against the specific policy it guards. And because
-two-axis safety under persistent co-location was reachable only at
-substantial task cost, a responsible deployment must surface that
-trade explicitly rather than presenting the safe configuration as
-free.
+The strongest practical implication of the regime map is also the
+largest ethical warning: a runtime safety wrapper can make a learned
+humanoid \emph{look} safer without making it certifiably safe. The
+project improves measurable \ssm{}-velocity behaviour in simulation,
+but it does not validate real contact forces, real perception
+failures, or real human reactions. A company deploying a humanoid in a
+home, warehouse, or care setting could misuse these results by
+presenting a wrapper as evidence of ISO compliance. That would be a
+category error. The report's claim is narrower: the mechanisms improve
+specific measured axes in a simulated co-working benchmark, and the
+\pfl{} force loop remains unevaluated.
 
-\subsection{What Does Not Generalise}
+The regime map adds one concrete pre-deployment check: \emph{measure
+the co-location pattern first}. The gate-active fraction of a candidate
+filter on logged or simulated traffic is cheap to compute and, on this
+evidence, predicts whether critic-gated scaling can recover throughput
+or whether persistent co-location will force a heavy safety--throughput
+trade. This should be treated as a screening test, not a certificate.
+If the pattern is persistent, a deployer should expect either slowed
+operation, proactive task replanning, or a redesign of the workspace
+rather than a transparent safety layer.
 
-\iso{} targets industrial collaboration where humans are trained
-and aware. Domestic deployment around vulnerable people (children, elderly individuals, anyone with
-reduced reaction time) requires stricter guarantees than this work provides. The
-framing throughout the report is industrial collaboration as the
-deployment domain; extending to domestic / vulnerable-user
-deployment is a substantive extension that involves both technical
-work (tighter cost budgets, stronger fallbacks) and regulatory work
-(which standard applies, who certifies, what evidence is required).
+A second lesson, from E4.3, is that validation must be joint. A runtime
+filter cannot be assumed to ``hand over'' to a policy trained to be
+safe, because the policy may move out of the critic's calibration
+distribution. Real-world validation must therefore test the exact
+policy--filter composition on the exact deployment distribution, with
+the filter re-calibrated whenever the policy, perception stack, task,
+or coworker pattern changes.
+
+\subsection{Vulnerable Users and Domestic Environments}
+
+\iso{} targets industrial collaboration, where users are trained,
+adult, aware of the robot, and operating under a safety process.
+Domestic or care environments violate those assumptions. Children may
+approach unpredictably, elderly users or disabled users may have slower
+reaction times, and bystanders may not understand the robot's intended
+workspace. The exogenous-proximity finding is therefore especially
+important: if a vulnerable person walks into a stationary robot, a
+robot-side policy cannot remove the exposure, and only a last-resort
+\pfl{} brake, physical workspace design, supervision, or external
+sensing can reduce the residual risk.
+
+For this reason the report should not be read as a case for deploying
+learned humanoid manipulators in unconstrained homes. It is a step
+towards evaluating such systems. Extending it to vulnerable-user
+deployment would require stricter cost budgets, real BodySLAM++ or
+multi-camera perception tests, contact-force validation, emergency-stop
+hardware, human-subjects ethics review, and a regulatory answer to
+which standard applies outside the industrial-collaboration setting.
+The safety--throughput trade should also be disclosed to users: in the
+persistent regime, the safer configuration may be substantially slower
+or less successful, and hiding that cost would encourage unsafe
+expectations about what the robot can do.
 
 \subsection{Reproducibility as Honesty}
 
@@ -4835,9 +4889,10 @@ and runtime filter all read $c^{\pfl}_t$ unconditionally.
 \label{sec:fw:proactive}
 
 On the intermittent-co-location tasks the exposure axis is left
-without a working mechanism: the scalar expected-cost Lagrangian is
-inert-or-fatal there (E3.3), and the gate, by design, does not reduce
-exposure. The open lever is a differently-shaped training signal for
+without a working mechanism: the scalar expected-cost Lagrangian either
+does not affect the policy or collapses the task there (E3.3), and the
+gate, by design, does not reduce exposure. The open lever is a
+differently-shaped training signal for
 proactive avoidance, the natural candidate being a potential-based
 separation reward (dense, sign-preserving shaping on separation
 rather than a constrained budget), which sidesteps the budget-cliff
@@ -4916,28 +4971,18 @@ on embodiment-specificity.
 % =============================================================================
 
 \noindent
-\textbf{Restate the problem and the contribution.}
-\iso{} compliance for high-DOF humanoid manipulation under sustained
-co-working has not been systematically addressed in the safe-RL
-literature, and the literature's two mechanism families,
-training-time constrained RL and runtime filtering, came with no
-rule for when to use which. This work contributes \sbigym{}, a
-safety-aware extension of the \bigym{}~\cite{chernyadev2024bigym}
-benchmark (three-flavour \iso{}-derived metrics, continuous
-anticipatory costs, a Unitree~G1~\cite{unitree_g1} coworker driving
-sustained co-working across three tasks, calibrated
-mock-\bodyslampp{} perception noise~\cite{henning2023bodyslampp},
-and a deployment-faithful snapshot-evaluation harness); a
-measurement, the exogenous decomposition of proximity
-($\approx$42\,\% human-driven), that splits safety into an exposure
-axis and a robot-controllable velocity axis; and, centrally, the
-\emph{regime map}: an empirical characterisation, with a measured
-mechanism and a pre-registered cross-task test, of when each safety
-arm works on a 76-DOF Unitree~H1~\cite{unitree_h1} under realistic
-perception.
+\iso{}-referenced safety for high-DOF humanoid manipulation under
+human co-working has not been systematically addressed in the safe-RL
+literature. The field has strong ingredients, including constrained
+RL and runtime filtering, but it did not have a rule for when each
+should be used. This work contributes three linked pieces: \sbigym{},
+a safety-aware extension of the \bigym{}~\cite{chernyadev2024bigym}
+benchmark; a measurement showing that $\approx$42\,\% of close
+proximity is human-driven and therefore outside robot control; and the
+regime map, an empirical rule for matching the safety mechanism to the
+human--robot co-location pattern.
 
 \noindent
-\textbf{Summarise the headline results.}
 Which mechanism helps is governed by the human--robot co-location
 regime, not by mechanism sophistication. Under \emph{persistent}
 co-location (\texttt{saucepan\_to\_hob}, gate-active
@@ -4946,51 +4991,51 @@ reduces exposure gracefully: a fixed $\lambda = 0.1$ value-based
 Lagrangian cuts the proximity-violation rate by $22.8\,\%$
 ($0.296 \to 0.228$) at $0.76$ success across three seeds, where PID
 auto-tuning is seed-unstable at the feasibility boundary; every
-reactive filter pays a freeze-or-flee cost on that axis, and
-both-axis compliance is reachable only by composing policy and
-graded speed-scaling at a multiplicative success cost
-($0.85 \to 0.44$) that the report states plainly. Under
+reactive filter pays a freeze-or-flee cost on that axis, and both
+measured safety axes are improved only by composing policy and graded
+speed-scaling at a multiplicative success cost ($0.85 \to 0.44$).
+Under
 \emph{intermittent} co-location (\texttt{dishwasher\_close},
 \texttt{drawers\_open\_all}, gate-active $19$--$27\,\%$),
-constrained RL finds no feasible budget, when its multiplier binds
-the robot gets \emph{faster}, not safer, a finding the from-scratch
-WCSAC~\cite{yang2021wcsac} reference corroborates, a binary veto
-breaks chunked-policy coherence (max velocity $2.46 \to 6.03$\,m/s),
-and the working mechanism is a learned critic \emph{gating} an
-\iso{} speed-scaling backstop: $-50\,\%$ \ssm{}-violation at $-0.10$
-success on dishwasher, $-22\,\%$ at $-0.09$ (or $-10\,\%$ at
-$-0.02$) on drawers, with the gate threshold as a deployable dial.
-The boundary was validated by a pre-registered rule whose
-else-branch fired on saucepan, where gating measurably degenerates
-to unconditional scaling. The worst-case separation tail is
+constrained RL finds no feasible budget. When its multiplier binds,
+the robot gets \emph{faster}, not safer; the from-scratch
+WCSAC~\cite{yang2021wcsac} reference corroborates the trainability
+difficulty. A binary veto breaks chunked-policy coherence (max velocity
+$2.46 \to 6.03$\,m/s), and the working mechanism is a learned critic
+\emph{gating} an \iso{} speed-scaling backstop: $-50\,\%$
+\ssm{}-violation at $-0.10$ success on dishwasher, $-22\,\%$ at
+$-0.09$ (or $-10\,\%$ at $-0.02$) on drawers, with the gate threshold
+as a deployable dial.
+The boundary was validated by a pre-registered rule whose failure case
+occurred on saucepan, where gating measurably degenerates to
+unconditional scaling. The worst-case separation tail is
 exogenous and unmoved by every mechanism: exposure frequency is
 controllable; the single closest approach is not.
 
 \noindent
-\textbf{Broader significance.}
 As humanoid platforms move from research labs into commercial
 deployment (and the Unitree G1's deployment without ISO
 certification~\cite{unitree_g1} is a representative data point),
 principled methods for safety under imperfect perception and
 sustained human co-presence are urgently needed. The most useful
-output of this work is a decision rule where the field had a
-default: runtime filtering is not a universal safety layer, and
-constrained RL is not a universal alternative, but the co-location
+output of this work is a decision rule where the field had only a
+default. Runtime filtering is not a universal safety layer, and
+constrained RL is not a universal alternative. The co-location
 pattern, cheap to measure on logged or simulated traffic, predicts
-which arm will work and what both-axis safety will cost. The
+which arm is likely to work and what the safety--throughput trade will
+cost. The
 positioning against WCSAC~\cite{yang2021wcsac},
 SHIELD~\cite{shield2025}, Recovery
 RL~\cite{thananjeyan2021recovery}, CBF-RL~\cite{cbfrl2024}, and the
 learned-SVF line~\cite{srinivasan2020learning}
 (Table~\ref{tab:related-work-comparison}) situates the work honestly
 within the emerging literature rather than claiming primacy. The
-practitioner lessons travel beyond this project: gate the scaler,
-never veto a chunked policy; train the gate critic on unfiltered
-rollouts; fix the multiplier at a feasibility boundary; select
-constrained checkpoints by a safety-aware rule; and the
-support-bounding invariant (Proposition~\ref{lem:support-bound}) for
-shaped rewards on distributional critics applies to any project
-building safe RL on demo-driven distributional agents.
+practitioner lessons are concrete: gate the scaler, do not veto a
+chunked policy; train the gate critic on unfiltered rollouts; fix the
+multiplier when the feasible budget lies on a boundary; select
+constrained checkpoints by a safety-aware rule; and check the
+support-bounding invariant before adding dense shaping to a
+distributional critic.
 
 
 % =============================================================================
@@ -5007,12 +5052,16 @@ material from other sources, published or unpublished, is
 acknowledged and cited in the references.
 
 \paragraph{Use of generative AI.}
-Generative AI tools were used as assistive tools for literature
-search, \LaTeX{} formatting, infrastructure code scaffolding, and
-prose drafting, with all outputs verified, edited, tested, and
-endorsed by the author. The full declaration of what was used, how
-its outputs were verified, and the tools' observed limits is in
-Appendix~\ref{app:genai}.
+Generative AI tools were used as assistive tools for literature search,
+code scaffolding, experiment-log summarisation, plotting-script drafts,
+\LaTeX{} formatting, and prose drafting/proofreading. They were not
+used as an autonomous source of experimental results or as a substitute
+for authorial judgement: all citations were checked against primary
+sources, all correctness-bearing code was reviewed and tested by the
+author, all numerical claims were traced to run logs or CSV artifacts,
+and all report prose was edited and endorsed by the author. The full
+declaration, including observed failure modes and verification
+procedures, is in Appendix~\ref{app:genai}.
 
 \paragraph{Ethics.}
 The project involves no human-subjects research and no personal
@@ -5240,36 +5289,44 @@ cell; evaluated with identity action-normalisation statistics
 \label{app:genai}
 
 Generative AI tools (Anthropic Claude, OpenAI ChatGPT) were used during
-this project, and their use is declared here in full. They assisted
-with: (i) literature search and the shortlisting of candidate prior
-work, including a structured multi-source survey of the safety-filter
-literature, with all resulting citations verified manually against the
-original sources---a necessary step, as AI-surfaced bibliographic
-metadata was on occasion inaccurate, and any residual uncertainty is
-flagged for verification in the bibliography; (ii) \LaTeX{} formatting
-and template construction; (iii) code scaffolding for repetitive
-infrastructure (data-loading utilities, \bigym{} wrapper boilerplate,
-plotting and analysis scripts), reviewed, edited, and tested by the
-student; and (iv) drafting and proofreading assistance for report prose,
-including first drafts of expository passages that the student then
-revised, checked against the experimental record, and endorsed. All
-experimental design, the choice of what to run and measure, the code
-logic that bears on the correctness of results (training loops, loss
-functions, cost signals, evaluation metrics, statistical analysis), the
-quantitative results, and the scientific claims are the student's own
-work. No AI-generated text or correctness-bearing code appears in the
-report or codebase without the student's inspection, modification,
-testing, and endorsement; the student is the author of this work and is
-responsible for its content. The tools also have clear limits, which
-shaped how they were used: AI assistants tended to over-state safety
-guarantees when summarising results, requiring deliberate editing toward
-the qualified language of Section~\ref{sec:disc:pfl-bug}; they could not
-diagnose the C51 support-saturation failure
-(Section~\ref{sec:method:lagrangian:support}) or the CUDA
+this project, and their use is declared here in full. Their role was
+assistive and reviewable:
+\begin{itemize}[topsep=2pt,itemsep=1pt]
+\item \textbf{Literature search and triage.} AI tools helped shortlist
+  candidate work in safe RL, CBF filtering, shielding, and human-aware
+  robotics. Every retained citation was then checked manually against a
+  primary source (arXiv, IEEE/ACM/PMLR/AAAI/NeurIPS/JMLR, ISO
+  catalogue, or publisher page). This verification step changed several
+  entries; the audit is recorded in \texttt{REFERENCES\_AUDIT.md}.
+\item \textbf{Code scaffolding.} AI tools drafted repetitive
+  infrastructure such as data-loading helpers, wrapper boilerplate, and
+  plotting scripts. Correctness-bearing code, including training loops,
+  loss functions, cost signals, evaluation metrics, and aggregation
+  logic, was reviewed, modified where necessary, and tested by the
+  author before use.
+\item \textbf{Experiment-log summarisation.} AI tools helped summarise
+  large collections of CSVs, JSONL logs, and draft result notes into
+  candidate tables or prose. Every numerical claim in the report was
+  checked back to an artifact in \texttt{results/}, a documented script,
+  or a saved figure-data note before inclusion.
+\item \textbf{\LaTeX{} and prose.} AI tools assisted with \LaTeX{}
+  formatting, restructuring, drafting, and proofreading. No AI-generated
+  passage is included verbatim without author editing; the author chose
+  the final framing, claims, section ordering, and wording.
+\end{itemize}
+
+The tools' limitations shaped the workflow. They sometimes overstated
+ISO compliance or treated simulated \ssm{} improvements as real-world
+certification, so all safety claims were edited back to the qualified
+\ssm{}/proximity language of Section~\ref{sec:disc:pfl-bug}. They also
+surfaced inaccurate bibliographic metadata, which is why the reference
+audit was performed. They did not diagnose the C51 support-saturation
+failure (Section~\ref{sec:method:lagrangian:support}) or the CUDA
 \texttt{linspace} integer-overflow bug
-(Section~\ref{sec:impl:integration}), both of which required direct
-simulator and library inspection; and, as noted, their literature
-suggestions required source-level verification before use.
+(Section~\ref{sec:impl:integration}); both required direct code,
+simulator, and log inspection. All experimental design decisions, all
+choices of what to run and measure, all quantitative results, and all
+scientific claims are the author's responsibility.
 
 \chapter{Ethical Considerations}
 \label{app:ethics}
