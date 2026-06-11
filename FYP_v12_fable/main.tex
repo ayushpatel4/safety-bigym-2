@@ -96,6 +96,16 @@
 % numbered references. If vancouver.bst is installed locally, swap below.
 \usepackage[numbers, sort&compress, square]{natbib}
 \bibliographystyle{IEEEtran}
+% IEEEtran.bst control citation: print repeated author names in full
+% instead of the style's default long dash (see BSTcontrol in references.bib)
+\makeatletter
+\def\bstctlcite{\@ifnextchar[{\@bstctlcite}{\@bstctlcite[@auxout]}}
+\def\@bstctlcite[#1]#2{\@bsphack
+  \@for\@citeb:=#2\do{%
+    \edef\@citeb{\expandafter\@firstofone\@citeb}%
+    \if@filesw\immediate\write\csname #1\endcsname{\string\citation{\@citeb}}\fi}%
+  \@esphack}
+\makeatother
 
 \usepackage{hyperref}
   \hypersetup{colorlinks=true, linkcolor=black, citecolor=blue, urlcolor=blue}
@@ -135,6 +145,7 @@
 % =============================================================================
 \begin{document}
 % =============================================================================
+\bstctlcite{BSTcontrol}
 
 \maketitle
 
@@ -650,10 +661,7 @@ and one that motivates the force-ratio formulation
 adopted in Equation~\ref{eq:c-pfl} of the cost signal.
 $f^{\mathrm{ratio}}_t \ge 1.0$ constitutes a \pfl{} violation; the
 anticipatory cost activates at $f^{\mathrm{ratio}}_t > 0.8$, giving
-the policy headroom to react. The laboratory behind the unified
-\ssm{}/\pfl{} treatment has since carried the combined pre- and
-post-contact scheme onto a humanoid upper
-body~\cite{rozlivek2025harmonious}.
+the policy headroom to react.
 
 \subsection{Why \iso{} Is Hard to Target with Generic Safe-RL}
 \label{sec:bg:iso:hard}
@@ -924,8 +932,8 @@ remedy, trusting a human-motion model to relax the bound, is unsafe:
 their model-trusting variant suffered a $25\,\%$ collision rate against
 an unmodelled, distracted human, while their safe, confidence-aware
 variant recovers low task cost \emph{only} while the human follows the
-model, reverting to the conservative worst-case filter---and its
-cost---whenever the human does not. The implication for sustained
+model, reverting to the conservative worst-case filter (and its
+cost) whenever the human does not. The implication for sustained
 co-working is direct: against a coworker who repeatedly walks into the
 workspace, a reactive filter can buy task-cheap safety only when the
 human is predictable, and must pay the conservatism cost exactly when
@@ -983,7 +991,7 @@ treatment.
 \label{sec:bg:sim2real:dyn-perc}
 
 Most sim-to-real literature focuses on the \emph{dynamics
-gap}~\cite{tobin2017domainrand,zhao2020sim2real,muratore2022randomized},
+gap}~\cite{tobin2017domainrand,muratore2022randomized},
 that is, the
 mismatch between simulated and real-world physics: contact and
 friction modelling, actuator response, mass and inertia estimates,
@@ -1009,10 +1017,9 @@ occlusion. The mock-\bodyslampp{} noise model
 published characteristics: Ornstein-Uhlenbeck temporally correlated
 position noise, a 3-step latency buffer matching the 15\,Hz
 perception clock, and stochastic dropout matching reported tracking
-failures. Newer world-grounded estimators
-(WHAM~\cite{shin2024wham}, TRAM~\cite{wang2024tram}) are more
-accurate but run offline on GPUs, so the noise model stays
-calibrated to the on-robot CPU estimator.
+failures. Newer world-grounded estimators such as
+WHAM~\cite{shin2024wham} are more accurate but run offline on GPUs,
+so the noise model stays calibrated to the on-robot CPU estimator.
 
 \section{Benchmark Landscape}
 \label{sec:bg:bench}
@@ -1040,7 +1047,6 @@ RLBench~\cite{james2020rlbench}                & \xmark & \xmark           & \xm
 \bigym{}~\cite{chernyadev2024bigym}            & \cmark & \xmark           & \xmark & \xmark & \xmark \\
 HumanoidBench~\cite{sferrazza2024humanoidbench}& \cmark & \xmark           & \xmark & \xmark & \xmark \\
 Assistive Gym~\cite{erickson2020assistivegym}  & \xmark & \cmark (seated)  & \xmark & \xmark & \cmark \\
-RCareWorld~\cite{ye2022rcareworld}             & \xmark & \cmark (care)    & \xmark & \xmark & \cmark \\
 Habitat 3.0~\cite{puig2024habitat3}            & \xmark & \cmark (kinematic) & \xmark & \xmark & partial \\
 Human-Robot Gym~\cite{thumm2024humanrobotgym}  & \xmark & \cmark (mocap)   & shield & \cmark (optional) & \cmark \\
 \textbf{\sbigym{} (this work)} & \cmark & \cmark (G1) & \cmark & \cmark & \cmark \\
@@ -1059,8 +1065,7 @@ human coworkers. \textbf{Manipulation-axis} benchmarks
 HumanoidBench~\cite{sferrazza2024humanoidbench}) expose realistic
 tasks without safety constraints. \textbf{Human-axis} benchmarks
 place a simulated person beside the robot, from assistive care
-(Assistive Gym~\cite{erickson2020assistivegym},
-RCareWorld~\cite{ye2022rcareworld}) to social navigation
+(Assistive Gym~\cite{erickson2020assistivegym}) to social navigation
 (Habitat~3.0~\cite{puig2024habitat3}), and Human-Robot
 Gym~\cite{thumm2024humanrobotgym} adds an ISO-grounded shield with
 optional measurement noise on 6--7-DoF arms. None exposes
@@ -1840,7 +1845,7 @@ deployment is sketched in Figure~\ref{fig:hybrid-overview}.
   flow/.style={->, thick},
   tflow/.style={->, thick, dashed, black!55},
 ]
-% --- deployment row ---
+% deployment row
 \node[env] (env) {Environment\\[-1pt]{\footnotesize \textsc{BiGym} $+$ G1 coworker}};
 \node[box, right=of env] (obs) {Observation $s_t$\\[-1pt]{\footnotesize proprio.\ $+\ \hat p_{\mathrm{human}}$}};
 \node[pol, right=of obs] (pol) {Policy $\pi$\\[2pt]$a^{\mathrm{nom}}=\mathrm{argmax}_{a}[\,Q_r-\lambda Q_c\,]$};
@@ -1853,16 +1858,16 @@ deployment is sketched in Figure~\ref{fig:hybrid-overview}.
 \draw[flow] (filt) -- node[above,font=\footnotesize]{pass}
                       node[below,font=\footnotesize]{$a_t{=}a^{\mathrm{nom}}$} (exec);
 
-% --- veto branch ---
+% veto branch
 \node[box, fill=orange!5, draw=orange!55, font=\footnotesize,
       minimum height=8mm, below=9mm of filt] (fb) {fallback $a^{\mathrm{fb}}$};
 \draw[flow] (filt.south) -- node[right,font=\footnotesize]{veto} (fb.north);
 \draw[flow] (fb.east) -| (exec.south);
 
-% --- feedback loop ---
+% feedback loop
 \draw[flow] (exec.north) -- ++(0,7mm) -| (env.north);
 
-% --- training band ---
+% training band
 \node[trn, below=15mm of pol] (lag)
   {trained \emph{online}: value-based\\ Lagrangian on cost $c_t$
    $\;\Rightarrow\; Q_r,Q_c$};
@@ -3236,7 +3241,7 @@ trained weights cannot run); a genuine no-human-observation
 condition is the separately trained E1.1 ablation. The perception
 sweep is thus a two-mode comparison by construction.
 
-\section{R1 --- Persistent Co-location: \texttt{saucepan\_to\_hob}}
+\section{R1: Persistent Co-location (\texttt{saucepan\_to\_hob})}
 \label{sec:results:r1}
 
 This section is the persistent-co-location arm of the regime map. On
@@ -3942,7 +3947,7 @@ the cross-task story is the regime map of
 Section~\ref{sec:results:boundary}, and the failure of this transfer
 is one of its two arms rather than an unexplained null.
 
-\section{R2 --- Intermittent Co-location: \texttt{dishwasher\_close} and \texttt{drawers\_open\_all}}
+\section{R2: Intermittent Co-location (\texttt{dishwasher\_close} and \texttt{drawers\_open\_all})}
 \label{sec:results:r2}
 
 This section is the other arm of the regime map. The coworker
@@ -4118,7 +4123,7 @@ safe or not, and success falls $0.77 \to 0.52$ and $0.82 \to 0.38$.
 That cost profile is exactly what a gate should fix, where the task
 structure leaves the gate something to find.
 
-\subsection{E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}
+\subsection{E2.6: Critic-Gated Speed-Scaling (the When/How Split Recovers the Task)}
 \label{sec:results:r2-gated}
 
 The critic-gated filter (Equation~\ref{eq:gated-rule}) assigns each
@@ -4265,7 +4270,7 @@ yields a portable lesson.
   recognise what the raw policy \emph{would} have done.
 \end{enumerate}
 
-\section{R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}
+\section{R3: The Boundary Condition (One Law, Measured Across Three Tasks)}
 \label{sec:results:boundary}
 
 R1 and R2 carry opposite headlines: on saucepan the constrained
@@ -4687,7 +4692,7 @@ is not real perception; a rendered-image run feeding a real
 estimator is the natural closure
 (Section~\ref{sec:fw:realbody}). \textbf{Dynamics:} MuJoCo's H1
 differs from the real platform in unmeasured ways. Domain
-randomisation~\cite{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
+randomisation~\cite{tobin2017domainrand,muratore2022randomized}
 is the standard follow-up and remains the deployed recipe for
 real-world humanoid RL~\cite{radosavovic2024humanoid}, and the gap
 must be acknowledged before any real-world claim. \textbf{Contact
@@ -5001,8 +5006,8 @@ unimodality) or quantile head (QR-DQN-style~\cite{dabney2018qrdqn};
 distribution-free, more data-hungry). Ready instruments exist:
 off-policy trust-region CVaR constraints~\cite{kim2022offtrc} fit
 this replay-based critic-only pipeline most directly, with
-distributional multi-constraint and spectral-risk
-methods~\cite{kim2023sdac,kim2024srcpo} as on-policy alternatives.
+distributional multi-constraint methods~\cite{kim2023sdac} as the
+on-policy alternative.
 The cost critic is already
 C51-shaped, so a parallel cost head slots in cleanly, subject to the
 support invariant of Proposition~\ref{lem:support-bound} holding for

@@ -5,6 +5,7 @@
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \bibstyle{IEEEtran}
+\citation{BSTcontrol}
 \babel@aux{british}{}
 \citation{yang2021wcsac}
 \@writefile{toc}{\contentsline {chapter}{Acknowledgements}{10}{chapter*.4}\protected@file@percent }
@@ -87,7 +88,6 @@
 \citation{hartmann2026iso}
 \citation{svarny2020collision}
 \citation{svarny2022softskins}
-\citation{rozlivek2025harmonious}
 \citation{ray2019safetygym,achiam2017cpo,stooke2020pid,he2023autocost,ji2023safetygymnasium}
 \@writefile{toc}{\contentsline {chapter}{\numberline {2}Background and Related Work}{16}{chapter.2}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
@@ -194,11 +194,10 @@
 \citation{kumar2020cql}
 \citation{prudencio2024offlinesurvey}
 \citation{xu2022cpq}
-\citation{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
+\citation{tobin2017domainrand,muratore2022randomized}
 \citation{henning2023bodyslampp}
 \citation{henning2022bodyslam}
 \citation{shin2024wham}
-\citation{wang2024tram}
 \citation{ray2019safetygym}
 \citation{ji2023safetygymnasium}
 \citation{yuan2022safecontrolgym}
@@ -207,7 +206,6 @@
 \citation{chernyadev2024bigym}
 \citation{sferrazza2024humanoidbench}
 \citation{erickson2020assistivegym}
-\citation{ye2022rcareworld}
 \citation{puig2024habitat3}
 \citation{thumm2024humanrobotgym}
 \citation{ray2019safetygym}
@@ -218,7 +216,6 @@
 \citation{chernyadev2024bigym}
 \citation{sferrazza2024humanoidbench}
 \citation{erickson2020assistivegym}
-\citation{ye2022rcareworld}
 \citation{puig2024habitat3}
 \citation{thumm2024humanrobotgym}
 \@writefile{toc}{\contentsline {section}{\numberline {2.5}Conservative Q-Learning}{20}{section.2.5}\protected@file@percent }
@@ -586,8 +583,8 @@
 \@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt  {oracle} and \texttt  {noisy} perception (\texttt  {saucepan\_to\_hob}, \texttt  {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt  {noisy} numbers.}}{46}{table.caption.38}\protected@file@percent }
 \newlabel{tab:e3.6-obs-rl}{{5.4}{46}{Experiment E3.6. The constrained policy (seed-0 trained) and the unconstrained baseline re-evaluated under \texttt {oracle} and \texttt {noisy} perception (\texttt {saucepan\_to\_hob}, \texttt {coworker\_train}; each cell is 60 episodes, 3 evaluation seeds $\times $ 20). The policy's proximity reduction is preserved under realistic noisy, lagged perception (bootstrap CIs across modes overlap: $0.236\,[0.17, 0.30]$ oracle vs.\ $0.198\,[0.14, 0.26]$ noisy), and the baseline shows no oracle--noisy gap because it does not use the channel to avoid. The headline E4.1 table reports the pooled three-trained-seed \texttt {noisy} numbers}{table.caption.38}{}}
 \newlabel{tab:e3.6-obs-rl@cref}{{[table][4][5]5.4}{[1][46][]46}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.12}R1 --- Persistent Co-location: \texttt  {saucepan\_to\_hob}}{46}{section.5.12}\protected@file@percent }
-\newlabel{sec:results:r1}{{5.12}{46}{R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{section.5.12}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.12}R1: Persistent Co-location (\texttt  {saucepan\_to\_hob})}{46}{section.5.12}\protected@file@percent }
+\newlabel{sec:results:r1}{{5.12}{46}{R1: Persistent Co-location (\texttt {saucepan\_to\_hob})}{section.5.12}{}}
 \newlabel{sec:results:r1@cref}{{[section][12][5]5.12}{[1][46][]46}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.12.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.12.1}\protected@file@percent }
 \newlabel{sec:results:cost-signal}{{5.12.1}{46}{E3.1: Cost-Signal Form Is Not the Operative Variable}{subsection.5.12.1}{}}
@@ -667,8 +664,8 @@
 \@writefile{lot}{\contentsline {table}{\numberline {5.10}{\ignorespaces Experiment E5.2. The proactive policy's proximity reduction generalises to the wider, gentler held-out coworker distribution. The absolute rate is lower on \texttt  {coworker\_eval} (the gentler coworker approaches less), but the proportional reduction is preserved; the larger success cost reflects $\lambda = 0.1$ over-constraining a distribution it was not tuned for.}}{54}{table.caption.58}\protected@file@percent }
 \newlabel{tab:e5.2-ood}{{5.10}{54}{Experiment E5.2. The proactive policy's proximity reduction generalises to the wider, gentler held-out coworker distribution. The absolute rate is lower on \texttt {coworker\_eval} (the gentler coworker approaches less), but the proportional reduction is preserved; the larger success cost reflects $\lambda = 0.1$ over-constraining a distribution it was not tuned for}{table.caption.58}{}}
 \newlabel{tab:e5.2-ood@cref}{{[table][10][5]5.10}{[1][54][]54}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.14}R2 --- Intermittent Co-location: \texttt  {dishwasher\_close} and \texttt  {drawers\_open\_all}}{54}{section.5.14}\protected@file@percent }
-\newlabel{sec:results:r2}{{5.14}{54}{R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{section.5.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.14}R2: Intermittent Co-location (\texttt  {dishwasher\_close} and \texttt  {drawers\_open\_all})}{54}{section.5.14}\protected@file@percent }
+\newlabel{sec:results:r2}{{5.14}{54}{R2: Intermittent Co-location (\texttt {dishwasher\_close} and \texttt {drawers\_open\_all})}{section.5.14}{}}
 \newlabel{sec:results:r2@cref}{{[section][14][5]5.14}{[1][54][]54}}
 \citation{yang2021wcsac}
 \citation{yang2021wcsac}
@@ -692,8 +689,8 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.14.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.14.3}\protected@file@percent }
 \newlabel{sec:results:r2-uncond}{{5.14.3}{56}{E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{subsection.5.14.3}{}}
 \newlabel{sec:results:r2-uncond@cref}{{[subsection][3][5,14]5.14.3}{[1][56][]56}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.14.4}\protected@file@percent }
-\newlabel{sec:results:r2-gated}{{5.14.4}{56}{E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{subsection.5.14.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling (the When/How Split Recovers the Task)}{56}{subsection.5.14.4}\protected@file@percent }
+\newlabel{sec:results:r2-gated}{{5.14.4}{56}{E2.6: Critic-Gated Speed-Scaling (the When/How Split Recovers the Task)}{subsection.5.14.4}{}}
 \newlabel{sec:results:r2-gated@cref}{{[subsection][4][5,14]5.14.4}{[1][56][]56}}
 \@writefile{lot}{\contentsline {table}{\numberline {5.13}{\ignorespaces The R2 method comparison (60 episodes per cell, \texttt  {noisy}, \textsc  {coworker}{}; both safety axes reported per the R0 protocol). $\Delta $ columns are relative to each task's unconstrained baseline. The Lagrangian rows are the best basin checkpoints from the seed-unstable E3.3 sweep and carry that caveat (Section~\ref {sec:results:r2-lagrangian}); WCSAC rows are the external from-scratch reference at its best budget (single seed, \texttt  {oracle} perception). Only critic-gated speed-scaling reduces the SSM{}-velocity axis substantially while keeping success within $0.10$ of baseline.}}{57}{table.caption.64}\protected@file@percent }
 \newlabel{tab:r2-methods}{{5.13}{57}{The R2 method comparison (60 episodes per cell, \texttt {noisy}, \coworker {}; both safety axes reported per the R0 protocol). $\Delta $ columns are relative to each task's unconstrained baseline. The Lagrangian rows are the best basin checkpoints from the seed-unstable E3.3 sweep and carry that caveat (Section~\ref {sec:results:r2-lagrangian}); WCSAC rows are the external from-scratch reference at its best budget (single seed, \texttt {oracle} perception). Only critic-gated speed-scaling reduces the \ssm {}-velocity axis substantially while keeping success within $0.10$ of baseline}{table.caption.64}{}}
@@ -707,8 +704,8 @@
 \@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces The gate threshold $R$ is a clean operating-point dial: low $R$ is selective (near-baseline success, small SSM{} gain), high $R$ approaches unconditional scaling. The dominance claim is task-scoped, per the R0 protocol: on \emph  {dishwasher} the gated frontier matches unconditional scaling's SSM{}-violation at strictly higher success; on \emph  {drawers} the gated frontier never reaches unconditional's absolute floor ($0.059$ vs.\ best gated $0.078$) but pays far less success at every \emph  {shared} SSM{}-violation level.}}{58}{figure.caption.66}\protected@file@percent }
 \newlabel{fig:r2-tradeoff}{{5.7}{58}{The gate threshold $R$ is a clean operating-point dial: low $R$ is selective (near-baseline success, small \ssm {} gain), high $R$ approaches unconditional scaling. The dominance claim is task-scoped, per the R0 protocol: on \emph {dishwasher} the gated frontier matches unconditional scaling's \ssm {}-violation at strictly higher success; on \emph {drawers} the gated frontier never reaches unconditional's absolute floor ($0.059$ vs.\ best gated $0.078$) but pays far less success at every \emph {shared} \ssm {}-violation level}{figure.caption.66}{}}
 \newlabel{fig:r2-tradeoff@cref}{{[figure][7][5]5.7}{[1][57][]58}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.15}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.15}\protected@file@percent }
-\newlabel{sec:results:boundary}{{5.15}{58}{R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{section.5.15}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.15}R3: The Boundary Condition (One Law, Measured Across Three Tasks)}{58}{section.5.15}\protected@file@percent }
+\newlabel{sec:results:boundary}{{5.15}{58}{R3: The Boundary Condition (One Law, Measured Across Three Tasks)}{section.5.15}{}}
 \newlabel{sec:results:boundary@cref}{{[section][15][5]5.15}{[1][58][]58}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.15.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.15.1}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {5.14}{\ignorespaces Experiment E4.4. Critic-gated speed-scaling on \texttt  {saucepan\_to\_hob} (180 episodes per row, 3 trained seeds; \texttt  {noisy}; \texttt  {snapshot\_best} checkpoints, see the caveat box). The pre-registered rule, success $\geq 0.60$ \emph  {and} SSM{}-actual $\leq 0.08$, is met by no row: gating slides from policy-alone toward the unconditional point without opening a corner. The on-policy re-collected critic (v3op) does not help either, at $R = 2.0$ its SSM{}-actual ($0.149$) is \emph  {worse} than policy-alone ($0.138$), confirming the limit is task structure, not critic calibration.}}{59}{table.caption.67}\protected@file@percent }
@@ -742,7 +739,7 @@
 \newlabel{sec:disc:rqs-revisited@cref}{{[section][1][6]6.1}{[1][63][]63}}
 \citation{narvekar2020curriculum,openai2019solving,rudin2022walkminutes}
 \citation{henning2023bodyslampp}
-\citation{tobin2017domainrand,zhao2020sim2real,muratore2022randomized}
+\citation{tobin2017domainrand,muratore2022randomized}
 \citation{radosavovic2024humanoid}
 \citation{todorov2012mujoco}
 \citation{acosta2022simvalidation}
@@ -792,7 +789,7 @@
 \citation{yang2021wcsac}
 \citation{dabney2018qrdqn}
 \citation{kim2022offtrc}
-\citation{kim2023sdac,kim2024srcpo}
+\citation{kim2023sdac}
 \@writefile{toc}{\contentsline {chapter}{\numberline {7}Future Work}{68}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
@@ -861,8 +858,8 @@
 \bibcite{iso15066}{{11}{}{{}}{{}}}
 \bibcite{iso10218}{{12}{}{{}}{{}}}
 \bibcite{hartmann2026iso}{{13}{}{{}}{{}}}
-\bibcite{koczi2025humanoidsafety}{{14}{}{{}}{{}}}
 \@writefile{toc}{\contentsline {chapter}{Bibliography}{72}{section*.79}\protected@file@percent }
+\bibcite{koczi2025humanoidsafety}{{14}{}{{}}{{}}}
 \bibcite{ieee2025pathway}{{15}{}{{}}{{}}}
 \bibcite{auditing2021}{{16}{}{{}}{{}}}
 \bibcite{robey2025jailbreaking}{{17}{}{{}}{{}}}
@@ -886,61 +883,56 @@
 \bibcite{marvel2017implementing}{{35}{}{{}}{{}}}
 \bibcite{svarny2020collision}{{36}{}{{}}{{}}}
 \bibcite{svarny2022softskins}{{37}{}{{}}{{}}}
-\bibcite{rozlivek2025harmonious}{{38}{}{{}}{{}}}
-\bibcite{achiam2017cpo}{{39}{}{{}}{{}}}
-\bibcite{he2023autocost}{{40}{}{{}}{{}}}
-\bibcite{bellemare2017c51}{{41}{}{{}}{{}}}
-\bibcite{yarats2021drqv2}{{42}{}{{}}{{}}}
-\bibcite{narvekar2020curriculum}{{43}{}{{}}{{}}}
-\bibcite{openai2019solving}{{44}{}{{}}{{}}}
-\bibcite{rudin2022walkminutes}{{45}{}{{}}{{}}}
-\bibcite{zhuang2024parkour}{{46}{}{{}}{{}}}
-\bibcite{altman1999constrained}{{47}{}{{}}{{}}}
-\bibcite{garcia2015comprehensive}{{48}{}{{}}{{}}}
-\bibcite{yang2023wcsacjournal}{{49}{}{{}}{{}}}
-\bibcite{dabney2018qrdqn}{{50}{}{{}}{{}}}
-\bibcite{konighofer2025shields}{{51}{}{{}}{{}}}
-\bibcite{bansal2017hamilton}{{52}{}{{}}{{}}}
-\bibcite{ganai2024hjsurvey}{{53}{}{{}}{{}}}
-\bibcite{wabersich2023datadriven}{{54}{}{{}}{{}}}
-\bibcite{hsu2024safetyfilter}{{55}{}{{}}{{}}}
-\bibcite{cbfrl2024}{{56}{}{{}}{{}}}
-\bibcite{kumar2020cql}{{57}{}{{}}{{}}}
-\bibcite{khazoom2022selfcollision}{{58}{}{{}}{{}}}
-\bibcite{morton2025oscbf}{{59}{}{{}}{{}}}
-\bibcite{bena2025poisson}{{60}{}{{}}{{}}}
-\bibcite{sun2025spark}{{61}{}{{}}{{}}}
-\bibcite{cai2026humanoidcbf}{{62}{}{{}}{{}}}
-\bibcite{nakamura2025latent}{{63}{}{{}}{{}}}
-\bibcite{latentcbf2025}{{64}{}{{}}{{}}}
-\bibcite{permissivefilter2025}{{65}{}{{}}{{}}}
-\bibcite{tian2022confidence}{{66}{}{{}}{{}}}
-\bibcite{trautman2010freezing}{{67}{}{{}}{{}}}
-\bibcite{dontfreeze2026}{{68}{}{{}}{{}}}
-\bibcite{krasowski2023provablysafe}{{69}{}{{}}{{}}}
-\bibcite{prudencio2024offlinesurvey}{{70}{}{{}}{{}}}
-\bibcite{xu2022cpq}{{71}{}{{}}{{}}}
-\bibcite{tobin2017domainrand}{{72}{}{{}}{{}}}
-\bibcite{zhao2020sim2real}{{73}{}{{}}{{}}}
-\bibcite{muratore2022randomized}{{74}{}{{}}{{}}}
-\bibcite{shin2024wham}{{75}{}{{}}{{}}}
-\bibcite{wang2024tram}{{76}{}{{}}{{}}}
-\bibcite{zhang2025safevla}{{77}{}{{}}{{}}}
-\bibcite{james2020rlbench}{{78}{}{{}}{{}}}
-\bibcite{erickson2020assistivegym}{{79}{}{{}}{{}}}
-\bibcite{ye2022rcareworld}{{80}{}{{}}{{}}}
-\bibcite{puig2024habitat3}{{81}{}{{}}{{}}}
-\bibcite{romero2017smplh}{{82}{}{{}}{{}}}
-\bibcite{tian2023meshsurvey}{{83}{}{{}}{{}}}
-\bibcite{mahmood2019amass}{{84}{}{{}}{{}}}
-\bibcite{radosavovic2024humanoid}{{85}{}{{}}{{}}}
-\bibcite{todorov2012mujoco}{{86}{}{{}}{{}}}
-\bibcite{acosta2022simvalidation}{{87}{}{{}}{{}}}
-\bibcite{joseph2026mujoco}{{88}{}{{}}{{}}}
-\bibcite{schlotzhauer2022pfl}{{89}{}{{}}{{}}}
-\bibcite{kim2022offtrc}{{90}{}{{}}{{}}}
-\bibcite{kim2023sdac}{{91}{}{{}}{{}}}
-\bibcite{kim2024srcpo}{{92}{}{{}}{{}}}
+\bibcite{achiam2017cpo}{{38}{}{{}}{{}}}
+\bibcite{he2023autocost}{{39}{}{{}}{{}}}
+\bibcite{bellemare2017c51}{{40}{}{{}}{{}}}
+\bibcite{yarats2021drqv2}{{41}{}{{}}{{}}}
+\bibcite{narvekar2020curriculum}{{42}{}{{}}{{}}}
+\bibcite{openai2019solving}{{43}{}{{}}{{}}}
+\bibcite{rudin2022walkminutes}{{44}{}{{}}{{}}}
+\bibcite{zhuang2024parkour}{{45}{}{{}}{{}}}
+\bibcite{altman1999constrained}{{46}{}{{}}{{}}}
+\bibcite{garcia2015comprehensive}{{47}{}{{}}{{}}}
+\bibcite{yang2023wcsacjournal}{{48}{}{{}}{{}}}
+\bibcite{dabney2018qrdqn}{{49}{}{{}}{{}}}
+\bibcite{konighofer2025shields}{{50}{}{{}}{{}}}
+\bibcite{bansal2017hamilton}{{51}{}{{}}{{}}}
+\bibcite{ganai2024hjsurvey}{{52}{}{{}}{{}}}
+\bibcite{wabersich2023datadriven}{{53}{}{{}}{{}}}
+\bibcite{hsu2024safetyfilter}{{54}{}{{}}{{}}}
+\bibcite{cbfrl2024}{{55}{}{{}}{{}}}
+\bibcite{kumar2020cql}{{56}{}{{}}{{}}}
+\bibcite{khazoom2022selfcollision}{{57}{}{{}}{{}}}
+\bibcite{morton2025oscbf}{{58}{}{{}}{{}}}
+\bibcite{bena2025poisson}{{59}{}{{}}{{}}}
+\bibcite{sun2025spark}{{60}{}{{}}{{}}}
+\bibcite{cai2026humanoidcbf}{{61}{}{{}}{{}}}
+\bibcite{nakamura2025latent}{{62}{}{{}}{{}}}
+\bibcite{latentcbf2025}{{63}{}{{}}{{}}}
+\bibcite{permissivefilter2025}{{64}{}{{}}{{}}}
+\bibcite{tian2022confidence}{{65}{}{{}}{{}}}
+\bibcite{trautman2010freezing}{{66}{}{{}}{{}}}
+\bibcite{dontfreeze2026}{{67}{}{{}}{{}}}
+\bibcite{krasowski2023provablysafe}{{68}{}{{}}{{}}}
+\bibcite{prudencio2024offlinesurvey}{{69}{}{{}}{{}}}
+\bibcite{xu2022cpq}{{70}{}{{}}{{}}}
+\bibcite{tobin2017domainrand}{{71}{}{{}}{{}}}
+\bibcite{muratore2022randomized}{{72}{}{{}}{{}}}
+\bibcite{shin2024wham}{{73}{}{{}}{{}}}
+\bibcite{zhang2025safevla}{{74}{}{{}}{{}}}
+\bibcite{james2020rlbench}{{75}{}{{}}{{}}}
+\bibcite{erickson2020assistivegym}{{76}{}{{}}{{}}}
+\bibcite{puig2024habitat3}{{77}{}{{}}{{}}}
+\bibcite{romero2017smplh}{{78}{}{{}}{{}}}
+\bibcite{tian2023meshsurvey}{{79}{}{{}}{{}}}
+\bibcite{mahmood2019amass}{{80}{}{{}}{{}}}
+\bibcite{radosavovic2024humanoid}{{81}{}{{}}{{}}}
+\bibcite{todorov2012mujoco}{{82}{}{{}}{{}}}
+\bibcite{acosta2022simvalidation}{{83}{}{{}}{{}}}
+\bibcite{joseph2026mujoco}{{84}{}{{}}{{}}}
+\bibcite{schlotzhauer2022pfl}{{85}{}{{}}{{}}}
+\bibcite{kim2022offtrc}{{86}{}{{}}{{}}}
+\bibcite{kim2023sdac}{{87}{}{{}}{{}}}
 \citation{seo2024cqnas}
 \@writefile{toc}{\contentsline {chapter}{\numberline {A}Hyperparameter Tables}{79}{appendix.A}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}

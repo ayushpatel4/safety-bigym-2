@@ -493,3 +493,53 @@ limit).
 - Stale-terms grep (`to our knowledge|load-bearing|byte-for-byte|
   else-branch|working draft|VERIFY`): zero matches in `main.tex`.
 - 92/92 bibliography entries cited in text. Content pp. 11–70 (60/60).
+
+## Reference dedup + em-dash removal (2026-06-11, second pass)
+
+### Redundant references removed (92 → 87, all remaining entries cited)
+
+Removal rule: an entry is redundant only if every claim it supports is fully
+carried by another reference at the same citation site.
+
+- `zhao2020sim2real` (SSCI 2020 survey) — superseded by Muratore et al. 2022
+  in both of its clusters (§2.6.1 dynamics gap, §6.2.3 domain randomisation).
+- `ye2022rcareworld` — identical benchmark-table profile to Assistive Gym
+  (✗ ✓ ✗ ✗ ✓); the human-axis line is still carried by Assistive Gym,
+  Habitat 3.0, and Human-Robot Gym.
+- `wang2024tram` — second exemplar of the world-grounded estimator wave;
+  WHAM alone carries the point ("estimators such as WHAM").
+- `kim2024srcpo` — third instrument in the CVaR future-work sentence;
+  OffTRC (off-policy fit) + SDAC (distributional) suffice.
+- `rozlivek2025harmonious` — nice-to-have lineage aside in §2.1.2, removed
+  with its sentence.
+
+Considered and kept (each carries a distinct claim): hundt2025llmrobots
+(pairs with robey2025 for the plural "audits"), koczi2025 + ieee2025pathway
+(peer-reviewed cover + authoritative quote), bena/sun/cai (three distinct
+prongs of the CBF-scalability evidence), acosta/joseph/schlotzhauer (three
+prongs of the contact-fidelity claim), marvel2017 (canonical SSM
+implementation), erickson2020assistivegym (kept over RCareWorld as the
+recognised canonical).
+
+### Em-dashes removed (rendered PDF now contains zero)
+
+- Prose pair §2.4.1 ("filter---and its cost---") → parentheses.
+- Section titles R1/R2/R3 and E2.6 ("R1 --- Persistent ...") → colon + parens
+  form ("R1: Persistent Co-location (saucepan_to_hob)").
+- Four TikZ comment markers → plain comments.
+- IEEEtran.bst's long dash for repeated bibliography authors (ISO ×3,
+  Unitree ×2) disabled via an `@IEEEtranBSTCTL{BSTcontrol,
+  CTLdash_repeated_names="no"}` entry + `\bstctlcite{BSTcontrol}` after
+  `\begin{document}` — repeated authors now print in full.
+- Kóczi & Sárosi title em-dash downgraded to an en-dash (the published title
+  uses an em-dash; en-dash keeps the title findable without the banned glyph).
+- En-dashes (ranges, "6--7-DoF", "human--robot") are untouched: they are not
+  em-dashes.
+
+### Validation (second pass)
+
+- pdflatex + bibtex + pdflatex ×2: zero errors, zero undefined
+  references/citations, zero bibtex warnings; BSTcontrol detected by
+  IEEEtran.bst.
+- `grep -c -- '---' main.tex main.bbl` → 0, 0; rendered-PDF em-dash count 0.
+- 87/87 bibliography entries cited. Content pp. 11–70 (60/60 limit).

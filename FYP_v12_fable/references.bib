@@ -9,6 +9,13 @@
 % the ISO catalogue. See REFERENCES_AUDIT.md for the per-entry audit trail.
 % =============================================================================
 
+% IEEEtran.bst control entry: disables the long-dash replacement of
+% repeated author names in the rendered bibliography (cited via
+% \bstctlcite{BSTcontrol} in main.tex; does not itself appear in the list).
+@IEEEtranBSTCTL{BSTcontrol,
+  CTLdash_repeated_names = "no"
+}
+
 % -- ISO 15066 & collaborative robot standards ===
 
 @misc{iso15066,
@@ -399,14 +406,6 @@
   year      = {2017}
 }
 
-@inproceedings{zhao2020sim2real,
-  author    = {Zhao, Wenshuai and Queralta, Jorge Pe{\~n}a and Westerlund, Tomi},
-  title     = {Sim-to-real transfer in deep reinforcement learning for robotics: A survey},
-  booktitle = {IEEE Symposium Series on Computational Intelligence (SSCI)},
-  pages     = {737--744},
-  year      = {2020}
-}
-
 % -- Simulator and tooling ===
 
 @inproceedings{todorov2012mujoco,
@@ -579,18 +578,9 @@
   note      = {arXiv:1910.04700}
 }
 
-@inproceedings{ye2022rcareworld,
-  author    = {Ye, Ruolin and Xu, Wenqiang and Fu, Haoyuan and Jenamani, Rajat Kumar and Nguyen, Vy and Lu, Cewu and Dimitropoulou, Katherine and Bhattacharjee, Tapomayukh},
-  title     = {{RCareWorld}: A human-centric simulation world for caregiving robots},
-  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
-  pages     = {33--40},
-  year      = {2022},
-  note      = {arXiv:2210.10821}
-}
-
 @article{koczi2025humanoidsafety,
   author  = {K{\'o}czi, D{\'a}vid and S{\'a}rosi, J{\'o}zsef},
-  title   = {Safety engineering for humanoid robots in everyday life---scoping review},
+  title   = {Safety engineering for humanoid robots in everyday life--scoping review},
   journal = {Electronics},
   volume  = {14},
   number  = {23},
@@ -616,16 +606,6 @@
   pages   = {102363},
   year    = {2022},
   doi     = {10.1016/j.rcim.2022.102363}
-}
-
-@article{rozlivek2025harmonious,
-  author  = {Rozlivek, Jakub and Roncone, Alessandro and Pattacini, Ugo and Hoffmann, Matej},
-  title   = {{HARMONIOUS}---Human-like reactive motion control and multimodal perception for humanoid robots},
-  journal = {IEEE Transactions on Robotics},
-  volume  = {41},
-  pages   = {378--393},
-  year    = {2025},
-  doi     = {10.1109/TRO.2024.3502216}
 }
 
 @inproceedings{bena2025poisson,
@@ -750,15 +730,6 @@
   note      = {arXiv:2312.07531}
 }
 
-@inproceedings{wang2024tram,
-  author    = {Wang, Yufu and Wang, Ziyun and Liu, Lingjie and Daniilidis, Kostas},
-  title     = {{TRAM}: Global trajectory and motion of {3D} humans from in-the-wild videos},
-  booktitle = {European Conference on Computer Vision (ECCV)},
-  pages     = {467--487},
-  year      = {2024},
-  note      = {arXiv:2403.17346}
-}
-
 @inproceedings{rudin2022walkminutes,
   author    = {Rudin, Nikita and Hoeller, David and Reist, Philipp and Hutter, Marco},
   title     = {Learning to walk in minutes using massively parallel deep reinforcement learning},
@@ -838,14 +809,6 @@
   booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
   year      = {2023},
   note      = {arXiv:2301.10923}
-}
-
-@inproceedings{kim2024srcpo,
-  author    = {Kim, Dohyeong and Cho, Taehyun and Han, Seungyub and Chung, Hojun and Lee, Kyungjae and Oh, Songhwai},
-  title     = {Spectral-risk safe reinforcement learning with convergence guarantees},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2024},
-  note      = {arXiv:2405.18698}
 }
 
 @inproceedings{robey2025jailbreaking,

@@ -118,7 +118,7 @@
 \contentsline {section}{\numberline {5.11}RQ1: The Human-State Observation Channel}{45}{section.5.11}%
 \contentsline {subsection}{\numberline {5.11.1}E1.1: Behaviour Cloning under No Penalty (Negative)}{45}{subsection.5.11.1}%
 \contentsline {subsection}{\numberline {5.11.2}E3.6: Perception Robustness of the Avoidance (oracle vs.\ noisy)}{45}{subsection.5.11.2}%
-\contentsline {section}{\numberline {5.12}R1 --- Persistent Co-location: \texttt {saucepan\_to\_hob}}{46}{section.5.12}%
+\contentsline {section}{\numberline {5.12}R1: Persistent Co-location (\texttt {saucepan\_to\_hob})}{46}{section.5.12}%
 \contentsline {subsection}{\numberline {5.12.1}E3.1: Cost-Signal Form Is Not the Operative Variable}{46}{subsection.5.12.1}%
 \contentsline {subsection}{\numberline {5.12.2}E3.2: Cost Budget Sweep and the Feasibility Boundary}{47}{subsection.5.12.2}%
 \contentsline {subsection}{\numberline {5.12.3}Filter Pareto Frontier (E2.1--E2.3)}{47}{subsection.5.12.3}%
@@ -139,16 +139,16 @@
 \contentsline {section}{\numberline {5.13}RQ4: Tail Risk and OOD Generalisation}{53}{section.5.13}%
 \contentsline {subsection}{\numberline {5.13.1}E5.1: The Worst-Case Tail Is Exogenous and Uncontrollable}{53}{subsection.5.13.1}%
 \contentsline {subsection}{\numberline {5.13.2}E5.2: OOD Generalisation on the Wider Eval Band}{54}{subsection.5.13.2}%
-\contentsline {section}{\numberline {5.14}R2 --- Intermittent Co-location: \texttt {dishwasher\_close} and \texttt {drawers\_open\_all}}{54}{section.5.14}%
+\contentsline {section}{\numberline {5.14}R2: Intermittent Co-location (\texttt {dishwasher\_close} and \texttt {drawers\_open\_all})}{54}{section.5.14}%
 \contentsline {subsection}{\numberline {5.14.1}E3.3: Constrained RL Fails to Bind Usefully (WCSAC Corroborates)}{55}{subsection.5.14.1}%
 \contentsline {paragraph}{Deployment of the best cells confirms the cliff.}{55}{paragraph*.60}%
 \contentsline {paragraph}{When $\lambda $ binds, the robot gets \emph {faster}, not more careful.}{55}{paragraph*.61}%
 \contentsline {paragraph}{The trainability confound, stated honestly, and the external check.}{55}{paragraph*.62}%
 \contentsline {subsection}{\numberline {5.14.2}E2.4: A Binary Veto Breaks a Chunked Policy}{56}{subsection.5.14.2}%
 \contentsline {subsection}{\numberline {5.14.3}E2.5: Unconditional Speed-Scaling Owns the Velocity Axis, at Heavy Cost}{56}{subsection.5.14.3}%
-\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling --- the When/How Split Recovers the Task}{56}{subsection.5.14.4}%
+\contentsline {subsection}{\numberline {5.14.4}E2.6: Critic-Gated Speed-Scaling (the When/How Split Recovers the Task)}{56}{subsection.5.14.4}%
 \contentsline {subsection}{\numberline {5.14.5}E2.6 Ablations: Four Refinements Confirm the Recipe}{57}{subsection.5.14.5}%
-\contentsline {section}{\numberline {5.15}R3 --- The Boundary Condition: One Law, Measured Across Three Tasks}{58}{section.5.15}%
+\contentsline {section}{\numberline {5.15}R3: The Boundary Condition (One Law, Measured Across Three Tasks)}{58}{section.5.15}%
 \contentsline {subsection}{\numberline {5.15.1}E4.4: The Gate Does Not Recover Throughput on Saucepan}{58}{subsection.5.15.1}%
 \contentsline {subsection}{\numberline {5.15.2}The Mechanism, Measured}{59}{subsection.5.15.2}%
 \contentsline {subsection}{\numberline {5.15.3}The Regime Map}{60}{subsection.5.15.3}%

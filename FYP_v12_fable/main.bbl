@@ -66,10 +66,10 @@ C.~Sferrazza, D.-M. Huang, X.~Lin, Y.~Lee, and P.~Abbeel, ``{HumanoidBench}:
 
 \bibitem{unitree_g1}
 \BIBentryALTinterwordspacing
-------, ``Humanoid robot {G1}: Product specification,'' 2024, 35\,kg (with
-  battery), 23--43 joint motors depending on configuration, height 1.32\,m; no
-  collaborative-operation validation under ISO 10218:2025 / ISO/TS 15066.
-  [Online]. Available: \url{https://www.unitree.com/g1/}
+{Unitree Robotics}, ``Humanoid robot {G1}: Product specification,'' 2024,
+  35\,kg (with battery), 23--43 joint motors depending on configuration, height
+  1.32\,m; no collaborative-operation validation under ISO 10218:2025 / ISO/TS
+  15066. [Online]. Available: \url{https://www.unitree.com/g1/}
 \BIBentrySTDinterwordspacing
 
 \bibitem{iso25785}
@@ -85,17 +85,18 @@ C.~Sferrazza, D.-M. Huang, X.~Lin, Y.~Lee, and P.~Abbeel, ``{HumanoidBench}:
 
 \bibitem{iso15066}
 \BIBentryALTinterwordspacing
-------, ``{ISO/TS 15066:2016}: Robots and robotic devices -- collaborative
-  robots,'' Geneva, Switzerland, 2016. [Online]. Available:
-  \url{https://www.iso.org/standard/62996.html}
+{International Organization for Standardization}, ``{ISO/TS 15066:2016}: Robots
+  and robotic devices -- collaborative robots,'' Geneva, Switzerland, 2016.
+  [Online]. Available: \url{https://www.iso.org/standard/62996.html}
 \BIBentrySTDinterwordspacing
 
 \bibitem{iso10218}
 \BIBentryALTinterwordspacing
-------, ``{ISO 10218-1:2025}: Robotics -- safety requirements -- part 1:
-  Industrial robots,'' Geneva, Switzerland, 2025, third edition; incorporates
-  the collaborative-operation requirements of ISO/TS 15066:2016. [Online].
-  Available: \url{https://www.iso.org/standard/73933.html}
+{International Organization for Standardization}, ``{ISO 10218-1:2025}:
+  Robotics -- safety requirements -- part 1: Industrial robots,'' Geneva,
+  Switzerland, 2025, third edition; incorporates the collaborative-operation
+  requirements of ISO/TS 15066:2016. [Online]. Available:
+  \url{https://www.iso.org/standard/73933.html}
 \BIBentrySTDinterwordspacing
 
 \bibitem{hartmann2026iso}
@@ -106,7 +107,7 @@ D.~Hartmann, K.~Ham{\v r}{\'\i}kov{\'a}, A.~Vysock{\'y}, V.~Laciok, and
 
 \bibitem{koczi2025humanoidsafety}
 D.~K{\'o}czi and J.~S{\'a}rosi, ``Safety engineering for humanoid robots in
-  everyday life---scoping review,'' \emph{Electronics}, vol.~14, no.~23, p.
+  everyday life--scoping review,'' \emph{Electronics}, vol.~14, no.~23, p.
   4734, 2025.
 
 \bibitem{ieee2025pathway}
@@ -239,12 +240,6 @@ P.~Svarny, J.~Rozlivek, L.~Rustler, M.~Sramek, {\"O}.~Deli, M.~Zillich, and
   M.~Hoffmann, ``Effect of active and passive protective soft skins on
   collision forces in human-robot collaboration,'' \emph{Robotics and
   Computer-Integrated Manufacturing}, vol.~78, p. 102363, 2022.
-
-\bibitem{rozlivek2025harmonious}
-J.~Rozlivek, A.~Roncone, U.~Pattacini, and M.~Hoffmann,
-  ``{HARMONIOUS}---human-like reactive motion control and multimodal perception
-  for humanoid robots,'' \emph{IEEE Transactions on Robotics}, vol.~41, pp.
-  378--393, 2025.
 
 \bibitem{achiam2017cpo}
 J.~Achiam, D.~Held, A.~Tamar, and P.~Abbeel, ``Constrained policy
@@ -432,11 +427,6 @@ J.~Tobin, R.~Fong, A.~Ray, J.~Schneider, W.~Zaremba, and P.~Abbeel, ``Domain
   real world,'' in \emph{IEEE/RSJ International Conference on Intelligent
   Robots and Systems (IROS)}, 2017, pp. 23--30.
 
-\bibitem{zhao2020sim2real}
-W.~Zhao, J.~P. Queralta, and T.~Westerlund, ``Sim-to-real transfer in deep
-  reinforcement learning for robotics: A survey,'' in \emph{IEEE Symposium
-  Series on Computational Intelligence (SSCI)}, 2020, pp. 737--744.
-
 \bibitem{muratore2022randomized}
 F.~Muratore, F.~Ramos, G.~Turk, W.~Yu, M.~Gienger, and J.~Peters, ``Robot
   learning from randomized simulations: A review,'' \emph{Frontiers in Robotics
@@ -447,11 +437,6 @@ S.~Shin, J.~Kim, E.~Halilaj, and M.~J. Black, ``{WHAM}: Reconstructing
   world-grounded humans with accurate {3D} motion,'' in \emph{IEEE/CVF
   Conference on Computer Vision and Pattern Recognition (CVPR)}, 2024, pp.
   2070--2080, arXiv:2312.07531.
-
-\bibitem{wang2024tram}
-Y.~Wang, Z.~Wang, L.~Liu, and K.~Daniilidis, ``{TRAM}: Global trajectory and
-  motion of {3D} humans from in-the-wild videos,'' in \emph{European Conference
-  on Computer Vision (ECCV)}, 2024, pp. 467--487, arXiv:2403.17346.
 
 \bibitem{zhang2025safevla}
 B.~Zhang, Y.~Zhang, J.~Ji, Y.~Lei, J.~Dai, Y.~Chen, and Y.~Yang, ``{SafeVLA}:
@@ -469,12 +454,6 @@ Z.~Erickson, V.~Gangaram, A.~Kapusta, C.~K. Liu, and C.~C. Kemp, ``Assistive
   {Gym}: A physics simulation framework for assistive robotics,'' in \emph{IEEE
   International Conference on Robotics and Automation (ICRA)}, 2020, pp.
   10\,169--10\,176, arXiv:1910.04700.
-
-\bibitem{ye2022rcareworld}
-R.~Ye, W.~Xu, H.~Fu, R.~K. Jenamani, V.~Nguyen, C.~Lu, K.~Dimitropoulou, and
-  T.~Bhattacharjee, ``{RCareWorld}: A human-centric simulation world for
-  caregiving robots,'' in \emph{IEEE/RSJ International Conference on
-  Intelligent Robots and Systems (IROS)}, 2022, pp. 33--40, arXiv:2210.10821.
 
 \bibitem{puig2024habitat3}
 X.~Puig, E.~Undersander, A.~Szot, M.~Dallaire~Cote, T.-Y. Yang, R.~Partsey
@@ -532,10 +511,5 @@ D.~Kim and S.~Oh, ``Efficient off-policy safe reinforcement learning using
 D.~Kim, K.~Lee, and S.~Oh, ``Trust region-based safe distributional
   reinforcement learning for multiple constraints,'' in \emph{Advances in
   Neural Information Processing Systems (NeurIPS)}, 2023, arXiv:2301.10923.
-
-\bibitem{kim2024srcpo}
-D.~Kim, T.~Cho, S.~Han, H.~Chung, K.~Lee, and S.~Oh, ``Spectral-risk safe
-  reinforcement learning with convergence guarantees,'' in \emph{Advances in
-  Neural Information Processing Systems (NeurIPS)}, 2024, arXiv:2405.18698.
 
 \end{thebibliography}

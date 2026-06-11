@@ -8,6 +8,12 @@
 > Clean build, zero undefined references, content pp. 11–70 (60/60 limit).
 > Two "to our knowledge" hedges replaced with "we found no …" (stale-terms
 > list). See CHANGELOG_v13.md, "Reference modernisation (2026-06-11)".
+>
+> **Second pass (same day):** five redundant entries removed again
+> (zhao2020sim2real, ye2022rcareworld, wang2024tram, kim2024srcpo,
+> rozlivek2025harmonious) → 87 entries, all cited. All em-dashes removed
+> from the report and the rendered bibliography (IEEEtranBSTCTL). See
+> CHANGELOG_v13.md, "Reference dedup + em-dash removal".
 
 **Date:** 2026-06-11
 **Scope:** every reference in `references.bib` older than 2022 (28 of 52 entries), plus every time-sensitive claim those references support in `main.tex`.
