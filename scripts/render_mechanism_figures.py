@@ -110,7 +110,8 @@ class ScriptedRobot:
     avoidance signature of the fixed-lambda policy).
     """
 
-    def __init__(self, mode: str, env):
+    def __init__(self, mode: str, env, cycle_period: float = 4.0,
+                 shuttle_amp: float = 0.0, shuttle_period: float = 6.0):
         self.mode = mode
         self.env = env
         u = env
@@ -122,6 +123,15 @@ class ScriptedRobot:
         self.d_engage = 0.85
         self.max_yield = 0.50
         self.gain = 0.10          # fraction of remaining offset per step
+        # Work-cycle speed + an oblivious base shuttle between two work
+        # spots. The defaults give a placid worker; the speed-scale figure
+        # uses (cycle_period~2, shuttle_amp~0.22) so the no-filter baseline
+        # carries realistic velocity near the coworker — the regime where
+        # the ISO-SSM velocity-adaptive check actually fires.
+        self.cycle_period = float(cycle_period)
+        self.shuttle_amp = float(shuttle_amp)
+        self.shuttle_period = float(shuttle_period)
+        self._shuttle_dir = None
 
     def _arm_qpos_addresses(self) -> List[int]:
         m = self._raw._mojo.model
@@ -154,9 +164,17 @@ class ScriptedRobot:
         base = self.base_xy()
         if self._anchor is None:
             self._anchor = base.copy()
+            if self.shuttle_amp > 0.0:
+                # Sweep PERPENDICULAR to the walk-in axis: lateral workspace
+                # motion beside the coworker (realistic velocity at small
+                # separation) without driving the base into them.
+                d = self.human_xy() - self._anchor
+                n = np.linalg.norm(d)
+                d = d / n if n > 1e-6 else np.array([1.0, 0.0])
+                self._shuttle_dir = np.array([-d[1], d[0]])
 
-        # --- arm work cycle (period 4 s: rest -> work -> work_b -> rest) ---
-        ph = (t % 4.0) / 4.0
+        # --- arm work cycle (rest -> work -> work_b -> rest) ---
+        ph = (t % self.cycle_period) / self.cycle_period
         if ph < 0.3:
             k = ph / 0.3
             target = (1 - k) * POSE_REST + k * POSE_WORK
@@ -172,6 +190,12 @@ class ScriptedRobot:
 
         tuck = 1.0
         goal = self._anchor.copy()
+        if self._shuttle_dir is not None:
+            # Oblivious shuttle between two work spots along the walk-in
+            # axis (visible laterally from the episode camera).
+            half = 0.5 * self.shuttle_period
+            sgn = 1.0 if (t % self.shuttle_period) < half else -1.0
+            goal = goal + self._shuttle_dir * (self.shuttle_amp * sgn)
         if self.mode == "lagrangian" and np.isfinite(sep) and sep < self.d_engage:
             # Yield: offset the base goal away from the coworker, scaled by
             # how deep they are inside the engage radius; tuck the arm.
@@ -184,8 +208,12 @@ class ScriptedRobot:
             tuck = float(np.clip((sep - 0.35) / 0.35, 0.15, 1.0))
 
         a[4:14] = tuck * target[:10] + (1 - tuck) * 0.0
-        # base: first-order pursuit of goal, capped step (<= 0.04/step = 0.8 m/s)
-        delta = np.clip(self.gain * (goal - base), -0.04, 0.04)
+        # base: first-order pursuit of goal. The shuttle uses a brisker
+        # pursuit (<= 0.05/step = 1.0 m/s) so the no-filter run carries
+        # SSM-relevant velocity; the default is a placid 0.8 m/s cap.
+        gain, cap = ((0.16, 0.05) if self._shuttle_dir is not None
+                     else (self.gain, 0.04))
+        delta = np.clip(gain * (goal - base), -cap, cap)
         a[DIM_BASE_X], a[DIM_BASE_Y] = float(delta[0]), float(delta[1])
         return a
 
@@ -219,11 +247,12 @@ def run_staged(
     cam_azimuth: Optional[float],
     width: int = 960,
     height: int = 720,
+    behavior_kwargs: Optional[dict] = None,
 ) -> dict:
     import imageio.v2 as imageio
 
     env.reset(seed=seed)
-    robot = ScriptedRobot(mode, env)
+    robot = ScriptedRobot(mode, env, **(behavior_kwargs or {}))
     raw = robot._raw
     hc = raw.human_controller
 
@@ -323,7 +352,7 @@ def _chip(ax, x, y, text, color="white", bg=(0, 0, 0, 0.66), ha="left",
                       pad=3.5, edgecolor="none"))
 
 
-def panel(ax, img, letter, label, t, sep, viol, extra=()):
+def panel(ax, img, letter, label, t, sep, viol, extra=(), status_override=None):
     ax.imshow(img)
     ax.set_xticks([]); ax.set_yticks([])
     for sp in ax.spines.values():
@@ -331,12 +360,13 @@ def panel(ax, img, letter, label, t, sep, viol, extra=()):
         sp.set_linewidth(3.5 if viol else 0.8)
     _chip(ax, 0.025, 0.965, f"({letter})  {label}", size=11.5, weight="bold")
     _chip(ax, 0.975, 0.965, f"t = {t:.1f} s", ha="right", size=10)
-    status, color = rdf._status(sep)
+    status, color = status_override or rdf._status(sep)
+    sep_color = rdf._status(sep)[1]
     sep_txt = "contact" if not np.isfinite(sep) else f"{sep:.2f} m"
     ax.text(0.025, 0.038, f"min sep  {sep_txt}", transform=ax.transAxes,
             ha="left", va="bottom", fontsize=10.5, fontweight="bold",
-            color=color, bbox=dict(facecolor="black", alpha=0.66, pad=3.5,
-                                   edgecolor="none"))
+            color=sep_color, bbox=dict(facecolor="black", alpha=0.66, pad=3.5,
+                                       edgecolor="none"))
     ax.text(0.975, 0.038, status, transform=ax.transAxes, ha="right",
             va="bottom", fontsize=10.5, fontweight="bold", color="white",
             bbox=dict(facecolor=color, alpha=0.92, pad=3.5, edgecolor="none"))
@@ -610,10 +640,20 @@ def compose_speedscale(dumps: Dict[str, Path], series: Dict[str, dict],
     rv_n = np.asarray(sn["robot_vel"])[:n0]
     rv_s = np.asarray(ss["robot_vel"])[:n0]
     sep_s = np.asarray(ss["sep"])[:n0]
-    deep = idx[(sc[idx] < 0.35) & (rv_s[idx] < 0.6 * rv_n[idx])
-               & (sep_s[idx] > 0.12)]
-    i_hold = int(deep[np.argmin(sc[deep])]) if len(deep) \
-        else int(idx[np.argmin(sc[idx])])
+    ssm_n = np.asarray(sn["ssm_actual"], dtype=bool)[:n0]
+    ssm_s = np.asarray(ss["ssm_actual"], dtype=bool)[:n0]
+    # NEAR column: the axis-contrast moment — the no-filter run in
+    # SSM-actual violation while the scaled run (slower) is not, picked at
+    # the largest instantaneous velocity gap outside the contact regime.
+    cand = idx[ssm_n[idx] & ~ssm_s[idx] & (sep_s[idx] > 0.12)
+               & (sc[idx] < 0.6)]
+    if len(cand):
+        i_hold = int(cand[np.argmax(rv_n[cand] - rv_s[cand])])
+    else:
+        deep = idx[(sc[idx] < 0.35) & (rv_s[idx] < 0.6 * rv_n[idx])
+                   & (sep_s[idx] > 0.12)]
+        i_hold = int(deep[np.argmin(sc[deep])]) if len(deep) \
+            else int(idx[np.argmin(sc[idx])])
     part = idx[(sc[idx] > 0.30) & (sc[idx] < 0.85)]
     i_slow = int(part[np.argmin(np.abs(sc[part] - 0.55))]) if len(part) \
         else max(warm, i_hold - int(1.5 * HZ))
@@ -628,23 +668,29 @@ def compose_speedscale(dumps: Dict[str, Path], series: Dict[str, dict],
                            hspace=0.08, wspace=0.03,
                            left=0.04, right=0.985, top=0.955, bottom=0.07)
     letters = "abcdef"
+    # Borders and status chips on THIS figure are keyed to the ISO-SSM
+    # velocity-adaptive violation — the axis the speed-scaling filter
+    # targets (geometric proximity is unchanged by design).
     for r, (tag, s, title, color) in enumerate(
             [("nofilter", sn, "NO FILTER", "#8a2525"),
              ("speedscale", ss, "ISO-SSM SPEED-SCALING", "#1f6b3a")]):
-        for c, idx in enumerate(cols):
-            i = min(idx, len(s["t"]) - 1)
+        for c, idx_c in enumerate(cols):
+            i = min(idx_c, len(s["t"]) - 1)
             ax = fig.add_subplot(gs[r, c])
+            ssm = bool(s["ssm_actual"][i])
             panel(ax, _load_frame(dumps[tag], s, i), letters[r * 3 + c],
                   ["coworker clear", "coworker approaches", "coworker at NEAR"][c],
-                  s["t"][i], s["sep"][i], bool(s["prox"][i]))
+                  s["t"][i], s["sep"][i], ssm,
+                  status_override=(("SSM VIOLATION", "#dc2828") if ssm
+                                   else ("SSM OK", "#28b450")))
             vel = s["robot_vel"][i]
-            ssm = bool(s["ssm_actual"][i])
-            _chip(ax, 0.5, 0.038, f"robot vel {vel:.2f} m/s", ha="center",
-                  va="bottom", size=10,
+            _chip(ax, 0.5, 0.13, f"robot vel {vel:.2f} m/s", ha="center",
+                  va="bottom", size=10, weight="bold",
                   bg="#dc2828" if ssm else (0, 0, 0, 0.66))
             if r == 1:
-                _chip(ax, 0.5, 0.13, f"scale = {s['scale'][i]:.2f}", ha="center",
-                      va="bottom", size=10.5, weight="bold", bg="#1f6b3a")
+                _chip(ax, 0.5, 0.225, f"scale = {s['scale'][i]:.2f}",
+                      ha="center", va="bottom", size=10.5, weight="bold",
+                      bg="#1f6b3a")
             if c == 0:
                 ax.text(-0.045, 0.5, title, transform=ax.transAxes, rotation=90,
                         ha="center", va="center", fontsize=12, fontweight="bold",
@@ -679,8 +725,14 @@ def compose_speedscale(dumps: Dict[str, Path], series: Dict[str, dict],
         axt.text(ti, 0.98, f"({letters[k]}/{letters[k+3]})",
                  transform=axt.get_xaxis_transform(), ha="center", va="top",
                  fontsize=9, fontweight="bold")
-    _footer(fig, "scale = clip((sep−0.15)/(0.40−0.15), 0, 1) — real filter law · "
-                 "benchmark (60 ep): ssm-actual 0.146→0.048 (−67%)")
+    ssm_pct_n = 100.0 * float(ssm_n.mean())
+    ssm_pct_s = 100.0 * float(ssm_s.mean())
+    _footer(fig, f"borders/status: ISO-SSM velocity-adaptive violation (this "
+                 f"filter's target axis; proximity unchanged by design) · "
+                 f"this episode: {ssm_pct_n:.0f}% → {ssm_pct_s:.0f}% of steps "
+                 f"in SSM violation · scale = clip((sep−0.15)/(0.40−0.15), 0, 1)"
+                 f" — real filter law · benchmark (60 ep): ssm-actual "
+                 f"0.146→0.048 (−67%)")
     return _savefig(fig, fig_base)
 
 
@@ -743,7 +795,11 @@ FIGURES = {
               ("speedscale", "baseline", "speedscale")],
         compose=compose_speedscale,
         fig_name="fig_speedscale_mechanism",
-        sim_seconds=40.0),
+        sim_seconds=40.0,
+        # Faster work cycle + oblivious shuttle so the no-filter baseline
+        # carries realistic velocity near the coworker (the regime the
+        # ISO-SSM velocity check penalises and the filter suppresses).
+        behavior=dict(cycle_period=2.0, shuttle_amp=0.22)),
 }
 
 
@@ -808,13 +864,16 @@ def main() -> int:
                          name, tag, mode, fmode)
                 s = run_staged(env, args.seed, mode, fmode,
                                spec["sim_seconds"], args.capture_every,
-                               d, cam_az, args.width, args.height)
+                               d, cam_az, args.width, args.height,
+                               behavior_kwargs=spec.get("behavior"))
                 (d / "series.json").write_text(json.dumps(s))
                 series[tag] = s
                 dumps[tag] = d
-                log.info("    %d steps, prox %.0f%%, min sep %.2f",
+                log.info("    %d steps, prox %.0f%%, ssm-actual %.0f%%, "
+                         "min sep %.2f, vel mean %.2f",
                          len(s["t"]), 100 * np.mean(s["prox"]),
-                         np.nanmin(s["sep"]))
+                         100 * np.mean(s["ssm_actual"]),
+                         np.nanmin(s["sep"]), np.nanmean(s["robot_vel"]))
             outs = spec["compose"](dumps, series, args.fig_dir / spec["fig_name"])
             for o in outs:
                 log.info("wrote %s", o)
