@@ -1,0 +1,38 @@
+{
+  "updated": "2026-06-12",
+  "reason": "v16 dishwasher panel had the coworker cropped out of frame; v16 drawers panel had the coworker clipping through the cabinet",
+  "method": "expert-demo replay mock (baseline snapshots unavailable on this machine; user-directed). Cached BiGym 4-dof absolute demos replayed at native 500 Hz in the live safety env: G1 coworker, COWORKER_PATROL, coworker_train stage-2 band. Separation annotations are env ground truth recorded in the same pass.",
+  "scripts": [
+    "scripts/remake_task_suite_panels.py",
+    "scripts/compose_task_suite.py"
+  ],
+  "saucepan_to_hob": "unchanged from v16 (see task_suite_manifest.json)",
+  "dishwasher_close": {
+    "demo_index": 2,
+    "demo_seed": 2101953890,
+    "scenario_seed": 0,
+    "step": 1600,
+    "demo_len": 3459,
+    "success_step": 2445,
+    "separation_m": 0.22,
+    "episode_near_frac": 0.92,
+    "episode_prox_frac": 0.91,
+    "camera": {"azimuth": 332, "elevation": -20, "distance": 2.3, "lookat": [0.55, -0.05, 0.55]},
+    "frame": "results/figs/task_suite_remake/dishwasher_close/FINAL_ep_d2_s0_k16.png"
+  },
+  "drawers_open_all": {
+    "demo_index": 2,
+    "demo_seed": 98236002,
+    "scenario_seed": 1,
+    "step": 4100,
+    "demo_len": 10045,
+    "success_step": 9041,
+    "separation_m": 0.30,
+    "drawers_open": 2,
+    "max_drawer_extension_m": 0.31,
+    "episode_near_frac": 0.31,
+    "episode_prox_frac": 0.08,
+    "camera": {"azimuth": 90, "elevation": -19, "distance": 2.6, "lookat": [0.35, 0.05, 0.55]},
+    "frame": "results/figs/task_suite_remake/drawers_open_all/rerender_ep_d2_s1_k41_az090.png"
+  }
+}
