@@ -36,10 +36,12 @@ cd safety_bigym
 On macOS, prefer `./venv/bin/python` over activating the venv. Some shells on
 this machine resolve `python` to the system interpreter after activation.
 
-SMPL-H runs need AMASS clips:
+SMPL-H runs need AMASS clips. Point `AMASS_DATA_DIR` at the directory
+containing the CMU subject folders (so that e.g.
+`$AMASS_DATA_DIR/74/74_01_poses.npz` resolves):
 
 ```bash
-export AMASS_DATA_DIR=/Users/ayushpatel/Documents/FYP3/CMU/CMU
+export AMASS_DATA_DIR=/path/to/AMASS/CMU
 ```
 
 G1 coworker runs do not need AMASS.
