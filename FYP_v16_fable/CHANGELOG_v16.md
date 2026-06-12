@@ -202,3 +202,32 @@ pages, content printed pp. 12-71 = 60/60 content pages (at the limit, not
 over; the last content page carries one subsection). Clean build: zero
 errors / undefined refs / bibtex warnings; 87/87 citations; zero
 em-dashes; stale-terms grep clean; every figure/table referenced.
+
+## Post-v16 figure fix (2026-06-12): task_suite panels 2-3 regenerated
+
+The v16 dishwasher_close panel had the coworker essentially out of frame
+(only an arm sliver at the left edge despite "separation here: 0.22 m")
+and the drawers_open_all panel had the coworker standing inside the
+cabinet (mocap pelvis clipping through the worktop). Both panels were
+regenerated; saucepan panel and all bar styling unchanged (bars redrawn
+pixel-matched, QA diff in scripts/compose_task_suite.py --qa).
+
+Provenance change: the new stills come from expert-demo replay in the
+live env (G1 coworker, COWORKER_PATROL, stage-2 band), not baseline
+snapshot rollouts (snapshots are GPU-box-only; mock approved by author).
+Caption weakened accordingly: "live rollouts of each task's
+unconstrained baseline policy" -> "live task executions". Annotated
+separations remain env ground truth (dishwasher 0.22 m, drawers 0.30 m).
+Full provenance: FIGURE_DATA_NOTES.md + task_suite_v17_update.json.
+PDF page count unchanged (same figure dimensions).
+
+### Same-day revision: floor-sink fix (2026-06-12)
+
+The first regenerated panels had the H1 sunk 0.4-0.55 m into the floor:
+the source demos crouch the floating-base pelvis to z 0.45-0.62 and the
+H1's legs don't articulate to the floor (sink ~= 1.0 - pelvis_z). Final
+panels: dishwasher uses the one demo whose manipulation runs at pelvis
+z~0.82 (sep 0.34 m, feet occluded by the open door); drawers is a
+post-success stand-up frame (pelvis commanded back up to z 0.96 with
+delta-z actions in the pad phase — real physics, drawers verified still
+fully open, ext 0.38 each; sep 0.53 m vs the v16 panel's 0.51 m).
