@@ -1,0 +1,41 @@
+{
+  "updated": "2026-06-12",
+  "reason": "v16 dishwasher panel had the coworker cropped out of frame; v16 drawers panel had the coworker clipping through the cabinet. Same-day revision: first replacement pass had the floating-base H1 sunk into the floor (demos crouch pelvis to z 0.45-0.62; legs don't articulate), fixed by tall-demo selection (dishwasher) and a post-success stand-up pad phase (drawers).",
+  "method": "expert-demo replay mock (baseline snapshots unavailable on this machine; user-directed). Cached BiGym 4-dof absolute demos replayed at native 500 Hz in the live safety env: G1 coworker, COWORKER_PATROL, coworker_train stage-2 band. Separation annotations are env ground truth recorded in the same pass. Drawers still uses --pad-stand-rise 0.5: after task success the pelvis is commanded back up via ordinary delta-z actions (real physics, no state surgery); drawers verified still fully open.",
+  "scripts": [
+    "scripts/remake_task_suite_panels.py",
+    "scripts/compose_task_suite.py"
+  ],
+  "saucepan_to_hob": "unchanged from v16 (see task_suite_manifest.json)",
+  "dishwasher_close": {
+    "demo_index": 35,
+    "demo_seed": 3882499936,
+    "scenario_seed": 2,
+    "step": 900,
+    "demo_len": 4249,
+    "success_step": 3234,
+    "pelvis_z": 0.82,
+    "separation_m": 0.34,
+    "episode_near_frac": 0.86,
+    "episode_prox_frac": 0.70,
+    "camera": {"azimuth": 290, "elevation": -20, "distance": 2.7, "lookat": [0.5, -0.45, 0.55]},
+    "frame": "results/figs/task_suite_remake/dishwasher_close/rerender_ep_d35_s2_k9_az290.png"
+  },
+  "drawers_open_all": {
+    "demo_index": 26,
+    "demo_seed": 3720269239,
+    "scenario_seed": 1,
+    "capture_k": 110,
+    "demo_len": 9762,
+    "success_step": 8754,
+    "phase": "post-success stand-up pad (pad_stand_rise=0.5)",
+    "pelvis_z": 0.96,
+    "drawers_open": 3,
+    "drawer_extension_m": 0.38,
+    "separation_m": 0.53,
+    "episode_near_frac": 0.27,
+    "episode_prox_frac": 0.02,
+    "camera": {"azimuth": 75, "elevation": -20, "distance": 2.9, "lookat": [0.3, -0.05, 0.55]},
+    "frame": "results/figs/task_suite_remake/drawers_open_all/rerender_ep_d26_s1_stand_k110_az075.png"
+  }
+}
