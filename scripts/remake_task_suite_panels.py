@@ -219,7 +219,15 @@ def _restore_state(env, st: dict) -> None:
 
 def replay_episode(env, holder, demo: dict, scen_seed: int, out_dir: Path,
                    capture_every: int, pad_seconds: float,
-                   width: int, height: int, task_key: str) -> dict:
+                   width: int, height: int, task_key: str,
+                   pad_stand_rise: float = 0.0) -> dict:
+    """Replay demo actions; optionally stand the robot back up during pad.
+
+    The floating-base entries (action[0:4]) are per-step deltas even in
+    absolute action mode, so a +z delta during the pad phase rises the
+    pelvis through normal env.step physics (no state surgery). Arm and
+    gripper entries hold the demo's final absolute targets.
+    """
     import imageio.v2 as imageio
 
     holder.value = scen_seed
@@ -240,9 +248,18 @@ def replay_episode(env, holder, demo: dict, scen_seed: int, out_dir: Path,
     n_pad = int(pad_seconds * CONTROL_HZ)
     total = len(actions) + n_pad
 
+    rise_per_step = 0.0005  # 0.25 m/s at 500 Hz
+    risen = 0.0
     for i in range(total):
         padded = i >= len(actions)
-        act = actions[min(i, len(actions) - 1)]
+        if padded and pad_stand_rise > 0:
+            act = actions[-1].copy()
+            act[0] = act[1] = act[3] = 0.0
+            dz = min(rise_per_step, pad_stand_rise - risen)
+            act[2] = max(dz, 0.0)
+            risen += act[2]
+        else:
+            act = actions[min(i, len(actions) - 1)]
         _, _, terminated, truncated, info = env.step(act)
         safety = info.get("safety", {}) or {}
         sep = float(safety.get("min_separation", np.nan))
@@ -430,6 +447,9 @@ def main() -> int:
                    help="Capture state+frame every Nth 500 Hz step (100 = 5 fps).")
     p.add_argument("--pad-seconds", type=float, default=5.0,
                    help="Hold the final demo action this long after replay.")
+    p.add_argument("--pad-stand-rise", type=float, default=0.0,
+                   help="During pad, raise the pelvis by this many metres "
+                        "(delta-z actions) so the robot stands back up.")
     p.add_argument("--width", type=int, default=480)
     p.add_argument("--height", type=int, default=360)
     p.add_argument("--out-root", type=Path,
@@ -501,7 +521,8 @@ def main() -> int:
         demos = load_demos(args.task, demo_indices)
         for demo in demos:
             for ss in scen_seeds:
-                ep_dir = task_dir / f"ep_d{demo['index']}_s{ss}"
+                suffix = "_stand" if args.pad_stand_rise > 0 else ""
+                ep_dir = task_dir / f"ep_d{demo['index']}_s{ss}{suffix}"
                 if (ep_dir / "meta.json").exists():
                     log.info("skip existing %s", ep_dir.name)
                     continue
@@ -509,7 +530,8 @@ def main() -> int:
                          demo["index"], demo["seed"], len(demo["actions"]), ss)
                 meta = replay_episode(env, holder, demo, ss, ep_dir,
                                       args.capture_every, args.pad_seconds,
-                                      args.width, args.height, args.task)
+                                      args.width, args.height, args.task,
+                                      pad_stand_rise=args.pad_stand_rise)
                 log.info("  -> success_step=%s min_sep=%.2f near=%.0f%% prox=%.0f%%",
                          meta["success_step"], meta["min_sep"],
                          100 * meta["near_frac"], 100 * meta["prox_frac"])

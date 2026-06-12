@@ -177,18 +177,31 @@ baseline policy" was accordingly weakened to "live task executions"
   capture + camera rerender) then `scripts/compose_task_suite.py`
   (panel swap + bar redraw). Candidates/states under
   `results/figs/task_suite_remake/`.
-- dishwasher_close: demo index 2 (seed 2101953890), coworker scenario
-  seed 0, step 1600/3459 (success at 2445), separation 0.22 m; episode
-  near/prox fractions 0.92/0.91 (cf. v16 manifest eps 0/2 at 0.93/0.89
-  near). Camera az 332, el -20, dist 2.3, lookat (0.55, -0.05, 0.55).
-- drawers_open_all: demo index 2 (seed 98236002), coworker scenario
-  seed 1, step 4100/10045 (success at 9041), separation 0.30 m, two
-  drawers open (0.31 m extension); episode near/prox fractions
-  0.31/0.08 (cf. v16 manifest eps at 0.27-0.56 near). Camera az 90,
-  el -19, dist 2.6, lookat (0.35, 0.05, 0.55).
+- **Floor-sink constraint (first pass was wrong).** The first picks
+  (commit 8c7b7a7) used demos that crouch the floating-base pelvis to
+  z 0.45-0.62; with `floating_base=True` the H1's legs don't articulate
+  to the floor, so the robot rendered sunk ~0.4-0.55 m into it (sink
+  ~= 1.0 - pelvis_z). Final picks constrain pelvis z: the dishwasher
+  still uses the one cached demo whose manipulation runs at z~0.82
+  (sink ~0.18, feet occluded by the open door); no drawers demo opens
+  any drawer above z 0.46, so the drawers still is taken post-success
+  with a `--pad-stand-rise 0.5` pad phase that commands the pelvis
+  back up via ordinary delta-z actions (real env.step physics, no
+  state surgery; all three drawers verified still fully open, ext
+  0.38 each).
+- dishwasher_close: demo index 35 (seed 3882499936), coworker scenario
+  seed 2, step 900/4249 (success at 3234), pelvis z 0.82, separation
+  0.34 m; episode near/prox fractions 0.86/0.70. Camera az 290,
+  el -20, dist 2.7, lookat (0.5, -0.45, 0.55).
+- drawers_open_all: demo index 26 (seed 3720269239), coworker scenario
+  seed 1, padded stand-up frame k110 (post-success; demo 9762 steps,
+  success at 8754), pelvis z 0.96, all three drawers open (0.38 m
+  each), separation 0.53 m (v16 panel annotated 0.51 m); episode
+  near/prox fractions 0.27/0.02. Camera az 75, el -20, dist 2.9,
+  lookat (0.3, -0.05, 0.55).
 - The replay episodes reproduce the documented bimodal dishwasher
-  pattern (scenario seed 0: human-on-robot, near 0.92; seed 1: human
-  stays clear, near 0) and the drawers mid-band (near 0.2-0.3).
+  pattern (close-loiter scenarios near 0.86-0.92; away scenarios
+  near 0) and the drawers mid-band.
 - v16 `task_suite_manifest.json` is retained as the record of the
   original snapshot-based 6-episode rollouts (still the provenance of
   the surviving saucepan panel); the v17 panel provenance is this note

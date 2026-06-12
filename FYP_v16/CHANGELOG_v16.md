@@ -220,3 +220,14 @@ unconstrained baseline policy" -> "live task executions". Annotated
 separations remain env ground truth (dishwasher 0.22 m, drawers 0.30 m).
 Full provenance: FIGURE_DATA_NOTES.md + task_suite_v17_update.json.
 PDF page count unchanged (same figure dimensions).
+
+### Same-day revision: floor-sink fix (2026-06-12)
+
+The first regenerated panels had the H1 sunk 0.4-0.55 m into the floor:
+the source demos crouch the floating-base pelvis to z 0.45-0.62 and the
+H1's legs don't articulate to the floor (sink ~= 1.0 - pelvis_z). Final
+panels: dishwasher uses the one demo whose manipulation runs at pelvis
+z~0.82 (sep 0.34 m, feet occluded by the open door); drawers is a
+post-success stand-up frame (pelvis commanded back up to z 0.96 with
+delta-z actions in the pad phase — real physics, drawers verified still
+fully open, ext 0.38 each; sep 0.53 m vs the v16 panel's 0.51 m).
