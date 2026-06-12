@@ -1,15 +1,13 @@
 # Phase 1 — Mock BodySLAM++ Observation Wrapper
 
-> **Historical/reference doc.** The wrapper remains active, but the Phase 1
-> experiment gates described here are closed or folded into Phase 3. For current
-> observation-channel experiments, see Phase 3 E3.6 in
-> [PHASE3_OVERVIEW.md](PHASE3_OVERVIEW.md).
+> Reference page for the `BodySLAMWrapper` observation channel. The Phase 1
+> experiment gates described here are closed; current observation-channel
+> comparisons are tracked in [PROJECT_PLAN.md](PROJECT_PLAN.md).
 
 Branch: `safety-critic/phase-1-bodyslam-wrapper` (off `main` once the
 Phase-0 retrain merges).
 
-Phase 1 of the [Hybrid Safety Critic plan](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md)
-asks one question: **does giving the policy a noisy estimate of where the
+Phase 1 of the Hybrid Safety Critic project asked one question: **does giving the policy a noisy estimate of where the
 human is help safety?** This phase builds the obs-side plumbing and the
 sweep harness. It deliberately does *not* answer the question — that's the
 job of the GPU sweep + the follow-up `phase1_observation_results.md`.

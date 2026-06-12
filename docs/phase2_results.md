@@ -1,8 +1,9 @@
 # Phase 2 — Implementation & Experiment Results
 
 > Decoupled offline Safety Value Function (SVF) filter — the Hybrid Safety
-> Critic's runtime gate. Per [UPDATED_PROJECT_PLAN.md](UPDATED_PROJECT_PLAN.md)
-> §Phase 2: build a CQL-trained `Q_safe(s, a)` that vetoes unsafe proposed
+> Critic's runtime gate. The Phase 2 objective in
+> [PROJECT_PLAN.md](PROJECT_PLAN.md) is to build a CQL-trained
+> `Q_safe(s, a)` that vetoes unsafe proposed
 > actions through a `gym.Wrapper`, independent of the task policy.
 
 Status: **closed end-to-end as of 2026-05-20** (SMPL-H v1, below). **Re-run
@@ -12,9 +13,9 @@ history.** B5.5 (v2 with snapshot action denormalization) is also closed: the
 patch was correct, but the residual violation floor was structural rather than
 caused by action-subspace narrowness.
 
-Last updated: 2026-05-20. Cross-refs: [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md),
-[CHANGES_AND_NEXT_STEPS.md](CHANGES_AND_NEXT_STEPS.md), [phase2_status.md](phase2_status.md)
-(legacy module-level status — kept for the commit/sub-branch table).
+Last updated: 2026-05-20. Current status lives in
+[IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md); experiment design lives in
+[PROJECT_PLAN.md](PROJECT_PLAN.md).
 
 ---
 

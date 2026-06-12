@@ -2,7 +2,7 @@
 
 **Status: E1.1 closed; E1.4 folded into Phase 3.** This doc reports the E1.1 (BC obs-ablation) result only. The standalone E1.4 reward-on pilot was superseded by the CQN-AS Phase 3 path; the off/oracle/noisy observation-channel question now lives in Phase 3 E3.6.
 
-**E1.1 result: oracle does not help under pure BC.** The oracle observation does **not** clear the [≥20% SSM-rate-reduction success criterion](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) on any of the four ACT cells we tested.
+**E1.1 result: oracle does not help under pure BC.** The oracle observation does **not** clear the planned ≥20% SSM-rate-reduction success criterion on any of the four ACT cells we tested.
 
 **Two readings of this are consistent with the same numbers:**
 
@@ -139,7 +139,7 @@ On `saucepan_to_hob`, oracle does NOT reduce SSM violations (in fact it makes th
 
 Mechanism (inferred from per-disruption rows): on `off`, the policy times out (`episode_length=1000`, the time limit) under CONTACT/OBSTRUCTION/DIRECT — the human is jammed near the hob, the robot can't make progress. With oracle, the policy uses human pose to route around the obstruction and complete the task — but it still risks SSM violations during the routing.
 
-**Implication for Phase 3 cost design:** when the reward landscape is punishing enough, the policy uses human state to *finish the task* before it uses it to *avoid the human*. The fixed penalty `r = r_task − violation_penalty` doesn't make safety competitive with completion reward when completion is hard. This is a strong argument for the [continuous-cost Lagrangian formulation](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) (Phase 3, lines 113–130) where λ is tuned to put hard pressure on safety regardless of task difficulty.
+**Implication for Phase 3 cost design:** when the reward landscape is punishing enough, the policy uses human state to *finish the task* before it uses it to *avoid the human*. The fixed penalty `r = r_task − violation_penalty` doesn't make safety competitive with completion reward when completion is hard. This is a strong argument for the continuous-cost Lagrangian formulation in [PROJECT_PLAN.md](PROJECT_PLAN.md), where λ is tuned to put pressure on safety regardless of task difficulty.
 
 It is also a reason to look at saucepan-style hard tasks specifically when picking the strongest (method, task) pair for E1.2 / E1.3 if those sweeps are ever revisited.
 
@@ -153,7 +153,7 @@ n = 10 episodes per cell. Several rows show identical 4-decimal stats across SHA
 
 ### PFL columns are unreliable
 
-`ep_pfl_violation_rate`, `ep_max_pfl_force_ratio`, `ep_max_contact_force` are identically zero in every single cell — including cases where `ep_min_ssm_margin = −13 m` (saucepan CONTACT off), i.e., the human pelvis is geometrically *inside* the robot's safety envelope. This is a contact-detection bug in BiGym/mojo's runtime robot attachment, not a real result. Investigation summary in [`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md). The 20% conclusion above is **based on SSM only and is unaffected by this bug.**
+`ep_pfl_violation_rate`, `ep_max_pfl_force_ratio`, `ep_max_contact_force` are identically zero in every single cell — including cases where `ep_min_ssm_margin = −13 m` (saucepan CONTACT off), i.e., the human pelvis is geometrically *inside* the robot's safety envelope. This is a contact-detection bug in BiGym/mojo's runtime robot attachment, not a real result. The current diagnostic entry point is [`scripts/diagnose_contact_forces.py`](../scripts/diagnose_contact_forces.py). The 20% conclusion above is **based on SSM only and is unaffected by this bug.**
 
 ### Why DP wasn't run
 
@@ -172,24 +172,11 @@ If a reviewer pushes back, run DP on the strongest of the four ACT cells (drawer
 
 ---
 
-## Phase 1 status
+## Current status
 
-- Phase 1 wrapper (`BodySLAMWrapper`, `bodyslam=off|oracle|noisy`): in main, working. See [`docs/phase1_bodyslam_wrapper.md`](phase1_bodyslam_wrapper.md).
-- E1.1 (BC obs-ablation, ACT): **complete**. Negative under pure BC on all 4 tasks.
-- E1.4 (reward-on RL observation ablation): **folded into Phase 3 E3.6**. The old DrQ-V2+ plan in [phase1_reward_pilot.md](phase1_reward_pilot.md) is historical.
-- E1.2 (noise sweep): **parked**. No strong cell to sweep against under BC; any future observation-channel sweep should be attached to Phase 3 results.
-- E1.3 (temporal ablation): **parked**. Same reason.
-- DP coverage under E1.1: explicitly skipped per the rationale above.
+- Phase 1 wrapper (`BodySLAMWrapper`, `bodyslam=off|oracle|noisy`): implemented and still used by the benchmark and training pipelines. See [`phase1_bodyslam_wrapper.md`](phase1_bodyslam_wrapper.md).
+- E1.1 (BC observation ablation, ACT): complete; negative under pure BC on all four tasks.
+- E1.4, E1.2, and E1.3 are not active experiment tracks. The observation-channel question moved into the Phase 3 policy evaluations described in [PROJECT_PLAN.md](PROJECT_PLAN.md).
+- DP coverage under E1.1 was intentionally skipped for the reasons above.
 
-Open work tracked separately:
-
-- **PFL contact-detection bug.** Plan file at [`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md). Needs a fresh session with BiGym/mojo internals expertise. The 20% conclusion in this doc is **SSM-only** and unaffected by this bug. Phase 2 SVF can begin on SSM-only labels in the meantime; PFL gets retrofit once fixed.
-
-## Next phase
-
-The branch decision (greenlight Phase 2, Phase 3, both, or neither) is **gated on E1.4**.
-
-- **If E1.4 clears the 20% bar on any (off → oracle) cell:** the channel is useful when the training algorithm uses rewards. Phase 3 (constrained RL) becomes the highest-impact next step; Phase 2 is still worthwhile but lower priority.
-- **If E1.4 also fails the bar:** the channel is not useful as a policy input under any training paradigm we've tested. Phase 2 (the channel feeds a separate runtime filter, not the policy) becomes the right place to invest, and the master-plan contingency on [HYBRID_SAFETY_CRITIC_PLAN.md lines 51, 248](../../.claude/HYBRID_SAFETY_CRITIC_PLAN.md) is fully triggered.
-
-Either way, the dataset-collection step from Phase 2 (~500k transitions from BiGym demos + random policy + Phase-1 ACT, labels `r_safe = 0 if ssm_violation else 1`) is unblocked and can run in parallel with E1.4 — it's useful for both branches and the contact bug doesn't gate it (SSM-only labels).
+The PFL contact-detection issue is still separate from this result. The conclusion here is based on SSM/proximity metrics and is not affected by the missing PFL contacts.

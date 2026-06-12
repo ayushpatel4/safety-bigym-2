@@ -59,7 +59,7 @@ The G1-specific names that don't already exist in the SMPL-H map (`L/R_Thigh_col
 
 ### Code modules
 
-- **`safety_bigym/safety_bigym/human/g1_human_spec.py`** — single source of truth: 29-joint name list, standing pose, 14 SSM bodies, arm chains. Imported by all G1-aware modules.
+- **`safety_bigym/safety_bigym/human/g1_human_spec.py`** — shared G1 specification: 29-joint name list, standing pose, 14 SSM bodies, arm chains. Imported by all G1-aware modules.
 - **`safety_bigym/safety_bigym/human/g1_human_controller.py`** — `G1HumanController`, parallel class to `HumanController`. Same external interface (`__init__`, `step`, `reset`, `set_*`); internally no AMASS, body joints PD-held at the standing pose, pelvis mocap-driven by the trajectory planner, IK callback blended in during `"loiter"` phase.
 - **`safety_bigym/safety_bigym/human/g1_human_ik.py`** — `G1HumanIK`, parallel to `HumanIK`. Same external surface; chain definitions come from `g1_human_spec.ARM_CHAINS`; skips the SMPL-H `_x/_y/_z` axis-suffix loop (G1 joints are single-DoF hinges).
 - **`safety_bigym/scripts/build_g1_human_body.py`** — the generator described above.

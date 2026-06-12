@@ -1,6 +1,6 @@
 # Base-task isolation: why `dishwasher_close` / `drawers_open_all` "collapsed", and how to make them train
 
-**Date:** 2026-06-07 · **Author:** Claude Code session "two_tasks"
+**Date:** 2026-06-07
 **Data:** `exp_local/isolation/` · **Aggregate:** `exp_local/isolation/isolation_results.json`, `dispatch_summary.json`
 
 ## TL;DR

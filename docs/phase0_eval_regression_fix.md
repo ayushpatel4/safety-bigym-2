@@ -17,7 +17,7 @@ Training was healthy. Evaluation was effectively running an **untrained** policy
 - **Snapshot-loading miss** — `env_steps=100000` is a restored scalar; would be 0 on a fresh agent.
 - **Action-normalisation bug** — reach qpos came back physically sensible after denormalisation; dishwasher "drift" was just scene-origin geometry, not base drift.
 - **OOD-from-human** — zero-human eval at the 100k snapshot was also 0%.
-- **DP over-trained past peak (original hypothesis in `.claude/plans/cheeky-nibbling-floyd.md`)** — plausible from the W&B curves but wrong. The curves drop to 0 at the end because the *saved* snapshot's eval path was broken, not because the model had forgotten the task.
+- **DP over-trained past peak** — plausible from the W&B curves but wrong. The curves drop to 0 at the end because the *saved* snapshot's eval path was broken, not because the model had forgotten the task.
 
 ## Root cause
 

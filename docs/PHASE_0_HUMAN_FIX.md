@@ -84,9 +84,8 @@ Constants live at [`safety_env.py`](../safety_bigym/envs/safety_env.py#L280) as
 human↔robot, the BiGym/mojo runtime robot attachment suppresses `data.ncon`
 for those pairs in practice — even at 30 cm of bounding-radius overlap with
 `mjOPT_FILTERPARENT` disabled. PFL force capture is therefore identically
-zero across every cell. Open issue tracked at
-[`.claude/plans/pfl_contact_detection_open_bug.md`](../../.claude/plans/pfl_contact_detection_open_bug.md);
-diagnostic at [`scripts/diagnose_contact_forces.py`](../scripts/diagnose_contact_forces.py).
+zero across every cell. The current diagnostic entry point is
+[`scripts/diagnose_contact_forces.py`](../scripts/diagnose_contact_forces.py).
 The 220 kN self-collision bug is genuinely gone; the human↔robot PFL bug is
 not from this work and needs a separate session.
 

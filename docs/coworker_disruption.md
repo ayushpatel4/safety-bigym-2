@@ -7,9 +7,8 @@ than a one-shot intrusion. The human enters the robot's workspace, stays
 nearby for the whole episode, and periodically reaches toward the robot's
 end-effector or the task object — then pulls the arm back to its side and
 waits before reaching again. This is the deployment pattern the safety
-filter will face most often, and it's the dominant failure mode the
-hybrid safety critic (`.claude/HYBRID_SAFETY_CRITIC_PLAN.md` Phase 2/3)
-needs robust training coverage on.
+filter will face most often, and it is the dominant failure mode the
+Hybrid Safety Critic needs robust training coverage on.
 
 Contrast with the legacy one-shot disruption types — `INCIDENTAL`,
 `SHARED_GOAL`, `DIRECT`, `OBSTRUCTION`, `RANDOM_PERTURBED`, `CONTACT` —

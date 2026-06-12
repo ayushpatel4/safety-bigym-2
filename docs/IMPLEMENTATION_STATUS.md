@@ -1,11 +1,13 @@
-# IMPLEMENTATION_STATUS.md
-### Coding-agent brief — `safety_bigym` MEng project
-### Updated: 2026-06-05 (round 4 — RESULT LOCKED: fixed-λ=0.1 is the robust graceful ROW3, −22.8% proximity @ succ 0.76 across 3 seeds)
+# Implementation Status
 
-This document is the **single source of truth for what needs running**.
-It pairs with `REPORT_STRATEGY.md` (why) and `report.tex` (the deliverable).
-Tasks are priority-ordered; smoke gates are mandatory before any
-multi-hour launch.
+Updated: 2026-06-05. The current locked result is fixed-λ=0.1 for the
+graceful row-3 policy: −22.8% proximity violation at 0.76 success across
+three seeds.
+
+This document tracks the experiments, run gates, and remaining work for the
+`safety_bigym` project. The method-level design is in
+[PROJECT_PLAN.md](PROJECT_PLAN.md), and the thesis draft is in
+`FYP_v16_fable/`.
 
 > **2026-06-09 status delta — P9 (WCSAC external baseline) IMPLEMENTED.**
 > - `agent=wcsac` on the CQN-AS stack (`train_cqn_as.py`): faithful Worst-Case
@@ -129,7 +131,7 @@ multi-hour launch.
 > - **All four bugs traced to one cause**: `_build_live_env` is a hand-built
 >   replica of the factory `_create_env`, and each replicated piece (de-norm,
 >   execution, control_frequency, scenario) drifted. All four fixed in svf_collect.
-> - **✅ P2 v3 DONE — critic VALID, but the filter is a velocity backstop, not a
+> - **P2 v3 DONE — critic VALID, but the filter is a velocity backstop, not a
 >   proximity reducer.** Collection at 20 Hz: random source is too slow/unstable
 >   (contact thrash) so collection is **snapshot-only** (`SOURCES=snapshot`, default;
 >   fast + stable + 16.8% unsafe = good class balance). v3 dense sweep
@@ -143,7 +145,7 @@ multi-hour launch.
 >   avoidance is the Lagrangian policy's job (P3). The v1/v2 "31.7%@21.6% knee" was an
 >   artifact of the broken collection (policy never got close). Pinned **R=2.25**
 >   (light backstop) in `snapshots.py`; `_v3` checkpoint now resolves.
-> - **✅ E4.1 rows 1/4 ran; fallback sub-study COMPLETE — reactive filtering hits a
+> - **E4.1 rows 1/4 ran; fallback sub-study COMPLETE — reactive filtering hits a
 >   freeze-vs-flee dilemma on the baseline policy.** Three operating points fully
 >   bracket it (all on the valid v3 critic, `mean_q`≈3, sweep==benchmark confirmed):
 >   - **zero_velocity** (R=2.25, 15% interv): proximity ~unchanged (robot *dwells*
@@ -365,27 +367,27 @@ multi-hour launch.
 
 ---
 
-## What's done (✅)
+## What's done
 
 | Phase | Done | Notes |
 |---|---|---|
-| Phase 0 | ✅ ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
-| Phase 1 | ✅ E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
-| Phase 2 (SMPL-H) | ✅ SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
+| Phase 0 | ACT baseline on 4 tasks | `saucepan_to_hob`, `drawers_open_all`, `dishwasher_close`, `reach_target_single` |
+| Phase 1 | E1.1 obs-ablation (BC, no penalty) | Negative result — channel useless under BC. Reported as load-bearing motivation |
+| Phase 2 (SMPL-H) | SVF dataset + CQL training + filter wrapper + sweeps | $\alpha_{\rm CQL}=5.0$, $R=4.0$. Did **not** transfer to G1 |
 | Phase 2 (G1) | ⚠ **RE-DO v3 (2026-06-01)** — 2 train/deploy bugs fixed | Bug1 action de-norm (`41fd93b`) + Bug2 execution-mode (snapshot policy ran receding-horizon `chunk[0]`, deploy runs ensemble blend → E4.1 row-4 89.5% intervention). Both fixed in `_CQNASSnapshotPolicy`; **v2/R=2.50 superseded**, v3 re-collect pending (`run_p2_recollect_g1.sh`). See status-delta |
-| Adapter | ✅ CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
-| Phase 3 (cost forms) | ✅ P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
-| G1 swap + **P1 curriculum** | ✅ Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
-| P6 harness | ✅ `benchmark_policy.py` built + tested + validated on a real CQN-AS snapshot | See **P6 below** (was pending; now DONE). Docs: `docs/benchmark_harness.md` |
+| Adapter | CQN-AS vendor integration | 8 bugs fixed and documented in `cqn_as_integration_notes.md` |
+| Phase 3 (cost forms) | P3.0/P3.1 smoke + **all 3 E3.1 cost forms wired** | continuous / binary (`cost_form`) / fixed (`add_violation_penalty`); 31 cost tests pass |
+| G1 swap + **P1 curriculum** | Implemented, smoked, **curriculum run** | Stage-2 G1 baseline snapshot in hand (row-1 reference) |
+| P6 harness | `benchmark_policy.py` built + tested + validated on a real CQN-AS snapshot | See **P6 below** (was pending; now DONE). Docs: `docs/benchmark_harness.md` |
 
 ---
 
 ## Priority 1 — mandatory headline (must run for top-mark thesis)
 
-These are the experiments needed to populate `report.tex` headline
-tables and figures. Approximate GPU budget: ~70 A100-hours total.
+These are the experiments needed to populate the headline report tables and
+figures. Approximate GPU budget: ~70 A100-hours total.
 
-### P1. G1 base-policy curriculum (stages 0/1/2) on `saucepan_to_hob` — ✅ DONE (2026-05-30)
+### P1. G1 base-policy curriculum (stages 0/1/2) on `saucepan_to_hob` — DONE (2026-05-30)
 - **Status**: ran via `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`,
   3 stages idle→easy→`coworker_train`, warm-start chained). Snapshots
   (run `base_g1_30k_30k_40k_20260529_124749`, recorded in
@@ -439,7 +441,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   | R | intervention | proximity (τ=0.3) | reduction vs R=0 |
   |---|---|---|---|
   | 0.0 | 0% | 0.0435 | baseline |
-  | **2.25** | **21.6%** | **0.0297** | **31.7%** ✅ |
+  | **2.25** | **21.6%** | **0.0297** | **31.7% (met)** |
   | 2.5 | 34.3% | 0.0265 | 39.1% (interv >25%) |
   | 3.0 | 78.5% | 0.0076 | 82.5% (hard gate, ~frozen) |
 
@@ -458,7 +460,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 ### P3. E3.1: cost-signal form ablation (continuous vs binary vs fixed)
 - **Goal**: validate the load-bearing claim that continuous cost
   dominates binary. Three cells, 3 seeds each.
-- **✅ Cost-form selector LANDED (2026-05-30)** — all three cells wired:
+- **Cost-form selector landed (2026-05-30)** — all three cells wired:
   1. **`filters/cost_signal.py`** — new `select_cost(safety_info, cost_form=...)`
      dispatches `continuous` → `compute_cost` (graded [0,1]) / `binary` →
      `1[ssm_violation]`; exported `COST_FORMS=("continuous","binary")`.
@@ -554,7 +556,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: Row 2 = ~6 h (3 seeds). Rows 4 + 5 are pure eval (~0.5 h
   total). Total marginal: ~6.5 h.
 
-### P6. **Snapshot-evaluation benchmark harness** (`benchmark_policy.py`) — ✅ DONE (2026-05-30)
+### P6. **Snapshot-evaluation benchmark harness** (`benchmark_policy.py`) — DONE (2026-05-30)
 - **Status**: built, unit-tested (8 tests, `tests/test_benchmark_harness.py`),
   and validated end-to-end on the **real CQN-AS snapshot** `snapshot_17826.pt`
   (saucepan_to_hob/G1), filter off and on. Usage doc:
@@ -592,7 +594,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
   benchmark deliverable C1** (§bench:harness).
 - **Acceptance**: smoke test (`--smoke` flag, CPU, < 5 min) runs
   end-to-end and produces a non-empty CSV with the documented schema.
-  ✅ Met — `--smoke` finishes in ~9 s. (Implemented to use a **random
+  Met — `--smoke` finishes in ~9 s. (Implemented to use a **random
   policy** when no `--snapshot` is given, since no Phase-0 ACT snapshot
   exists on this machine; it uses whatever snapshot is passed otherwise.)
   Used as the canonical data source for every results table in the report.
@@ -639,7 +641,7 @@ tables and figures. Approximate GPU budget: ~70 A100-hours total.
 - **GPU**: ~7 h — 3 trained policies on `bodyslam=oracle` (~6 h) + 9 eval cells across 3 modes via the harness (<1 h)
 - **Perception mode**: train on `oracle`; eval sweeps `off / oracle / noisy` (this experiment's whole purpose is to *measure* the perception gap; see Perception Mode Policy in PROJECT_PLAN.md)
 
-### P8. E4.3: filter internalisation curve — ✅ POST-HOC SCRIPT (2026-05-31)
+### P8. E4.3: filter internalisation curve — post-hoc script (2026-05-31)
 - **Goal**: produce the internalisation curve
   (Figure~\ref{fig:e4.3-internalisation}) — direct evidence that
   policy and filter are complementary (filter intervention rate falls as the
@@ -704,7 +706,7 @@ so an examiner can verify the scope was deliberately bounded.
 
 | Was | Now |
 |---|---|
-| P14 — G1 coworker as headline embodiment | ✅ **Promoted to P1**; this *is* the headline. |
+| P14 — G1 coworker as headline embodiment | **Promoted to P1**; this *is* the headline. |
 | P11 — Recovery RL comparison           | **Cut.** Future work §fw:recovery. |
 | P12 — Filter during training ablation  | **Cut.** Future work §fw:filter-during-training. |
 | P13 — Multi-task evaluation suite      | **Cut.** Future work, possible journal extension. |

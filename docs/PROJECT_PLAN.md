@@ -1,15 +1,13 @@
-# Detailed Project Plan: Hybrid Safety Architecture for `safety_bigym`
+# Hybrid Safety Architecture Plan
 
 ## Overview
 
-This plan supersedes `HYBRID_SAFETY_CRITIC_PLAN.md` and the earlier
-`UPDATED_PROJECT_PLAN.md`. It incorporates all completed work through
-the Phase 2 SVF training, the CQN-AS adapter integration, the G1
-coworker swap, and the Phase 3 P3.0/P3.1 smoke validation. It pairs
-with `IMPLEMENTATION_STATUS.md` (high-level overview) and `report.tex`
-(the deliverable). This document is the granular reference: every
-pending task names files, interfaces, acceptance criteria, and
-decision rules.
+This is the working technical plan for the Hybrid Safety Critic in
+`safety_bigym`. It covers the environment safety layer, CQN-AS training
+stack, G1 coworker setup, constrained-RL agent, runtime SVF filter, and
+evaluation harness. Use [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)
+for the current run state and the `FYP_v16_fable/` report directory for the
+written thesis draft.
 
 The hybrid architecture combines two mechanisms: a value-based
 Lagrangian constrained-RL policy on top of the demo-driven CQN-AS
@@ -31,10 +29,10 @@ guarantees needed for ISO 15066 compliance.
 | Phase 2 (SMPL-H) | **COMPLETE** | SVF α_CQL=5.0, R=4.0 — **did not transfer to G1** |
 | Phase 2 (G1) | ⚠ **RE-DO v3 (2026-06-01)** — 2 train/deploy bugs fixed | Bug1 action de-norm (`41fd93b`) + Bug2 execution-mode (collection ran receding-horizon `chunk[0]`; deploy runs `action_sequence=16`+`temporal_ensemble` blend → v2 critic 89.5% intervention at E4.1 row-4, success 0). Both fixed in `_CQNASSnapshotPolicy`. **v1/R=2.25 + v2/R=2.50 superseded**; v3 re-collect pending (`run_p2_recollect_g1.sh`). `phase2_results.md` §0 |
 | CQN-AS adapter | **COMPLETE** | 8 bugs documented and fixed; demo conversion + action-stat sharing + per-env-step cost path validated |
-| G1 coworker swap + **P1 curriculum** | **✅ DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
+| G1 coworker swap + **P1 curriculum** | **DONE (2026-05-30)** | Curriculum ran; stage-2 G1 baseline snapshot in hand (row-1 reference + P3/P5 warm-start) |
 | Phase 3 code | **CODE COMPLETE** | B-value-mean Lagrangian agent; P3.0/P3.1 smokes pass. **All 3 E3.1 cost forms wired (2026-05-30)**: continuous / binary (`env.safety.cost_form`) / fixed (`add_violation_penalty`) |
 | Phase 3 experiments | **PENDING (launch-ready)** | E3.1 (cost-signal form — launcher built), E3.2 (budget Pareto), E3.6 (obs) — **P3, P4, P7 below** |
-| Phase 4 harness | **✅ DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
+| Phase 4 harness | **DONE (2026-05-30)** | `benchmark_policy.py` built, 8 unit tests, validated on real CQN-AS snapshot (± filter). Docs: `docs/benchmark_harness.md` — **P6 below** |
 | Phase 4 headline | **TOOLING READY** | E4.1 eval driver `run_e4_1_headline.sh` + LaTeX aggregator `aggregate_e4_1.py` built; E4.3 internalisation hook in `train_cqn_as` (`filter_passive`). Rows 1/4 runnable now; rest await P3 d_knee — **P5, P8 below** |
 | Phase 5 evaluation | **NOT STARTED** | E5.1 tail risk + E5.2 OOD generalisation — **P10 below** |
 
@@ -260,7 +258,7 @@ smoke pipeline runs ~75s.
   on the previous SMPL-H coworker distribution.
 - **Snapshot:** `checkpoints/svf_coworker_train_v1.pt`.
 
-### P2 — re-eval + retrain under G1 — ✅ CLOSED (2026-05-30)
+### P2 — re-eval + retrain under G1 — CLOSED (2026-05-30)
 
 **Authoritative write-up: `phase2_results.md` §0.** The diagnosis held (old
 checkpoint over-fires on G1), so we recollected on `coworker_train`+`noisy`
@@ -273,12 +271,12 @@ checkpoint over-fires on G1), so we recollected on `coworker_train`+`noisy`
 | R | intervention | proximity (τ=0.3) | reduction vs R=0 |
 |---|---|---|---|
 | 0.0 | 0% | 0.0435 | baseline |
-| **2.25** | **21.6%** | **0.0297** | **31.7%** ✅ |
+| **2.25** | **21.6%** | **0.0297** | **31.7% (met)** |
 | 2.5 | 34.3% | 0.0265 | 39.1% (interv >25%) |
 | 3.0 | 78.5% | 0.0076 | 82.5% (hard gate, ~frozen) |
 
 **Operating point R = 2.25** — pinned in `snapshots.py::SVF_FILTER_THRESHOLD_R`
-(the launchers/driver read it as the single source of truth). It is the **only**
+(the launchers/driver read this value from there). It is the **only**
 threshold meeting the P2 bar (**≥30% reduction at ≤25% intervention**: 31.7% @
 21.6%), and the acceptance bar **IS met** — but **marginally and seed-fragile**
 (per-seed 38.4 / 41.2 / **20.6**%). Low-R interventions (≤2.0) are wasted (~0%
@@ -419,7 +417,7 @@ Documented in `docs/g1_coworker_swap.md`. Implementation:
   convergence, and disruption sampling. End-to-end smoke validated
   on GPU.
 
-### P1 — base-policy curriculum on G1 — ✅ DONE (2026-05-30)
+### P1 — base-policy curriculum on G1 — DONE (2026-05-30)
 
 Ran via `scripts/run_base_curriculum.sh` (`HUMAN_MODEL=g1`, stages
 idle→easy→`coworker_train`, snapshot-resume chained). The **stage-2
@@ -553,7 +551,7 @@ Three cells under the B-value-mean Lagrangian backbone, 3 seeds each:
 | Binary + λ | `c_t ∈ {0, 1}` from `1[ssm_violation]`; PID λ active | Does Lagrangian adaptivity help when cost signal is binary? |
 | **Continuous + λ** (ours) | `c_t = max(c_ssm, c_pfl)` per Equation 4.4 | Headline configuration |
 
-##### ✅ Cost-form selector LANDED (2026-05-30) — all 3 cells wired
+##### Cost-form selector landed (2026-05-30) — all 3 cells wired
 
 The `cost_signal={fixed,binary,continuous}` selector in the pseudocode below was
 a sketch and did **not** exist; it has now been implemented (smaller than first
@@ -779,7 +777,7 @@ emits the canonical metrics schema for every results table in the
 report. (ii) Run the headline E4.1 five-row feature-incremental
 comparison and the E4.3 internalisation curve.
 
-### **P6 — `scripts/benchmark_policy.py` (the benchmark harness)** — ✅ DONE (2026-05-30)
+### **P6 — `scripts/benchmark_policy.py` (the benchmark harness)** — DONE (2026-05-30)
 
 **Status**: built + unit-tested (8 tests) + validated end-to-end on the real
 CQN-AS snapshot `snapshot_17826.pt` (saucepan_to_hob/G1), filter off and on.
@@ -1050,7 +1048,7 @@ python scripts/aggregate_e4_1.py \
 
 The filter intervention rate falls as the policy is Lagrangian-trained.
 
-#### Implementation — ✅ POST-HOC ON NOISY (2026-05-31)
+#### Implementation — post-hoc on noisy (2026-05-31)
 
 **The original "free, piggybacks on P3" plan does NOT work.** It assumed an
 in-training passive hook (`filter_passive.snapshot=...`, still in
@@ -1405,6 +1403,6 @@ At project completion, the following artefacts populate the report:
 | Table~\ref{tab:e5.1-tail} | P10 post-hoc on P5 rolls | Pending P10 (cheap) |
 | Figure~\ref{fig:e5.2-ood} | P10 OOD eval | Pending P10 (cheap) |
 
-Each `\result{X}` marker in `report.tex` maps to a specific table
+Each `\result{X}` marker in the report draft maps to a specific table
 cell above; the populate-the-results pass after P10 is a mechanical
 substitution.

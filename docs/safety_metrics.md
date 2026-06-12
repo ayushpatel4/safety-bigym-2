@@ -155,7 +155,8 @@ are tabulated, but a known BiGym/MuJoCo contact-detection bug causes
 `data.ncon = 0` for every human↔robot pair at runtime regardless of
 geometric overlap. Safety metrics in this report are therefore
 SSM/proximity-based; contact-force-based safety is a documented future
-extension. See [.claude/plans/pfl_contact_detection_open_bug.md](../../.claude/plans/pfl_contact_detection_open_bug.md) and the gotcha in [docs/CLAUDE.md](CLAUDE.md).
+extension. The current diagnostic entry point is
+[`scripts/diagnose_contact_forces.py`](../scripts/diagnose_contact_forces.py).
 
 ## Selecting τ (proximity_threshold)
 
