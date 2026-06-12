@@ -597,7 +597,7 @@ def compose_figure(rec: EpisodeRecord, panels: List[dict], frames_dir: Path,
     gs = gridspec.GridSpec(nrows + 1, ncols, figure=fig,
                            height_ratios=[1.0] * nrows + [0.62],
                            hspace=0.06, wspace=0.025,
-                           left=0.012, right=0.988, top=0.995, bottom=0.075)
+                           left=0.034, right=0.988, top=0.995, bottom=0.075)
 
     for k, p in enumerate(panels):
         ax = fig.add_subplot(gs[k // ncols, k % ncols])
@@ -668,7 +668,7 @@ def compose_figure(rec: EpisodeRecord, panels: List[dict], frames_dir: Path,
     axt.set_ylim(0, ymax)
     axt.set_xlim(t[0], t[-1])
     axt.set_xlabel("episode time (s)", fontsize=11)
-    axt.set_ylabel("distance (m)", fontsize=11)
+    axt.set_ylabel("human–robot distance (m)", fontsize=10.5, labelpad=2)
     axt.tick_params(labelsize=9.5)
     axt.legend(loc="upper right", fontsize=8.5, ncol=2, framealpha=0.9)
     prox_pct = 100.0 * float(viol.mean())
