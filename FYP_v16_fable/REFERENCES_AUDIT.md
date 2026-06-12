@@ -82,3 +82,37 @@ The six *replaced* entries had fabricated or placeholder metadata; in every case
 4. `iso25785` is now a **committee draft** (stage 30.20, May 2026), no longer a working draft — if the prose says "working draft", consider "under development (committee draft as of May 2026)".
 5. `seo2024cqnas` = CQN (CoRL 2024); `seo2025actionsequence` = CQN-AS (NeurIPS 2025). Cite the latter for the action-sequence backbone.
 6. Three entries remain arXiv-preprint-only by design (`srinivasan2020learning`, `latentcbf2025`, `dontfreeze2026`, plus `cbfrl2024`): no published venue exists for them as of 2026-06-10.
+
+---
+
+# Addendum: v16 audit (2026-06-12)
+
+**Scope:** `FYP_v16_fable/references.bib` (was 87 entries; now 62 = exactly the keys cited in `main.tex`).
+**Method:** the 2026-06-10 v12 audit covered 50 of the 87; the remaining 37 were either verified now against primary sources (Crossref/doi.org, IEEE Xplore, dblp, official proceedings/OpenReview, arXiv abs, publisher pages) or removed as uncited. DOI fields back-filled across the whole file.
+
+## Removed (25 entries, uncited in v16 main.tex)
+achiam2017cpo, auditing2021, bena2025poisson, dontfreeze2026, ganai2024hjsurvey,
+garcia2015comprehensive, he2023autocost, iso25785, joseph2026mujoco, kim2022offtrc,
+kim2023sdac, konighofer2025shields, latentcbf2025, marvel2017implementing,
+morton2025oscbf, muratore2022randomized, nakamura2025latent, prudencio2024offlinesurvey,
+rudin2022walkminutes, shin2024wham, sun2025spark, wabersich2023datadriven, xu2022cpq,
+yang2023wcsacjournal, zhuang2024parkour
+(All still recoverable from git history / `references_verified.bib` if prose re-cites them.)
+
+## Key corrections found in this pass
+- `svarny2019unified` — **pages were wrong** (7574–7581 → **7580–7587**; IEEE/Crossref + dblp agree for DOI 10.1109/IROS40897.2019.8968463).
+- `shield2025` — **now published**: IROS 2025 proceedings on Xplore, pp. 203–210, DOI 10.1109/IROS60139.2025.11247065 (was "accepted").
+- `tian2022confidence` — ICRA 2022 pages 11229–11235 + DOI added.
+- `cbfrl2024` — **accepted at IEEE ICRA 2026** (held June 2026); no Xplore record yet → kept as arXiv with 10.48550 DOI + acceptance note. Re-check ~July/Aug 2026 for the proceedings DOI.
+- `permissivefilter2025` — IASEAI'26 held Feb 2026; still no archival DOI → arXiv form kept, note updated.
+- `puig2024habitat3` — expanded "and others" to the full 23-author ICLR 2024 list; OpenReview URL added.
+- `zhang2025safevla` — NeurIPS 2025 (Spotlight) confirmed, vol. 38; OpenReview URL.
+- `tobin2017domainrand`, `unitree_g1` — drift vs the v12 audit reconciled (DOI added; access date added).
+- All 10 previously-unaudited 2025/2026 entries (hartmann2026iso, koczi2025humanoidsafety, ieee2025pathway, hundt2025llmrobots, cai2026humanoidcbf, …) verified to exist; none fabricated.
+
+## DOI / URL coverage policy (now complete: 62/62)
+- 44 entries carry publisher DOIs (incl. RSS 10.15607, AAAI 10.1609, arXiv-only works as 10.48550/arXiv.\<id\>).
+- 18 carry official URLs where the venue issues no DOI: PMLR/CoRL, NeurIPS, ICLR, JMLR, TMLR (OpenReview/proceedings pages), ISO catalogue pages, Unitree product pages, OpenAI reports.
+
+## Style
+`\bibliographystyle{vancouver}` (already set in main.tex) + `vancouver.bst` (v1.0, Folkert van der Beek, NLM/ICMJE implementation) now vendored in this directory so the build does not depend on the TeX installation; it formats doi/url/eprint fields. natbib `[numbers,sort&compress,square]` is compatible.
